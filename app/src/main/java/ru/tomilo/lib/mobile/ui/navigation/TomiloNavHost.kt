@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -26,6 +26,7 @@ import ru.tomilo.lib.mobile.AppContainer
 import ru.tomilo.lib.mobile.ui.screens.admin.AdminScreen
 import ru.tomilo.lib.mobile.ui.screens.auth.LoginScreen
 import ru.tomilo.lib.mobile.ui.screens.bookmarks.BookmarksScreen
+import ru.tomilo.lib.mobile.ui.screens.catalog.CatalogScreen
 import ru.tomilo.lib.mobile.ui.screens.chats.ChatThreadScreen
 import ru.tomilo.lib.mobile.ui.screens.chats.ChatsScreen
 import ru.tomilo.lib.mobile.ui.screens.history.HistoryScreen
@@ -35,7 +36,6 @@ import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
 import ru.tomilo.lib.mobile.ui.screens.profile.ProfileScreen
 import ru.tomilo.lib.mobile.ui.screens.reader.ReaderScreen
-import ru.tomilo.lib.mobile.ui.screens.search.SearchScreen
 import ru.tomilo.lib.mobile.ui.screens.title.TitleScreen
 import ru.tomilo.lib.mobile.ui.screens.user.UserProfileScreen
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -45,6 +45,7 @@ import java.nio.charset.StandardCharsets
 
 object Routes {
     const val Home = "home"
+    const val Catalog = "catalog"
     const val Search = "search"
     const val Bookmarks = "bookmarks"
     const val Chats = "chats"
@@ -84,7 +85,7 @@ fun TomiloNavHost(container: AppContainer) {
 
     val tabs = listOf(
         Tab(Routes.Home, "Главная", Icons.Default.Home),
-        Tab(Routes.Search, "Поиск", Icons.Default.Search),
+        Tab(Routes.Catalog, "Каталог", Icons.Default.GridView),
         Tab(Routes.Bookmarks, "Закладки", Icons.Default.Bookmark),
         Tab(Routes.Chats, "Чаты", Icons.AutoMirrored.Filled.Chat),
         Tab(Routes.Profile, "Профиль", Icons.Default.Person),
@@ -129,10 +130,19 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
+                    onOpenCatalog = {
+                        navController.navigate(Routes.Catalog) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                 )
             }
-            composable(Routes.Search) {
-                SearchScreen(
+            composable(Routes.Catalog) {
+                CatalogScreen(
                     catalogRepository = container.catalogRepository,
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))

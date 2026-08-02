@@ -1,5 +1,8 @@
 package ru.tomilo.lib.mobile.data.repo
 
+import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
+import ru.tomilo.lib.mobile.data.api.CatalogPageDto
+import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
@@ -7,6 +10,30 @@ import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 
 class CatalogRepository(private val api: TomiloApi) {
+    suspend fun catalog(query: CatalogQuery): Result<CatalogPageDto> = runCatching {
+        val res = api.catalogTitles(
+            page = query.page,
+            limit = query.limit,
+            search = query.search?.ifBlank { null },
+            genres = query.genres?.ifBlank { null },
+            types = query.types?.ifBlank { null },
+            status = query.status?.ifBlank { null },
+            sortBy = query.sortBy,
+            sortOrder = query.sortOrder,
+            releaseYears = query.releaseYears?.ifBlank { null },
+            ageLimits = query.ageLimits?.ifBlank { null },
+            includeAdult = if (query.includeAdult) true else null,
+        )
+        if (!res.success) error(res.message ?: "Ошибка каталога")
+        res.data ?: CatalogPageDto()
+    }
+
+    suspend fun filterOptions(): Result<CatalogFilterOptionsDto> = runCatching {
+        val res = api.catalogFilterOptions()
+        if (!res.success) error(res.message ?: "Ошибка фильтров")
+        res.data ?: CatalogFilterOptionsDto()
+    }
+
     suspend fun latestUpdates(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatching {
         val res = api.latestUpdates(limit = limit)
         if (!res.success) error(res.message ?: "Ошибка загрузки")

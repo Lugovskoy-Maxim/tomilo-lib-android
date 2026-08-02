@@ -27,6 +27,24 @@ interface TomiloApi {
     suspend fun publicUser(@Path("id") id: String): ApiResponse<PublicUserDto>
 
     // ── Catalog ─────────────────────────────────────────────────
+    @GET("titles")
+    suspend fun catalogTitles(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 24,
+        @Query("search") search: String? = null,
+        @Query("genres") genres: String? = null,
+        @Query("types") types: String? = null,
+        @Query("status") status: String? = null,
+        @Query("sortBy") sortBy: String = "updatedAt",
+        @Query("sortOrder") sortOrder: String = "desc",
+        @Query("releaseYears") releaseYears: String? = null,
+        @Query("ageLimits") ageLimits: String? = null,
+        @Query("includeAdult") includeAdult: Boolean? = null,
+    ): ApiResponse<CatalogPageDto>
+
+    @GET("titles/filters/options")
+    suspend fun catalogFilterOptions(): ApiResponse<CatalogFilterOptionsDto>
+
     @GET("titles/latest-updates")
     suspend fun latestUpdates(
         @Query("limit") limit: Int = 24,

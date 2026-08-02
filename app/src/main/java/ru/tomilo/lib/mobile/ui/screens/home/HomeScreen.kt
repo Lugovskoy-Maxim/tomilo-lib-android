@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 fun HomeScreen(
     catalogRepository: CatalogRepository,
     onOpenTitle: (id: String, slug: String?) -> Unit,
+    onOpenCatalog: () -> Unit = {},
 ) {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -113,6 +116,14 @@ fun HomeScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(ScreenPadding),
                 ) {
+                    Button(
+                        onClick = onOpenCatalog,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                    ) {
+                        Text("Открыть каталог")
+                    }
                     if (updates.isNotEmpty()) {
                         SectionTitle("Обновления")
                         Row(

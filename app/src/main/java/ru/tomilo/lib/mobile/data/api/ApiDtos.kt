@@ -233,12 +233,47 @@ data class CatalogTitleDto(
     val status: String? = null,
     val genres: List<String>? = null,
     val isAdult: Boolean? = null,
+    val views: Long? = null,
+    val weekViews: Long? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     fun displayTitle(): String = title ?: name.orEmpty()
     fun coverPath(): String? = cover ?: coverImage
     fun displayRating(): Double? = rating ?: averageRating
 }
+
+@Serializable
+data class CatalogPageDto(
+    val titles: List<CatalogTitleDto> = emptyList(),
+    val pagination: PaginationDto? = null,
+)
+
+@Serializable
+data class CatalogFilterOptionsDto(
+    val genres: List<String> = emptyList(),
+    val types: List<String> = emptyList(),
+    val status: List<String> = emptyList(),
+    val tags: List<String> = emptyList(),
+    val releaseYears: List<Int> = emptyList(),
+    val ageLimits: List<Int> = emptyList(),
+    val chaptersMin: Int? = null,
+    val chaptersMax: Int? = null,
+    val sortByOptions: List<String> = emptyList(),
+)
+
+data class CatalogQuery(
+    val page: Int = 1,
+    val limit: Int = 24,
+    val search: String? = null,
+    val genres: String? = null,
+    val types: String? = null,
+    val status: String? = null,
+    val sortBy: String = "updatedAt",
+    val sortOrder: String = "desc",
+    val releaseYears: String? = null,
+    val ageLimits: String? = null,
+    val includeAdult: Boolean = false,
+)
 
 @Serializable
 data class TitleDetailDto(
