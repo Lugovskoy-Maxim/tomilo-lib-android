@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Brand dark background matching site / ring logo presentation -->
     <color name="ic_launcher_background">#1A1D24</color>
     <color name="primary">#6B8CFF</color>
     <color name="background">#1A1D24</color>
+    <color name="splash_background">#1A1D24</color>
 </resources>

@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,6 +37,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
+import ru.tomilo.lib.mobile.ui.components.TomiloBrandHeader
+import ru.tomilo.lib.mobile.ui.components.TomiloLoginIllustration
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -98,13 +103,14 @@ fun LoginScreen(
             Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.Center,
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Аккаунт Tomilo", style = MaterialTheme.typography.headlineMedium)
+            TomiloBrandHeader(subtitle = "Тот же аккаунт, что на tomilo-lib.ru")
             Spacer(Modifier.height(8.dp))
-            Text("Тот же аккаунт, что на tomilo-lib.ru", color = TomiloMuted)
-            Spacer(Modifier.height(20.dp))
+            TomiloLoginIllustration(height = 140.dp)
+            Spacer(Modifier.height(16.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -169,6 +175,7 @@ fun LoginScreen(
             ) {
                 Text(if (loading) "Входим…" else "Войти")
             }
+            Spacer(Modifier.height(24.dp))
         }
     }
 }

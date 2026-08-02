@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,8 @@ import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.ui.components.TomiloRingLogo
+import ru.tomilo.lib.mobile.ui.components.TomiloWordmark
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
@@ -86,6 +89,15 @@ fun ProfileScreen(
                 .padding(20.dp),
         ) {
             if (user == null) {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    TomiloRingLogo(size = 72.dp)
+                    Spacer(Modifier.height(10.dp))
+                    TomiloWordmark(maxWidth = 180.dp)
+                }
+                Spacer(Modifier.height(16.dp))
                 Text("Вы не вошли", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 Text(
