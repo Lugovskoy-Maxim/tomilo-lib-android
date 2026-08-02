@@ -28,7 +28,7 @@ import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
-import ru.tomilo.lib.mobile.ui.components.TitleListRow
+import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
@@ -103,17 +103,15 @@ fun SearchScreen(
                 )
                 else -> LazyColumn(contentPadding = ScreenPadding) {
                     items(results, key = { it.id ?: it.displayTitle() }) { hit ->
-                        val meta = listOfNotNull(
-                            hit.type,
-                            hit.rating?.let { "★ %.1f".format(it) },
-                            hit.totalChapters?.let { "$it гл." },
-                        ).joinToString(" · ")
-                        TitleListRow(
+                        TitleSearchCard(
                             title = hit.displayTitle(),
                             cover = hit.cover,
-                            meta = meta.ifBlank { null },
+                            type = hit.type,
+                            rating = hit.rating,
+                            totalChapters = hit.totalChapters,
+                            year = hit.releaseYear,
                             onClick = {
-                                val id = hit.id ?: return@TitleListRow
+                                val id = hit.id ?: return@TitleSearchCard
                                 onOpenTitle(id, hit.slug)
                             },
                         )

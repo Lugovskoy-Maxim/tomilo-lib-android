@@ -2,6 +2,7 @@ package ru.tomilo.lib.mobile.ui.screens.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,7 +38,7 @@ import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.SectionTitle
-import ru.tomilo.lib.mobile.ui.components.TitleCoverCard
+import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
@@ -130,12 +131,19 @@ fun HomeScreen(
                             Modifier
                                 .horizontalScroll(rememberScrollState())
                                 .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             updates.forEach { item ->
-                                TitleCoverCard(
+                                TitlePosterCard(
                                     title = item.displayTitle(),
                                     cover = item.coverPath(),
-                                    subtitle = item.chapter ?: item.type,
+                                    type = item.type,
+                                    rating = item.displayRating(),
+                                    totalChapters = item.totalChapters,
+                                    chapterBadge = item.chapter,
+                                    status = item.status,
+                                    isAdult = item.isAdult == true,
+                                    year = item.releaseYear,
                                     onClick = {
                                         onOpenTitle(item.stableId(), item.slug)
                                     },
@@ -149,13 +157,18 @@ fun HomeScreen(
                             Modifier
                                 .horizontalScroll(rememberScrollState())
                                 .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             popular.forEach { item ->
-                                val rating = item.displayRating()?.let { "★ %.1f".format(it) }
-                                TitleCoverCard(
+                                TitlePosterCard(
                                     title = item.displayTitle(),
                                     cover = item.coverPath(),
-                                    subtitle = rating ?: item.type,
+                                    type = item.type,
+                                    rating = item.displayRating(),
+                                    totalChapters = item.totalChapters,
+                                    status = item.status,
+                                    isAdult = item.isAdult == true,
+                                    year = item.releaseYear,
                                     onClick = {
                                         onOpenTitle(item.stableId(), item.slug)
                                     },

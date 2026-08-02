@@ -44,7 +44,7 @@ import ru.tomilo.lib.mobile.data.repo.AdminRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
-import ru.tomilo.lib.mobile.ui.components.TitleListRow
+import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -343,14 +343,12 @@ private fun TitlesPane(
         }
         LazyColumn(contentPadding = ScreenPadding) {
             items(titles, key = { it.stableId() }) { t ->
-                TitleListRow(
+                TitleSearchCard(
                     title = t.displayName(),
                     cover = t.coverPath(),
-                    meta = listOfNotNull(
-                        t.type,
-                        t.totalChapters?.let { "$it гл." },
-                        if (t.isPublished == false) "draft" else null,
-                    ).joinToString(" · "),
+                    type = t.type,
+                    totalChapters = t.totalChapters,
+                    subtitle = if (t.isPublished == false) "draft" else null,
                     onClick = { onOpen(t.stableId(), t.slug) },
                 )
             }

@@ -395,36 +395,17 @@ private fun CatalogCard(
     item: CatalogTitleDto,
     onClick: () -> Unit,
 ) {
-    Column(
-        Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(2.dp),
-    ) {
-        AsyncImage(
-            model = MediaUrl.resolve(item.coverPath()),
-            contentDescription = item.displayTitle(),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(TomiloSurface2),
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            item.displayTitle(),
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        val meta = listOfNotNull(
-            item.type,
-            item.displayRating()?.let { "★ %.1f".format(it) },
-            item.totalChapters?.let { "$it гл." },
-        ).joinToString(" · ")
-        if (meta.isNotBlank()) {
-            Text(meta, color = TomiloMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-        }
-    }
+    ru.tomilo.lib.mobile.ui.components.TitlePosterCard(
+        title = item.displayTitle(),
+        cover = item.coverPath(),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        width = null,
+        type = item.type,
+        rating = item.displayRating(),
+        totalChapters = item.totalChapters,
+        status = item.status,
+        isAdult = item.isAdult == true,
+        year = item.releaseYear,
+    )
 }

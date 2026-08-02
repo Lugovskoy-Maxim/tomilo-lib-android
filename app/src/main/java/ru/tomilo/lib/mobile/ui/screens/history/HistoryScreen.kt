@@ -30,7 +30,7 @@ import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
-import ru.tomilo.lib.mobile.ui.components.TitleListRow
+import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
@@ -98,13 +98,11 @@ fun HistoryScreen(
                 contentPadding = ScreenPadding,
             ) {
                 items(items, key = { it.titleKey() + it.chapterKey() + (it.readAt ?: "") }) { h ->
-                    TitleListRow(
+                    TitleSearchCard(
                         title = h.displayTitle(),
                         cover = h.coverPath(),
-                        meta = listOfNotNull(
-                            h.chapterLabel(),
-                            h.readAt?.take(16)?.replace('T', ' '),
-                        ).joinToString(" · "),
+                        subtitle = h.chapterLabel(),
+                        year = null,
                         onClick = {
                             val tid = h.titleKey()
                             val cid = h.chapterKey()

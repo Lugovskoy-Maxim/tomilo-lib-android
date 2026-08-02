@@ -28,7 +28,7 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
-import ru.tomilo.lib.mobile.ui.components.TitleListRow
+import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
@@ -136,15 +136,14 @@ fun BookmarksScreen(
                     ) { bm ->
                         val titleId = bm.resolvedTitleId()
                         val t = bm.resolvedTitle()
-                        val meta = listOfNotNull(
-                            categoryLabel(bm.category),
-                            t?.type,
-                            (t?.totalChapters ?: t?.chaptersCount)?.let { "$it гл." },
-                        ).joinToString(" · ")
-                        TitleListRow(
+                        TitleSearchCard(
                             title = bm.displayName(),
                             cover = bm.coverPath(),
-                            meta = meta.ifBlank { null },
+                            type = t?.type,
+                            rating = t?.averageRating,
+                            totalChapters = t?.totalChapters ?: t?.chaptersCount,
+                            status = t?.status,
+                            subtitle = categoryLabel(bm.category),
                             onClick = {
                                 if (titleId.isNotBlank()) {
                                     onOpenTitle(titleId, t?.slug)
