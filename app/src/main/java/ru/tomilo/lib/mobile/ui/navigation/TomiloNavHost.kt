@@ -1,6 +1,9 @@
 package ru.tomilo.lib.mobile.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Bookmark
@@ -9,6 +12,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -110,11 +114,17 @@ fun TomiloNavHost(container: AppContainer) {
         )
     }
 
+    // Только нижний inset (tab bar). Верх (status bar) обрабатывают экраны/TopAppBar —
+    // иначе двойной отступ и «пустое место» сверху.
     Scaffold(
         containerColor = TomiloBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = TomiloBg) {
+                NavigationBar(
+                    containerColor = TomiloBg,
+                    windowInsets = NavigationBarDefaults.windowInsets,
+                ) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
                             selected = current == tab.route,
@@ -138,7 +148,15 @@ fun TomiloNavHost(container: AppContainer) {
         NavHost(
             navController = navController,
             startDestination = Routes.Home,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier
+                .padding(bottom = padding.calculateBottomPadding())
+                .then(
+                    if (!showBottomBar) {
+                        Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             composable(Routes.Home) {
                 HomeScreen(

@@ -167,9 +167,13 @@ fun ChatsScreen(
                         )
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(name, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                c.lastMessagePreview ?: "Нет сообщений",
+                                name,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground,
+                            )
+                            Text(
+                                c.lastMessagePreview?.takeIf { it.isNotBlank() } ?: "Нет сообщений",
                                 color = TomiloMuted,
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,

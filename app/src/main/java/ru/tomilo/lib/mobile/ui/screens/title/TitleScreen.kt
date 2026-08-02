@@ -255,7 +255,7 @@ fun TitleScreen(
         }
         val detail = t.getOrThrow()
         title = detail
-        catalogRepository.chapters(detail.stableId(), limit = 200)
+        catalogRepository.chaptersAll(detail.stableId())
             .onSuccess { chapters = it }
             .onFailure { error = it.message }
         loading = false

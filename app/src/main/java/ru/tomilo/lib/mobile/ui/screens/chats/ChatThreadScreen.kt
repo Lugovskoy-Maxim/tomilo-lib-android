@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,6 +50,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,7 +74,7 @@ fun ChatThreadScreen(
         loading = true
         socialRepository.messages(conversationId)
             .onSuccess {
-                messages = it.sortedBy { m -> m.createdAt.orEmpty() }
+                messages = it.sortedBy { m -> m.createdAtLabel().orEmpty() + m.stableId() }
                 socialRepository.markConversationRead(conversationId)
             }
             .onFailure { error = it.message }
@@ -103,10 +106,23 @@ fun ChatThreadScreen(
         Column(
             Modifier
                 .padding(padding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .imePadding()
+                .navigationBarsPadding(),
         ) {
             if (loading && messages.isEmpty()) {
                 LoadingBox(Modifier.weight(1f))
+            } else if (messages.isEmpty()) {
+                Box(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        error ?: "Нет сообщений — напишите первым",
+                        color = TomiloMuted,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
             } else {
                 LazyColumn(
                     state = listState,
@@ -118,7 +134,11 @@ fun ChatThreadScreen(
                 ) {
                     item { Spacer(Modifier.height(8.dp)) }
                     items(messages, key = { it.stableId() }) { msg ->
-                        val mine = msg.senderId == myId
+                        val mine = myId.isNotBlank() && msg.senderKey() == myId
+                        val bodyText = when {
+                            msg.deletedAt != null -> "Сообщение удалено"
+                            else -> msg.textBody().ifBlank { " " }
+                        }
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
@@ -132,12 +152,13 @@ fun ChatThreadScreen(
                             ) {
                                 Column {
                                     Text(
-                                        if (msg.deletedAt != null) "Сообщение удалено"
-                                        else msg.body.orEmpty(),
+                                        bodyText,
+                                        color = TomiloText,
+                                        style = MaterialTheme.typography.bodyMedium,
                                     )
-                                    msg.createdAt?.take(16)?.let {
+                                    msg.createdAtLabel()?.let { label ->
                                         Text(
-                                            it.replace('T', ' '),
+                                            label,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = TomiloMuted,
                                         )
@@ -149,12 +170,13 @@ fun ChatThreadScreen(
                     item { Spacer(Modifier.height(8.dp)) }
                 }
             }
-            if (error != null) {
+            if (error != null && messages.isNotEmpty()) {
                 Text(error!!, color = TomiloMuted, modifier = Modifier.padding(horizontal = 12.dp))
             }
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .background(TomiloBg)
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

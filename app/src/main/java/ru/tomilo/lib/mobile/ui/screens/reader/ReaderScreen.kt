@@ -212,7 +212,7 @@ fun ReaderScreen(
     LaunchedEffect(titleId, currentChapterId) {
         val tid = titleId
         if (!tid.isNullOrBlank()) {
-            catalogRepository.chapters(tid, limit = 200)
+            catalogRepository.chaptersAll(tid)
                 .onSuccess { chapters = it }
         }
         catalogRepository.chapterPrev(currentChapterId)

@@ -240,12 +240,55 @@ data class DirectMessageDto(
     @SerialName("_id") val underscoreId: String? = null,
     val id: String? = null,
     val conversationId: String? = null,
-    val senderId: String? = null,
+    /** Может прийти строкой или объектом — парсим во flex parse. */
+    val senderId: JsonElement? = null,
     val body: String? = null,
+    val text: String? = null,
+    val content: String? = null,
+    val message: String? = null,
     val deletedAt: String? = null,
-    val createdAt: String? = null,
+    val createdAt: JsonElement? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+
+    fun textBody(): String {
+        listOf(body, text, content, message).forEach { s ->
+            if (!s.isNullOrBlank()) return s
+        }
+        return ""
+    }
+
+    fun senderKey(): String = jsonElementId(senderId)
+
+    fun createdAtLabel(): String? {
+        val el = createdAt ?: return null
+        return when (el) {
+            is JsonPrimitive -> el.contentOrNull?.take(19)?.replace('T', ' ')
+            is JsonObject -> {
+                el["\$date"]?.let { d ->
+                    when (d) {
+                        is JsonPrimitive -> d.contentOrNull?.take(19)?.replace('T', ' ')
+                        else -> null
+                    }
+                } ?: el.toString().take(19)
+            }
+            else -> null
+        }
+    }
+}
+
+private fun jsonElementId(el: JsonElement?): String {
+    if (el == null) return ""
+    return when (el) {
+        is JsonPrimitive -> el.contentOrNull.orEmpty()
+        is JsonObject -> {
+            el["\$oid"]?.let { if (it is JsonPrimitive) it.contentOrNull.orEmpty() else "" }
+                ?: el["_id"]?.let { jsonElementId(it) }
+                ?: el["id"]?.let { jsonElementId(it) }
+                ?: ""
+        }
+        else -> ""
+    }
 }
 
 @Serializable

@@ -225,12 +225,58 @@ class SocialRepository(private val api: TomiloApi) {
         if (data == null) return emptyList()
         val arr = when (data) {
             is JsonArray -> data
-            is JsonObject -> (data["messages"] ?: data["items"]) as? JsonArray
+            is JsonObject -> {
+                val nested = data["messages"] ?: data["items"] ?: data["data"] ?: data["docs"]
+                when (nested) {
+                    is JsonArray -> nested
+                    is JsonObject -> (nested["messages"] ?: nested["items"]) as? JsonArray
+                    else -> null
+                }
+            }
             else -> null
         } ?: return emptyList()
-        return arr.mapNotNull {
-            runCatching { json.decodeFromJsonElement<DirectMessageDto>(it) }.getOrNull()
+        return arr.mapNotNull { el -> parseMessage(el) }
+            .filter { it.stableId().isNotBlank() }
+    }
+
+    private fun parseMessage(data: JsonElement?): DirectMessageDto? {
+        if (data == null) return null
+        runCatching { json.decodeFromJsonElement<DirectMessageDto>(data) }
+            .getOrNull()
+            ?.takeIf { it.stableId().isNotBlank() }
+            ?.let { return it }
+
+        val obj = data as? JsonObject ?: return null
+        fun str(vararg keys: String): String? {
+            for (key in keys) {
+                val v = obj[key] ?: continue
+                when (v) {
+                    is kotlinx.serialization.json.JsonPrimitive -> {
+                        val c = v.content
+                        if (c.isNotBlank() && c != "null") return c
+                    }
+                    is JsonObject -> {
+                        val oid = (v["\$oid"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (!oid.isNullOrBlank()) return oid
+                        val nested = (v["_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                        if (!nested.isNullOrBlank()) return nested
+                    }
+                    else -> Unit
+                }
+            }
+            return null
         }
+        val id = str("_id", "id") ?: return null
+        val body = str("body", "text", "content", "message")
+        return DirectMessageDto(
+            underscoreId = id,
+            id = id,
+            conversationId = str("conversationId"),
+            senderId = obj["senderId"],
+            body = body,
+            deletedAt = str("deletedAt"),
+            createdAt = obj["createdAt"],
+        )
     }
 
     // ── Leaders ─────────────────────────────────────────────────

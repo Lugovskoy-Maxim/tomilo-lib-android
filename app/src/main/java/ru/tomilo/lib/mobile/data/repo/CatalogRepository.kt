@@ -64,6 +64,34 @@ class CatalogRepository(private val api: TomiloApi) {
             res.data?.chapters.orEmpty()
         }
 
+    /**
+     * Все главы тайтла (сервер режет list limit до 200 — ходим по страницам).
+     */
+    suspend fun chaptersAll(titleId: String, pageSize: Int = 200): Result<List<ChapterDto>> =
+        runCatching {
+            val all = mutableListOf<ChapterDto>()
+            var page = 1
+            val limit = pageSize.coerceIn(1, 200)
+            while (page <= 100) {
+                val res = api.chaptersByTitle(
+                    titleId = titleId,
+                    page = page,
+                    limit = limit,
+                    sortOrder = "asc",
+                )
+                if (!res.success) error(res.message ?: "Ошибка глав")
+                val batch = res.data?.chapters.orEmpty()
+                all.addAll(batch)
+                val pag = res.data?.pagination
+                val hasMore = pag?.hasMore == true ||
+                    (pag != null && pag.pages > 0 && page < pag.pages) ||
+                    (pag == null && batch.size >= limit)
+                if (!hasMore || batch.isEmpty()) break
+                page++
+            }
+            all.distinctBy { it.stableId() }.filter { it.stableId().isNotBlank() }
+        }
+
     suspend fun chapter(chapterId: String): Result<ChapterDto> = runCatching {
         val res = api.chapterById(chapterId)
         if (!res.success) error(res.message ?: "Глава недоступна")

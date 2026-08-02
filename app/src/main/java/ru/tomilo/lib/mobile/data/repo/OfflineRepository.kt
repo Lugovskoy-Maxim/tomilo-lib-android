@@ -53,9 +53,22 @@ class OfflineRepository(
         runCatching {
             val detail = runCatching { api.titleById(titleId) }.getOrNull()
                 ?.takeIf { it.success }?.data
-            val chapters = runCatching {
-                api.chaptersByTitle(titleId, page = 1, limit = 500, sortOrder = "asc")
-            }.getOrNull()?.takeIf { it.success }?.data?.chapters.orEmpty()
+            // серверный MAX_LIST_LIMIT = 200 — грузим все страницы
+            val chapters = buildList {
+                var page = 1
+                while (page <= 100) {
+                    val res = runCatching {
+                        api.chaptersByTitle(titleId, page = page, limit = 200, sortOrder = "asc")
+                    }.getOrNull()?.takeIf { it.success }?.data ?: break
+                    addAll(res.chapters)
+                    val pag = res.pagination
+                    val hasMore = pag?.hasMore == true ||
+                        (pag != null && pag.pages > page) ||
+                        (pag == null && res.chapters.size >= 200)
+                    if (!hasMore || res.chapters.isEmpty()) break
+                    page++
+                }
+            }.distinctBy { it.stableId() }
 
             val metaList = chapters.map { ch ->
                 OfflineChapterMeta(
