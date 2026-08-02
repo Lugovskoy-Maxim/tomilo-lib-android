@@ -114,6 +114,7 @@ fun ReaderScreen(
     )
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val chaptersListState = rememberLazyListState()
 
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -122,17 +123,8 @@ fun ReaderScreen(
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var title by remember { mutableStateOf("Глава") }
     var offline by remember { mutableStateOf(false) }
-    var currentChapterId by remember(chapterId) { mutableStateOf(chapterId) }
-
-    /** Переход на другую главу с возможной рекламой (1 раз / 10 мин, не Premium). */
-    fun goChapter(nextId: String) {
-        if (nextId.isBlank() || nextId == currentChapterId) return
-        chapterTransitionAds.maybeShowThen(
-            activity = activity,
-            user = user,
-            proceed = { onOpenChapter(nextId) },
-        )
-    }
+    // Не привязываем remember к chapterId — иначе при in-place смене главы state сбрасывается
+    var currentChapterId by remember { mutableStateOf(chapterId) }
 
     var chromeVisible by remember { mutableStateOf(!settings.startFullscreen) }
     var fullscreen by remember { mutableStateOf(settings.startFullscreen) }
@@ -141,8 +133,21 @@ fun ReaderScreen(
     var showChapters by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
-    var hasPrev by remember { mutableStateOf(false) }
-    var hasNext by remember { mutableStateOf(false) }
+
+    // Соседние главы из локального списка (API next/prev требует номер главы и часто падает)
+    val currentIndex = remember(chapters, currentChapterId) {
+        chapters.indexOfFirst { it.stableId() == currentChapterId }
+    }
+    val prevChapterId = remember(currentIndex, chapters) {
+        if (currentIndex > 0) chapters[currentIndex - 1].stableId() else null
+    }
+    val nextChapterId = remember(currentIndex, chapters) {
+        if (currentIndex >= 0 && currentIndex < chapters.lastIndex) {
+            chapters[currentIndex + 1].stableId()
+        } else null
+    }
+    val hasPrev = prevChapterId != null
+    val hasNext = nextChapterId != null
 
     // Keep screen on
     DisposableEffect(settings.keepScreenOn) {
@@ -177,6 +182,7 @@ fun ReaderScreen(
     }
 
     fun loadChapter(id: String) {
+        if (id.isBlank()) return
         scope.launch {
             loading = true
             error = null
@@ -262,11 +268,55 @@ fun ReaderScreen(
                 .onFailure { error = it.message ?: "Не удалось открыть главу" }
 
             loading = false
-            listState.scrollToItem(0)
+            runCatching { listState.scrollToItem(0) }
         }
     }
 
-    LaunchedEffect(chapterId) { loadChapter(chapterId) }
+    /**
+     * Переход на другую главу **внутри** экрана (без пересоздания через NavHost —
+     * иначе next/prev ломались). Реклама ~1 раз / 10 мин для non-Premium.
+     */
+    fun goChapter(nextId: String) {
+        if (nextId.isBlank() || nextId == currentChapterId || loading) return
+        chapterTransitionAds.maybeShowThen(
+            activity = activity,
+            user = user,
+            proceed = { loadChapter(nextId) },
+        )
+    }
+
+    fun goPrev() {
+        val id = prevChapterId
+        if (id != null) {
+            goChapter(id)
+            return
+        }
+        // fallback API (список ещё не подгрузился)
+        scope.launch {
+            catalogRepository.chapterPrev(currentChapterId)
+                .onSuccess { ch -> goChapter(ch.stableId()) }
+        }
+    }
+
+    fun goNext() {
+        val id = nextChapterId
+        if (id != null) {
+            goChapter(id)
+            return
+        }
+        scope.launch {
+            catalogRepository.chapterNext(currentChapterId)
+                .onSuccess { ch -> goChapter(ch.stableId()) }
+        }
+    }
+
+    // Старт / внешняя навигация (тайтл → глава)
+    LaunchedEffect(chapterId) {
+        if (chapterId.isNotBlank()) {
+            loadChapter(chapterId)
+        }
+    }
+
     // После входа / активации Premium — перезагрузить главу
     LaunchedEffect(user?.stableId(), user?.subscriptionExpiresAt) {
         if (pages.isEmpty() && !loading && (needsPremium || error != null)) {
@@ -274,18 +324,31 @@ fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(titleId, currentChapterId) {
+    // Список глав тайтла для prev/next и sheet
+    LaunchedEffect(titleId) {
         val tid = titleId
         if (!tid.isNullOrBlank()) {
             catalogRepository.chaptersAll(tid)
-                .onSuccess { chapters = it }
+                .onSuccess { list ->
+                    chapters = list.sortedWith(
+                        compareBy(
+                            { it.chapterNumberAsDouble() ?: Double.MAX_VALUE },
+                            { it.chapterNumber?.toString().orEmpty() },
+                        ),
+                    )
+                }
         }
-        catalogRepository.chapterPrev(currentChapterId)
-            .onSuccess { hasPrev = true }
-            .onFailure { hasPrev = false }
-        catalogRepository.chapterNext(currentChapterId)
-            .onSuccess { hasNext = true }
-            .onFailure { hasNext = false }
+    }
+
+    // Открыли список глав → прокрутить к текущей
+    LaunchedEffect(showChapters, chapters, currentChapterId) {
+        if (!showChapters || chapters.isEmpty()) return@LaunchedEffect
+        val idx = chapters.indexOfFirst { it.stableId() == currentChapterId }
+        if (idx >= 0) {
+            // чуть выше центра, чтобы текущая была видна
+            val target = (idx - 2).coerceAtLeast(0)
+            chaptersListState.scrollToItem(target)
+        }
     }
 
     // Auto-scroll loop
@@ -392,22 +455,12 @@ fun ReaderScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                     ) {
                         TextButton(
-                            onClick = {
-                                scope.launch {
-                                    catalogRepository.chapterPrev(currentChapterId)
-                                        .onSuccess { goChapter(it.stableId()) }
-                                }
-                            },
-                            enabled = hasPrev,
+                            onClick = { goPrev() },
+                            enabled = hasPrev || chapters.isEmpty(),
                         ) { Text("← Пред.", color = Color.White) }
                         TextButton(
-                            onClick = {
-                                scope.launch {
-                                    catalogRepository.chapterNext(currentChapterId)
-                                        .onSuccess { goChapter(it.stableId()) }
-                                }
-                            },
-                            enabled = hasNext,
+                            onClick = { goNext() },
+                            enabled = hasNext || chapters.isEmpty(),
                         ) { Text("След. →", color = Color.White) }
                     }
                 }
@@ -486,18 +539,13 @@ fun ReaderScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(
-                        onClick = {
-                            scope.launch {
-                                catalogRepository.chapterPrev(currentChapterId)
-                                    .onSuccess { goChapter(it.stableId()) }
-                            }
-                        },
-                        enabled = hasPrev,
+                        onClick = { goPrev() },
+                        enabled = hasPrev || chapters.isEmpty(),
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.NavigateBefore,
                             contentDescription = "Предыдущая",
-                            tint = if (hasPrev) Color.White else Color.Gray,
+                            tint = if (hasPrev || chapters.isEmpty()) Color.White else Color.Gray,
                         )
                     }
                     IconButton(onClick = {
@@ -514,18 +562,13 @@ fun ReaderScreen(
                         Icon(Icons.Default.Speed, contentDescription = "Скорость", tint = Color.White)
                     }
                     IconButton(
-                        onClick = {
-                            scope.launch {
-                                catalogRepository.chapterNext(currentChapterId)
-                                    .onSuccess { goChapter(it.stableId()) }
-                            }
-                        },
-                        enabled = hasNext,
+                        onClick = { goNext() },
+                        enabled = hasNext || chapters.isEmpty(),
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.NavigateNext,
                             contentDescription = "Следующая",
-                            tint = if (hasNext) Color.White else Color.Gray,
+                            tint = if (hasNext || chapters.isEmpty()) Color.White else Color.Gray,
                         )
                     }
                 }
@@ -573,26 +616,49 @@ fun ReaderScreen(
             containerColor = Color(0xFF1E222A),
         ) {
             Text(
-                "Главы",
+                "Главы" + if (chapters.isNotEmpty()) " (${chapters.size})" else "",
                 color = Color.White,
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
-            LazyColumn(Modifier.height(420.dp)) {
-                items(chapters, key = { it.stableId() }) { ch ->
-                    val selected = ch.stableId() == currentChapterId
-                    Text(
-                        text = "Глава ${ch.numberLabel()}" +
-                            (ch.name?.takeIf { it.isNotBlank() && !it.startsWith("Глава") }?.let { " — $it" } ?: ""),
-                        color = if (selected) MaterialTheme.colorScheme.primary else Color.White,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                showChapters = false
-                                goChapter(ch.stableId())
-                            }
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                    )
+            if (chapters.isEmpty()) {
+                Text(
+                    "Список загружается…",
+                    color = TomiloMuted,
+                    modifier = Modifier.padding(20.dp),
+                )
+            } else {
+                LazyColumn(
+                    state = chaptersListState,
+                    modifier = Modifier.height(420.dp),
+                ) {
+                    items(chapters, key = { it.stableId() }) { ch ->
+                        val selected = ch.stableId() == currentChapterId
+                        Text(
+                            text = "Глава ${ch.numberLabel()}" +
+                                (ch.name?.takeIf { n ->
+                                    n.isNotBlank() && !n.startsWith("Глава")
+                                }?.let { " — $it" } ?: "") +
+                                if (selected) "  · сейчас" else "",
+                            color = if (selected) MaterialTheme.colorScheme.primary else Color.White,
+                            style = if (selected) {
+                                MaterialTheme.typography.titleMedium
+                            } else {
+                                MaterialTheme.typography.bodyLarge
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showChapters = false
+                                    goChapter(ch.stableId())
+                                }
+                                .background(
+                                    if (selected) Color.White.copy(alpha = 0.08f)
+                                    else Color.Transparent,
+                                )
+                                .padding(horizontal = 20.dp, vertical = 12.dp),
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

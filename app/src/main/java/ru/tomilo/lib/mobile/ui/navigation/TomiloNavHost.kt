@@ -347,10 +347,11 @@ fun TomiloNavHost(container: AppContainer) {
                     chapterTransitionAds = container.chapterTransitionAds,
                     onBack = { navController.popBackStack() },
                     onOpenChapter = { nextId ->
+                        // Заменяем текущий reader в стеке, чтобы «Назад» = выход к тайтлу
                         navController.navigate(
                             Routes.reader(nextId, offline = false, titleId = titleId),
                         ) {
-                            popUpTo(entry.destination.id) { inclusive = true }
+                            popUpTo(Routes.Reader) { inclusive = true }
                             launchSingleTop = true
                         }
                     },
