@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.push.NotificationHelper
@@ -25,12 +26,20 @@ class TomiloApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // Синхронно подтянуть токен до UI — иначе чаты/закладки уходят без Authorization
+        runBlocking {
+            TokenBridge.setCached(container.authStore.token())
+        }
         NotificationHelper.ensureChannel(this)
         NotificationsPollWorker.schedule(this)
         appScope.launch {
             container.authStore.tokenFlow.collectLatest { token ->
-                TokenBridge.holder.token = token
+                TokenBridge.setCached(token)
             }
+        }
+        // Фоновый рефреш офлайн-каталогов (новые главы)
+        appScope.launch {
+            runCatching { container.offlineRepository.refreshStaleTitles() }
         }
     }
 

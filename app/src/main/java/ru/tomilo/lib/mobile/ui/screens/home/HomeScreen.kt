@@ -22,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +34,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
+import ru.tomilo.lib.mobile.data.local.ContentPrefs
+import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -46,16 +49,18 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 @Composable
 fun HomeScreen(
     catalogRepository: CatalogRepository,
+    contentPrefs: ContentPrefs,
     onOpenTitle: (id: String, slug: String?) -> Unit,
     onOpenCatalog: () -> Unit = {},
 ) {
+    val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var updates by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var reloadToken by remember { mutableStateOf(0) }
 
-    LaunchedEffect(reloadToken) {
+    LaunchedEffect(reloadToken, contentSettings.showAdultContent) {
         loading = true
         error = null
         val u = catalogRepository.latestUpdates()
@@ -65,8 +70,11 @@ fun HomeScreen(
             loading = false
             return@LaunchedEffect
         }
-        updates = u.getOrDefault(emptyList())
-        popular = p.getOrDefault(emptyList())
+        val showAdult = contentSettings.showAdultContent
+        fun List<CatalogTitleDto>.filterAdult() =
+            if (showAdult) this else filter { it.isAdult != true }
+        updates = u.getOrDefault(emptyList()).filterAdult()
+        popular = p.getOrDefault(emptyList()).filterAdult()
         loading = false
     }
 

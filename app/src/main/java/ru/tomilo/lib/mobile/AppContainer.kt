@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.local.AuthStore
+import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.OfflineDatabase
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.repo.AdminRepository
@@ -22,9 +23,13 @@ class AppContainer(context: Context) {
 
     val authStore = AuthStore(appContext)
     val readingPrefs = ReadingPrefs(appContext)
+    val contentPrefs = ContentPrefs(appContext)
     private val tokenHolder = TokenHolder()
 
-    val tomiloApi = NetworkModule.createApi(appContext) { tokenHolder.token }
+    val tomiloApi = NetworkModule.createApi(appContext) {
+        // tokenHolder может ещё не подтянуться с DataStore — fallback на store
+        tokenHolder.token ?: TokenBridge.peekToken()
+    }
 
     val authRepository = AuthRepository(tomiloApi, authStore)
     val catalogRepository = CatalogRepository(tomiloApi)
@@ -54,4 +59,20 @@ class TokenHolder {
 object TokenBridge {
     lateinit var holder: TokenHolder
     lateinit var authStore: AuthStore
+
+    /** Синхронный peek: holder, затем (если уже инициализирован) — null (async only). */
+    @Volatile
+    private var cachedToken: String? = null
+
+    fun setCached(token: String?) {
+        cachedToken = token
+        if (::holder.isInitialized) holder.token = token
+    }
+
+    fun peekToken(): String? {
+        if (::holder.isInitialized) {
+            holder.token?.let { return it }
+        }
+        return cachedToken
+    }
 }

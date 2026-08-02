@@ -13,7 +13,9 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -22,7 +24,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.AppContainer
+import ru.tomilo.lib.mobile.data.local.ContentSettings
+import ru.tomilo.lib.mobile.ui.components.AgeGateDialog
 import ru.tomilo.lib.mobile.ui.screens.admin.AdminScreen
 import ru.tomilo.lib.mobile.ui.screens.auth.LoginScreen
 import ru.tomilo.lib.mobile.ui.screens.bookmarks.BookmarksScreen
@@ -34,6 +39,7 @@ import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
+import ru.tomilo.lib.mobile.ui.screens.premium.PremiumScreen
 import ru.tomilo.lib.mobile.ui.screens.profile.ProfileScreen
 import ru.tomilo.lib.mobile.ui.screens.reader.ReaderScreen
 import ru.tomilo.lib.mobile.ui.screens.title.TitleScreen
@@ -56,6 +62,7 @@ object Routes {
     const val History = "history"
     const val Admin = "admin"
     const val Login = "login"
+    const val Premium = "premium"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
     const val ChatThread = "chat/{id}?title={title}"
@@ -82,6 +89,8 @@ fun TomiloNavHost(container: AppContainer) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
     val current = backStack?.destination?.route.orEmpty()
+    val contentSettings by container.contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
+    val scope = rememberCoroutineScope()
 
     val tabs = listOf(
         Tab(Routes.Home, "Главная", Icons.Default.Home),
@@ -93,6 +102,13 @@ fun TomiloNavHost(container: AppContainer) {
     val showBottomBar = tabs.any { current == it.route }
 
     fun goLogin() = navController.navigate(Routes.Login)
+
+    if (!contentSettings.ageGateAnswered) {
+        AgeGateDialog(
+            onAdult = { scope.launch { container.contentPrefs.answerAgeGate(isAdult = true) } },
+            onMinor = { scope.launch { container.contentPrefs.answerAgeGate(isAdult = false) } },
+        )
+    }
 
     Scaffold(
         containerColor = TomiloBg,
@@ -127,6 +143,7 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Home) {
                 HomeScreen(
                     catalogRepository = container.catalogRepository,
+                    contentPrefs = container.contentPrefs,
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
@@ -144,6 +161,7 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Catalog) {
                 CatalogScreen(
                     catalogRepository = container.catalogRepository,
+                    contentPrefs = container.contentPrefs,
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
@@ -174,13 +192,22 @@ fun TomiloNavHost(container: AppContainer) {
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
                     offlineRepository = container.offlineRepository,
+                    contentPrefs = container.contentPrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
                     onOpenHistory = { navController.navigate(Routes.History) },
                     onOpenAdmin = { navController.navigate(Routes.Admin) },
+                    onOpenPremium = { navController.navigate(Routes.Premium) },
                     onOpenMyPublicProfile = { id -> navController.navigate(Routes.user(id)) },
+                )
+            }
+            composable(Routes.Premium) {
+                PremiumScreen(
+                    authRepository = container.authRepository,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
                 )
             }
             composable(Routes.History) {
@@ -219,6 +246,9 @@ fun TomiloNavHost(container: AppContainer) {
                                 titleId = titleId.ifBlank { null },
                             ),
                         )
+                    },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
                 )
             }
@@ -296,7 +326,6 @@ fun TomiloNavHost(container: AppContainer) {
                         navController.navigate(
                             Routes.reader(nextId, offline = false, titleId = titleId),
                         ) {
-                            // replace current reader so back returns to title
                             popUpTo(entry.destination.id) { inclusive = true }
                             launchSingleTop = true
                         }

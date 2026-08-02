@@ -18,6 +18,7 @@ import ru.tomilo.lib.mobile.data.api.NotificationDto
 import ru.tomilo.lib.mobile.data.api.PublicUserDto
 import ru.tomilo.lib.mobile.data.api.SendMessageRequest
 import ru.tomilo.lib.mobile.data.api.TomiloApi
+import ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest
 
 class SocialRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
@@ -113,26 +114,28 @@ class SocialRepository(private val api: TomiloApi) {
     // ── Chats ───────────────────────────────────────────────────
     suspend fun conversations(): Result<List<ConversationPreviewDto>> = runCatching {
         val res = api.conversations()
-        if (!res.success) error(res.message ?: "Ошибка чатов")
-        res.data.orEmpty()
+        if (!res.success) {
+            error(res.message ?: res.errors?.firstOrNull() ?: "Ошибка чатов")
+        }
+        parseConversationList(res.data)
     }
 
     suspend fun supportConversation(): Result<ConversationPreviewDto> = runCatching {
         val res = api.supportConversation()
         if (!res.success) error(res.message ?: "Не удалось открыть поддержку")
-        res.data ?: error("Пустой диалог")
+        parseConversation(res.data) ?: error("Пустой диалог")
     }
 
     suspend fun openConversationWith(userId: String): Result<ConversationPreviewDto> = runCatching {
         val res = api.createConversation(CreateConversationRequest(userId))
         if (!res.success) error(res.message ?: "Не удалось создать чат")
-        res.data ?: error("Пустой диалог")
+        parseConversation(res.data) ?: error("Пустой диалог")
     }
 
     suspend fun messages(conversationId: String): Result<List<DirectMessageDto>> = runCatching {
         val res = api.messages(conversationId)
         if (!res.success) error(res.message ?: "Ошибка сообщений")
-        res.data?.messages.orEmpty()
+        parseMessages(res.data)
     }
 
     suspend fun sendMessage(conversationId: String, body: String): Result<DirectMessageDto> =
@@ -147,8 +150,88 @@ class SocialRepository(private val api: TomiloApi) {
     }
 
     suspend fun chatsUnread(): Int = runCatching {
-        api.conversationsUnread().data?.count ?: 0
+        val res = api.conversationsUnread()
+        val data = res.data
+        when (data) {
+            is JsonObject -> data["count"]?.toString()?.trim('"')?.toIntOrNull() ?: 0
+            else -> 0
+        }
     }.getOrDefault(0)
+
+    private fun parseConversationList(data: JsonElement?): List<ConversationPreviewDto> {
+        if (data == null) return emptyList()
+        val arr = when (data) {
+            is JsonArray -> data
+            is JsonObject -> {
+                val nested = data["conversations"] ?: data["items"] ?: data["data"] ?: data["results"]
+                when (nested) {
+                    is JsonArray -> nested
+                    is JsonObject -> (nested["conversations"] ?: nested["items"]) as? JsonArray
+                    else -> null
+                }
+            }
+            else -> null
+        } ?: return emptyList()
+        return arr.mapNotNull { el -> parseConversation(el) }
+            .filter { it.stableId().isNotBlank() }
+    }
+
+    private fun parseConversation(data: JsonElement?): ConversationPreviewDto? {
+        if (data == null) return null
+        // прямой decode
+        runCatching { json.decodeFromJsonElement<ConversationPreviewDto>(data) }
+            .getOrNull()
+            ?.takeIf { it.stableId().isNotBlank() }
+            ?.let { return it }
+        // ручной разбор (participant может быть вложеннее / с лишними полями)
+        val obj = data as? JsonObject ?: return null
+        fun str(key: String): String? =
+            obj[key]?.let {
+                when (it) {
+                    is kotlinx.serialization.json.JsonPrimitive -> it.content
+                    else -> null
+                }
+            }?.takeIf { it.isNotBlank() && it != "null" }
+        val id = str("_id") ?: str("id") ?: return null
+        val participantEl = obj["participant"]
+        val participant = when (participantEl) {
+            is JsonObject -> runCatching {
+                json.decodeFromJsonElement<ru.tomilo.lib.mobile.data.api.ConversationUserDto>(participantEl)
+            }.getOrNull() ?: ru.tomilo.lib.mobile.data.api.ConversationUserDto(
+                underscoreId = (participantEl["_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
+                id = (participantEl["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
+                username = (participantEl["username"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
+                avatar = (participantEl["avatar"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
+            )
+            else -> null
+        }
+        val unread = when (val u = obj["unreadCount"]) {
+            is kotlinx.serialization.json.JsonPrimitive -> u.content.toIntOrNull() ?: 0
+            else -> 0
+        }
+        return ConversationPreviewDto(
+            underscoreId = id,
+            id = id,
+            type = str("type"),
+            participant = participant,
+            lastMessageAt = str("lastMessageAt"),
+            lastMessagePreview = str("lastMessagePreview"),
+            lastMessageSenderId = str("lastMessageSenderId"),
+            unreadCount = unread,
+        )
+    }
+
+    private fun parseMessages(data: JsonElement?): List<DirectMessageDto> {
+        if (data == null) return emptyList()
+        val arr = when (data) {
+            is JsonArray -> data
+            is JsonObject -> (data["messages"] ?: data["items"]) as? JsonArray
+            else -> null
+        } ?: return emptyList()
+        return arr.mapNotNull {
+            runCatching { json.decodeFromJsonElement<DirectMessageDto>(it) }.getOrNull()
+        }
+    }
 
     // ── Leaders ─────────────────────────────────────────────────
     suspend fun leaderboard(

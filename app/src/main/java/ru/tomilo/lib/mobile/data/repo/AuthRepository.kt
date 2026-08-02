@@ -1,6 +1,7 @@
 package ru.tomilo.lib.mobile.data.repo
 
 import kotlinx.coroutines.flow.Flow
+import ru.tomilo.lib.mobile.TokenBridge
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ApiResponse
 import ru.tomilo.lib.mobile.data.api.AuthPayload
@@ -50,6 +51,8 @@ class AuthRepository(
         if (!res.success || payload.accessToken.isBlank()) {
             error(res.message ?: "Ошибка авторизации")
         }
+        // Сразу кладём токен — иначе первый GET (чаты/закладки) уходит без Authorization
+        TokenBridge.setCached(payload.accessToken)
         authStore.saveSession(payload.accessToken, payload.user)
         return payload.user
     }
@@ -61,7 +64,10 @@ class AuthRepository(
         user
     }
 
-    suspend fun logout() = authStore.clear()
+    suspend fun logout() {
+        TokenBridge.setCached(null)
+        authStore.clear()
+    }
 
     suspend fun isPremium(): Boolean = Premium.isActive(authStore.user()?.subscriptionExpiresAt)
 

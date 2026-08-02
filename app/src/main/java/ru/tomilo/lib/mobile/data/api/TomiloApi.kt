@@ -137,23 +137,23 @@ interface TomiloApi {
 
     // ── Messaging ───────────────────────────────────────────────
     @GET("conversations")
-    suspend fun conversations(): ApiResponse<List<ConversationPreviewDto>>
+    suspend fun conversations(): ApiResponse<JsonElement>
 
     @GET("conversations/unread-count")
-    suspend fun conversationsUnread(): ApiResponse<UnreadCountDto>
+    suspend fun conversationsUnread(): ApiResponse<JsonElement>
 
     @GET("conversations/support")
-    suspend fun supportConversation(): ApiResponse<ConversationPreviewDto>
+    suspend fun supportConversation(): ApiResponse<JsonElement>
 
     @POST("conversations")
-    suspend fun createConversation(@Body body: CreateConversationRequest): ApiResponse<ConversationPreviewDto>
+    suspend fun createConversation(@Body body: CreateConversationRequest): ApiResponse<JsonElement>
 
     @GET("conversations/{id}/messages")
     suspend fun messages(
         @Path("id") id: String,
         @Query("cursor") cursor: String? = null,
         @Query("limit") limit: Int = 50,
-    ): ApiResponse<MessagesPageDto>
+    ): ApiResponse<JsonElement>
 
     @POST("conversations/{id}/messages")
     suspend fun sendMessage(

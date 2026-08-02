@@ -6,8 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [OfflineChapterEntity::class],
-    version = 1,
+    entities = [OfflineChapterEntity::class, OfflineTitleEntity::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class OfflineDatabase : RoomDatabase() {

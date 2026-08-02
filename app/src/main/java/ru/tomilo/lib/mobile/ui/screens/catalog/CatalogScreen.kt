@@ -57,10 +57,14 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
+import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -89,14 +93,20 @@ private val STATUS_LABELS = mapOf(
 @Composable
 fun CatalogScreen(
     catalogRepository: CatalogRepository,
+    contentPrefs: ContentPrefs,
     onOpenTitle: (id: String, slug: String?) -> Unit,
 ) {
+    val contentSettings by contentPrefs.settingsFlow.collectAsState(
+        initial = ru.tomilo.lib.mobile.data.local.ContentSettings(),
+    )
+    val scope = rememberCoroutineScope()
     var searchInput by remember { mutableStateOf("") }
     var debouncedSearch by remember { mutableStateOf("") }
     var sortIndex by remember { mutableIntStateOf(0) }
     var selectedTypes by remember { mutableStateOf(setOf<String>()) }
     var selectedStatus by remember { mutableStateOf<String?>(null) }
     var selectedGenres by remember { mutableStateOf(setOf<String>()) }
+    // Глобальная настройка 18+; локальный чип синхронизирован
     var includeAdult by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
 
@@ -111,6 +121,11 @@ fun CatalogScreen(
     var reload by remember { mutableIntStateOf(0) }
 
     val gridState = rememberLazyGridState()
+    val canShowAdult = contentSettings.isAdultUser == true
+
+    LaunchedEffect(contentSettings.showAdultContent) {
+        includeAdult = contentSettings.showAdultContent && canShowAdult
+    }
 
     LaunchedEffect(Unit) {
         catalogRepository.filterOptions()
@@ -344,11 +359,23 @@ fun CatalogScreen(
                 }
 
                 Spacer(Modifier.height(12.dp))
-                FilterChip(
-                    selected = includeAdult,
-                    onClick = { includeAdult = !includeAdult },
-                    label = { Text("18+") },
-                )
+                if (canShowAdult) {
+                    FilterChip(
+                        selected = includeAdult,
+                        onClick = {
+                            val next = !includeAdult
+                            includeAdult = next
+                            scope.launch { contentPrefs.setShowAdult(next) }
+                        },
+                        label = { Text(if (includeAdult) "18+ вкл" else "18+ выкл") },
+                    )
+                } else {
+                    Text(
+                        "Контент 18+ недоступен (возраст не подтверждён)",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
 
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -358,6 +385,7 @@ fun CatalogScreen(
                             selectedGenres = emptySet()
                             selectedStatus = null
                             includeAdult = false
+                            scope.launch { contentPrefs.setShowAdult(false) }
                         },
                         modifier = Modifier.weight(1f),
                     ) { Text("Сбросить") }

@@ -8,11 +8,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -34,6 +36,8 @@ import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.data.local.ContentPrefs
+import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
@@ -49,15 +53,18 @@ fun ProfileScreen(
     authRepository: AuthRepository,
     socialRepository: SocialRepository,
     offlineRepository: OfflineRepository,
+    contentPrefs: ContentPrefs,
     onLogin: () -> Unit,
     onOpenOffline: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenLeaders: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenAdmin: () -> Unit,
+    onOpenPremium: () -> Unit,
     onOpenMyPublicProfile: (userId: String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
+    val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var notifUnread by remember { mutableIntStateOf(0) }
@@ -114,6 +121,14 @@ fun ProfileScreen(
                 OutlinedButton(onClick = onOpenLeaders, modifier = Modifier.fillMaxWidth()) {
                     Text("Лидеры")
                 }
+                Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = onOpenPremium, modifier = Modifier.fillMaxWidth()) {
+                    Text("Премиум-подписка")
+                }
+                AdultToggleRow(
+                    contentSettings = contentSettings,
+                    onToggle = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
+                )
             } else {
                 Text(user!!.username ?: "Пользователь", style = MaterialTheme.typography.headlineMedium)
                 Spacer(Modifier.height(4.dp))
@@ -129,7 +144,16 @@ fun ProfileScreen(
                     color = if (premium) TomiloPremium else TomiloMuted,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onOpenPremium, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (premium) "Управление Premium" else "Оформить Premium")
+                }
+                Spacer(Modifier.height(16.dp))
+                AdultToggleRow(
+                    contentSettings = contentSettings,
+                    onToggle = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
+                )
+                Spacer(Modifier.height(12.dp))
                 Button(
                     onClick = { onOpenMyPublicProfile(user!!.stableId()) },
                     modifier = Modifier.fillMaxWidth(),
@@ -196,6 +220,37 @@ fun ProfileScreen(
                 ) { Text("Выйти") }
             }
         }
+    }
+}
+
+@Composable
+private fun AdultToggleRow(
+    contentSettings: ContentSettings,
+    onToggle: (Boolean) -> Unit,
+) {
+    val canEnable = contentSettings.isAdultUser == true
+    Spacer(Modifier.height(8.dp))
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Показывать 18+", style = MaterialTheme.typography.titleSmall)
+            Text(
+                when {
+                    contentSettings.isAdultUser == false -> "Недоступно (возраст < 18)"
+                    contentSettings.showAdultContent -> "В каталоге и на главной"
+                    else -> "Скрыто (можно включить)"
+                },
+                color = TomiloMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Switch(
+            checked = contentSettings.showAdultContent && canEnable,
+            onCheckedChange = { if (canEnable) onToggle(it) },
+            enabled = canEnable,
+        )
     }
 }
 

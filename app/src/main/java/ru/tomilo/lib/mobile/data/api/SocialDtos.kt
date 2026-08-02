@@ -60,6 +60,8 @@ data class LeaderboardUserDto(
     val longestStreak: Int? = null,
     val subscriptionExpiresAt: String? = null,
     val balance: Int? = null,
+    /** Категория developmentHelp — принятые персонажи */
+    val charactersAcceptedCount: Int? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
 }

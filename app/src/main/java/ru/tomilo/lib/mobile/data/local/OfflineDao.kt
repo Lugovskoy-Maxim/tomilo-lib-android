@@ -11,6 +11,12 @@ interface OfflineDao {
     @Query("SELECT * FROM offline_chapters ORDER BY downloadedAt DESC")
     fun observeAll(): Flow<List<OfflineChapterEntity>>
 
+    @Query("SELECT * FROM offline_chapters")
+    suspend fun allChapters(): List<OfflineChapterEntity>
+
+    @Query("SELECT DISTINCT titleId FROM offline_chapters WHERE titleId != ''")
+    suspend fun distinctTitleIds(): List<String>
+
     @Query("SELECT * FROM offline_chapters WHERE titleId = :titleId ORDER BY downloadedAt DESC")
     fun observeByTitle(titleId: String): Flow<List<OfflineChapterEntity>>
 
@@ -34,4 +40,23 @@ interface OfflineDao {
 
     @Query("DELETE FROM offline_chapters")
     suspend fun clearAll()
+
+    // ── Title snapshots ─────────────────────────────────────────
+    @Query("SELECT * FROM offline_titles ORDER BY lastSyncedAt DESC")
+    fun observeTitles(): Flow<List<OfflineTitleEntity>>
+
+    @Query("SELECT * FROM offline_titles WHERE titleId = :titleId LIMIT 1")
+    suspend fun getTitle(titleId: String): OfflineTitleEntity?
+
+    @Query("SELECT * FROM offline_titles")
+    suspend fun allTitles(): List<OfflineTitleEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertTitle(entity: OfflineTitleEntity)
+
+    @Query("DELETE FROM offline_titles WHERE titleId = :titleId")
+    suspend fun deleteTitleMeta(titleId: String)
+
+    @Query("DELETE FROM offline_titles")
+    suspend fun clearTitles()
 }

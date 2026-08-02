@@ -37,23 +37,29 @@ object NetworkModule {
             chain.proceed(req)
         }
 
-        // Кеш для GET: online — short max-age, offline — stale
+        // Кеш только публичных GET без Authorization (иначе 401/пустые чаты залипают)
         val cacheInterceptor = Interceptor { chain ->
             val request = chain.request()
             val response = chain.proceed(request)
-            if (request.method == "GET" && response.isSuccessful) {
+            val isPublicGet = request.method == "GET" &&
+                request.header("Authorization").isNullOrBlank()
+            if (isPublicGet && response.isSuccessful) {
                 response.newBuilder()
                     .header("Cache-Control", "public, max-age=120")
                     .removeHeader("Pragma")
                     .build()
             } else {
-                response
+                response.newBuilder()
+                    .header("Cache-Control", "no-store")
+                    .build()
             }
         }
 
         val offlineCacheInterceptor = Interceptor { chain ->
             var request = chain.request()
-            if (request.method == "GET" && !isNetworkAvailable(context)) {
+            val isPublicGet = request.method == "GET" &&
+                request.header("Authorization").isNullOrBlank()
+            if (isPublicGet && !isNetworkAvailable(context)) {
                 request = request.newBuilder()
                     .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
                     .build()

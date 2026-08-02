@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,6 +39,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
@@ -61,22 +62,36 @@ fun ChatsScreen(
     onOpenChat: (conversationId: String, title: String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
-    var loading by remember { mutableStateOf(false) }
+    val token by authRepository.tokenFlow.collectAsState(initial = null)
+    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<ConversationPreviewDto>>(emptyList()) }
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(user?.stableId(), reload) {
-        if (user == null) {
+    // userFlow/tokenFlow initially null until DataStore emits
+    var authReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        // first real emission
+        runCatching { authRepository.tokenFlow.first() }
+        delay(30)
+        authReady = true
+    }
+
+    LaunchedEffect(user?.stableId(), token, reload, authReady) {
+        if (!authReady) return@LaunchedEffect
+        if (user == null || token.isNullOrBlank()) {
             items = emptyList()
+            loading = false
             return@LaunchedEffect
         }
         loading = true
         error = null
+        // небольшая пауза, если токен только что сохранился
+        if (token.isNullOrBlank()) delay(50)
         socialRepository.conversations()
             .onSuccess { items = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.message ?: "Не удалось загрузить чаты" }
         loading = false
     }
 
@@ -86,7 +101,7 @@ fun ChatsScreen(
             TopAppBar(
                 title = { Text("Чаты") },
                 actions = {
-                    if (user != null) {
+                    if (user != null && !token.isNullOrBlank()) {
                         IconButton(
                             onClick = {
                                 scope.launch {
@@ -106,19 +121,24 @@ fun ChatsScreen(
             )
         },
     ) { padding ->
-        if (user == null) {
+        if (!authReady || (loading && user != null && items.isEmpty() && error == null)) {
+            LoadingBox(Modifier.padding(padding))
+            return@Scaffold
+        }
+        if (user == null || token.isNullOrBlank()) {
             Column(Modifier.padding(padding).fillMaxSize()) {
                 ErrorBox("Войдите, чтобы писать в чаты", onRetry = onLogin)
             }
             return@Scaffold
         }
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loading && items.isEmpty() -> LoadingBox(Modifier.padding(padding))
             error != null && items.isEmpty() -> Column(Modifier.padding(padding)) {
                 ErrorBox(error ?: "Ошибка") { reload += 1 }
             }
             items.isEmpty() -> Text(
-                "Нет диалогов. Откройте профиль пользователя и напишите ему.",
+                "Нет диалогов. Откройте профиль пользователя и напишите ему, " +
+                    "или нажмите на иконку поддержки справа сверху.",
                 color = TomiloMuted,
                 modifier = Modifier.padding(padding).padding(16.dp),
             )
