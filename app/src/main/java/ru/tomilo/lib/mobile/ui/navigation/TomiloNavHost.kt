@@ -324,6 +324,8 @@ fun TomiloNavHost(container: AppContainer) {
                     offlineRepository = container.offlineRepository,
                     historyRepository = container.historyRepository,
                     readingPrefs = container.readingPrefs,
+                    authRepository = container.authRepository,
+                    chapterTransitionAds = container.chapterTransitionAds,
                     onBack = { navController.popBackStack() },
                     onOpenChapter = { nextId ->
                         navController.navigate(

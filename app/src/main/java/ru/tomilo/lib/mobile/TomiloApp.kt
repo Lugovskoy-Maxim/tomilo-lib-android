@@ -30,8 +30,9 @@ class TomiloApp : Application(), ImageLoaderFactory {
         runBlocking {
             TokenBridge.setCached(container.authStore.token())
         }
-        // РСЯ: init + preload rewarded
+        // РСЯ: init + preload rewarded + interstitial (между главами)
         container.rewardedAdManager.initialize()
+        container.interstitialAdManager.initialize()
         NotificationHelper.ensureChannel(this)
         NotificationsPollWorker.schedule(this)
         appScope.launch {

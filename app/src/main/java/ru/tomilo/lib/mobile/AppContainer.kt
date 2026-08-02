@@ -4,9 +4,12 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
+import ru.tomilo.lib.mobile.ads.InterstitialAdManager
+import ru.tomilo.lib.mobile.ads.RewardedAdManager
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.download.DownloadManager
-import ru.tomilo.lib.mobile.ads.RewardedAdManager
+import ru.tomilo.lib.mobile.data.local.AdFrequencyStore
 import ru.tomilo.lib.mobile.data.local.AdRewardStore
 import ru.tomilo.lib.mobile.data.local.AuthStore
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
@@ -27,7 +30,16 @@ class AppContainer(context: Context) {
     val readingPrefs = ReadingPrefs(appContext)
     val contentPrefs = ContentPrefs(appContext)
     val adRewardStore = AdRewardStore(appContext)
+    val adFrequencyStore = AdFrequencyStore(appContext)
     val rewardedAdManager = RewardedAdManager(appContext)
+    val interstitialAdManager = InterstitialAdManager(appContext)
+    val chapterTransitionAds = ChapterTransitionAds(
+        frequencyStore = adFrequencyStore,
+        interstitialAdManager = interstitialAdManager,
+        rewardedAdManager = rewardedAdManager,
+        adRewardStore = adRewardStore,
+        scope = appScope,
+    )
     private val tokenHolder = TokenHolder()
 
     val tomiloApi = NetworkModule.createApi(appContext) {

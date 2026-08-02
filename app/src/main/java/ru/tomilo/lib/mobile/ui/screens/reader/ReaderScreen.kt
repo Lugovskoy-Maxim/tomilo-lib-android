@@ -70,9 +70,11 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
+import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
@@ -91,12 +93,15 @@ fun ReaderScreen(
     offlineRepository: OfflineRepository,
     historyRepository: HistoryRepository,
     readingPrefs: ReadingPrefs,
+    authRepository: AuthRepository,
+    chapterTransitionAds: ChapterTransitionAds,
     onBack: () -> Unit,
     onOpenChapter: (chapterId: String) -> Unit,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val activity = context as? android.app.Activity
+    val user by authRepository.userFlow.collectAsState(initial = null)
     val settings by readingPrefs.settingsFlow.collectAsState(
         initial = ru.tomilo.lib.mobile.data.local.ReadingSettings(),
     )
@@ -109,6 +114,16 @@ fun ReaderScreen(
     var title by remember { mutableStateOf("Глава") }
     var offline by remember { mutableStateOf(false) }
     var currentChapterId by remember(chapterId) { mutableStateOf(chapterId) }
+
+    /** Переход на другую главу с возможной рекламой (1 раз / 10 мин, не Premium). */
+    fun goChapter(nextId: String) {
+        if (nextId.isBlank() || nextId == currentChapterId) return
+        chapterTransitionAds.maybeShowThen(
+            activity = activity,
+            user = user,
+            proceed = { onOpenChapter(nextId) },
+        )
+    }
 
     var chromeVisible by remember { mutableStateOf(!settings.startFullscreen) }
     var fullscreen by remember { mutableStateOf(settings.startFullscreen) }
@@ -284,7 +299,7 @@ fun ReaderScreen(
                             onClick = {
                                 scope.launch {
                                     catalogRepository.chapterPrev(currentChapterId)
-                                        .onSuccess { onOpenChapter(it.stableId()) }
+                                        .onSuccess { goChapter(it.stableId()) }
                                 }
                             },
                             enabled = hasPrev,
@@ -293,7 +308,7 @@ fun ReaderScreen(
                             onClick = {
                                 scope.launch {
                                     catalogRepository.chapterNext(currentChapterId)
-                                        .onSuccess { onOpenChapter(it.stableId()) }
+                                        .onSuccess { goChapter(it.stableId()) }
                                 }
                             },
                             enabled = hasNext,
@@ -378,7 +393,7 @@ fun ReaderScreen(
                         onClick = {
                             scope.launch {
                                 catalogRepository.chapterPrev(currentChapterId)
-                                    .onSuccess { onOpenChapter(it.stableId()) }
+                                    .onSuccess { goChapter(it.stableId()) }
                             }
                         },
                         enabled = hasPrev,
@@ -406,7 +421,7 @@ fun ReaderScreen(
                         onClick = {
                             scope.launch {
                                 catalogRepository.chapterNext(currentChapterId)
-                                    .onSuccess { onOpenChapter(it.stableId()) }
+                                    .onSuccess { goChapter(it.stableId()) }
                             }
                         },
                         enabled = hasNext,
@@ -478,7 +493,7 @@ fun ReaderScreen(
                             .fillMaxWidth()
                             .clickable {
                                 showChapters = false
-                                onOpenChapter(ch.stableId())
+                                goChapter(ch.stableId())
                             }
                             .padding(horizontal = 20.dp, vertical = 12.dp),
                     )
