@@ -45,14 +45,22 @@ fun HistoryScreen(
     onOpenChapter: (titleId: String, chapterId: String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
-    var loading by remember { mutableStateOf(false) }
+    var authReady by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
     var reload by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(user?.stableId(), reload) {
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(40)
+        authReady = true
+    }
+
+    LaunchedEffect(user?.stableId(), reload, authReady) {
+        if (!authReady) return@LaunchedEffect
         if (user == null) {
             items = emptyList()
+            loading = false
             return@LaunchedEffect
         }
         loading = true
@@ -77,6 +85,10 @@ fun HistoryScreen(
             )
         },
     ) { padding ->
+        if (!authReady || (loading && user == null)) {
+            LoadingBox(Modifier.padding(padding))
+            return@Scaffold
+        }
         if (user == null) {
             Column(Modifier.padding(padding)) {
                 ErrorBox("Войдите, чтобы видеть историю", onRetry = onLogin)
@@ -89,7 +101,7 @@ fun HistoryScreen(
                 ErrorBox(error ?: "Ошибка") { reload += 1 }
             }
             items.isEmpty() -> Text(
-                "История пуста",
+                "История пуста. Откройте главу — прогресс сохранится.",
                 color = TomiloMuted,
                 modifier = Modifier.padding(padding).padding(16.dp),
             )
@@ -97,18 +109,28 @@ fun HistoryScreen(
                 Modifier.padding(padding).fillMaxSize(),
                 contentPadding = ScreenPadding,
             ) {
-                items(items, key = { it.titleKey() + it.chapterKey() + (it.readAt ?: "") }) { h ->
+                items(
+                    items,
+                    key = { h ->
+                        h.titleKey() + "|" + h.chapterKey() + "|" + (h.readAt ?: "")
+                    },
+                ) { h ->
+                    val tid = h.titleKey()
+                    val cid = h.chapterKey()
+                    val count = h.chaptersCount
                     TitleSearchCard(
                         title = h.displayTitle(),
                         cover = h.coverPath(),
-                        subtitle = h.chapterLabel(),
-                        year = null,
+                        type = h.type(),
+                        subtitle = buildString {
+                            append(h.chapterLabel())
+                            if (count != null && count > 1) append(" · всего $count гл.")
+                            h.readAtLabel()?.let { append(" · $it") }
+                        },
                         onClick = {
-                            val tid = h.titleKey()
-                            val cid = h.chapterKey()
                             when {
                                 tid.isNotBlank() && cid.isNotBlank() -> onOpenChapter(tid, cid)
-                                tid.isNotBlank() -> onOpenTitle(tid, h.titleSlug)
+                                tid.isNotBlank() -> onOpenTitle(tid, h.slug())
                             }
                         },
                     )

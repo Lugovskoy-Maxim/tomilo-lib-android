@@ -166,6 +166,11 @@ fun ReaderScreen(
                     pages = local.map { File(it).toURI().toString() }
                     offline = true
                     loading = false
+                    val tid = titleId ?: entity?.titleId
+                    if (!tid.isNullOrBlank()) {
+                        historyRepository.markRead(tid, id)
+                    }
+                    listState.scrollToItem(0)
                     return@launch
                 }
             }

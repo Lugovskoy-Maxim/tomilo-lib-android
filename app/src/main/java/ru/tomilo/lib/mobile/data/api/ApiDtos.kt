@@ -70,43 +70,113 @@ data class UserDto(
 data class RateTitleRequest(val rating: Int)
 
 @Serializable
-data class HistoryEntryDto(
-    @SerialName("_id") val underscoreId: String? = null,
-    val id: String? = null,
-    val titleId: JsonElement? = null,
+data class HistoryLastChapterDto(
     val chapterId: JsonElement? = null,
+    val chapterNumber: JsonElement? = null,
+    val chapterTitle: String? = null,
+    val readAt: String? = null,
+) {
+    fun chapterKey(): String = jsonElementId(chapterId)
+    fun numberLabel(): String {
+        val n = chapterNumber?.toString()?.trim('"')
+        return n?.takeIf { it.isNotBlank() } ?: "?"
+    }
+}
+
+/**
+ * Элемент лёгкой истории: titleId (string | populated), lastChapter, chaptersCount.
+ */
+@Serializable
+data class HistoryEntryDto(
+    val titleId: JsonElement? = null,
+    val readAt: String? = null,
+    val lastChapter: HistoryLastChapterDto? = null,
+    val chaptersCount: Int? = null,
+    /** full format may include chapters[] */
+    val chapters: List<HistoryLastChapterDto>? = null,
+    // flat aliases if ever present
     val titleName: String? = null,
     val titleSlug: String? = null,
     val coverImage: String? = null,
     val cover: String? = null,
+    val chapterId: JsonElement? = null,
     val chapterNumber: JsonElement? = null,
     val chapterName: String? = null,
-    val readAt: String? = null,
-    val updatedAt: String? = null,
 ) {
-    fun titleKey(): String = extractId(titleId)
-    fun chapterKey(): String = extractId(chapterId)
-    fun displayTitle(): String = titleName?.takeIf { it.isNotBlank() } ?: "Тайтл"
-    fun coverPath(): String? = coverImage ?: cover
+    fun titleKey(): String = jsonElementId(titleId)
+
+    fun titleMeta(): Pair<String, String?> {
+        val el = titleId
+        if (el is kotlinx.serialization.json.JsonObject) {
+            val name = el["name"]?.toString()?.trim('"')
+                ?: el["title"]?.toString()?.trim('"')
+            val slug = el["slug"]?.toString()?.trim('"')
+            return (name?.takeIf { it.isNotBlank() } ?: titleName ?: "Тайтл") to slug
+        }
+        return (titleName ?: "Тайтл") to titleSlug
+    }
+
+    fun displayTitle(): String = titleMeta().first
+
+    fun slug(): String? = titleMeta().second
+
+    fun coverPath(): String? {
+        val el = titleId
+        if (el is kotlinx.serialization.json.JsonObject) {
+            val c = el["coverImage"]?.toString()?.trim('"')
+                ?: el["cover"]?.toString()?.trim('"')
+            if (!c.isNullOrBlank() && c != "null") return c
+        }
+        return coverImage ?: cover
+    }
+
+    fun type(): String? {
+        val el = titleId
+        if (el is kotlinx.serialization.json.JsonObject) {
+            return el["type"]?.toString()?.trim('"')?.takeIf { it.isNotBlank() && it != "null" }
+        }
+        return null
+    }
+
+    fun chapterKey(): String {
+        lastChapter?.chapterKey()?.takeIf { it.isNotBlank() }?.let { return it }
+        jsonElementId(chapterId).takeIf { it.isNotBlank() }?.let { return it }
+        return chapters?.firstOrNull()?.chapterKey().orEmpty()
+    }
+
     fun chapterLabel(): String {
+        lastChapter?.let {
+            val title = it.chapterTitle
+            return if (!title.isNullOrBlank()) "Глава ${it.numberLabel()} · $title"
+            else "Глава ${it.numberLabel()}"
+        }
         val n = chapterNumber?.toString()?.trim('"')
         return when {
             !chapterName.isNullOrBlank() -> chapterName
             !n.isNullOrBlank() -> "Глава $n"
-            else -> "Глава"
+            else -> chaptersCount?.let { "Прочитано: $it гл." } ?: "История"
         }
     }
 
-    private fun extractId(el: JsonElement?): String {
-        if (el == null) return ""
-        return when (el) {
-            is kotlinx.serialization.json.JsonPrimitive -> el.content
-            is kotlinx.serialization.json.JsonObject ->
-                el["_id"]?.toString()?.trim('"')
-                    ?: el["id"]?.toString()?.trim('"')
-                    ?: ""
-            else -> ""
-        }
+    fun readAtLabel(): String? =
+        (lastChapter?.readAt ?: readAt)?.take(16)?.replace('T', ' ')
+}
+
+@Serializable
+data class ReadIdsDto(
+    val chapterIds: List<String> = emptyList(),
+    val chapterNumbers: List<Double> = emptyList(),
+)
+
+private fun jsonElementId(el: JsonElement?): String {
+    if (el == null) return ""
+    return when (el) {
+        is kotlinx.serialization.json.JsonPrimitive -> el.content
+        is kotlinx.serialization.json.JsonObject ->
+            el["_id"]?.toString()?.trim('"')
+                ?: el["id"]?.toString()?.trim('"')
+                ?: ""
+        else -> ""
     }
 }
 

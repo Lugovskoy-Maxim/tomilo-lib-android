@@ -12,9 +12,7 @@ import ru.tomilo.lib.mobile.data.api.AdminDashboardDto
 import ru.tomilo.lib.mobile.data.api.AdminRoleRequest
 import ru.tomilo.lib.mobile.data.api.AdminTitleDto
 import ru.tomilo.lib.mobile.data.api.AdminUserDto
-import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
-import ru.tomilo.lib.mobile.data.api.RateTitleRequest
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 
 class AdminRepository(private val api: TomiloApi) {
@@ -100,48 +98,6 @@ class AdminRepository(private val api: TomiloApi) {
                 ?: el["description"]?.toString()?.trim('"')
                 ?: el["action"]?.toString()?.trim('"')
             listOfNotNull(type, msg).joinToString(": ").ifBlank { el.toString() }
-        }
-    }
-}
-
-class HistoryRepository(private val api: TomiloApi) {
-    private val json = NetworkModule.json
-
-    suspend fun history(page: Int = 1): Result<List<HistoryEntryDto>> = runCatching {
-        val res = api.readingHistory(page = page, limit = 50, light = true)
-        if (!res.success) error(res.message ?: "Ошибка истории")
-        parseHistory(res.data)
-    }
-
-    suspend fun markRead(titleId: String, chapterId: String): Result<Unit> = runCatching {
-        val res = api.addHistory(titleId, chapterId)
-        if (!res.success) error(res.message ?: "Не удалось сохранить прогресс")
-    }
-
-    suspend fun rateTitle(titleId: String, rating: Int): Result<Unit> = runCatching {
-        val res = api.rateTitle(titleId, RateTitleRequest(rating.coerceIn(1, 10)))
-        if (!res.success) error(res.message ?: "Не удалось оценить")
-    }
-
-    private fun parseHistory(data: JsonElement?): List<HistoryEntryDto> {
-        if (data == null) return emptyList()
-        val arr = when (data) {
-            is JsonArray -> data
-            is JsonObject -> {
-                val nested = data["items"]
-                    ?: data["history"]
-                    ?: data["data"]
-                    ?: data["results"]
-                when (nested) {
-                    is JsonArray -> nested
-                    is JsonObject -> nested["items"] as? JsonArray
-                    else -> null
-                }
-            }
-            else -> null
-        } ?: return emptyList()
-        return arr.mapNotNull {
-            runCatching { json.decodeFromJsonElement<HistoryEntryDto>(it) }.getOrNull()
         }
     }
 }

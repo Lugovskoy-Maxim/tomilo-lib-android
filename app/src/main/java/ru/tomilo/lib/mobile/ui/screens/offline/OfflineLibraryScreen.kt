@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,8 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.local.OfflineChapterEntity
+import ru.tomilo.lib.mobile.data.repo.AuthRepository
+import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -65,11 +68,16 @@ private data class OfflineTitleGroup(
 @Composable
 fun OfflineLibraryScreen(
     offlineRepository: OfflineRepository,
+    historyRepository: HistoryRepository,
+    authRepository: AuthRepository,
     onOpenChapter: (chapterId: String, titleId: String) -> Unit,
 ) {
     val flat by offlineRepository.observeAll().collectAsState(initial = emptyList())
+    val user by authRepository.userFlow.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(setOf<String>()) }
+    /** titleId -> set of read chapterIds */
+    var readByTitle by remember { mutableStateOf(mapOf<String, Set<String>>()) }
 
     val groups = remember(flat) {
         flat
@@ -94,11 +102,22 @@ fun OfflineLibraryScreen(
             .sortedByDescending { it.lastDownloadedAt }
     }
 
-    // Expand first group by default when data appears
-    androidx.compose.runtime.LaunchedEffect(groups.map { it.titleId }) {
+    LaunchedEffect(groups.map { it.titleId }, user?.stableId()) {
         if (expanded.isEmpty() && groups.isNotEmpty()) {
             expanded = setOf(groups.first().titleId)
         }
+        if (user == null) {
+            readByTitle = emptyMap()
+            return@LaunchedEffect
+        }
+        val map = mutableMapOf<String, Set<String>>()
+        groups.forEach { g ->
+            if (g.titleId.isNotBlank()) {
+                historyRepository.readIds(g.titleId)
+                    .onSuccess { map[g.titleId] = it }
+            }
+        }
+        readByTitle = map
     }
 
     Scaffold(
@@ -109,8 +128,12 @@ fun OfflineLibraryScreen(
                     Column {
                         Text("Офлайн")
                         if (groups.isNotEmpty()) {
+                            val readTotal = groups.sumOf { g ->
+                                g.chapters.count { it.chapterId in (readByTitle[g.titleId] ?: emptySet()) }
+                            }
                             Text(
-                                "${groups.size} тайтл. · ${flat.size} гл.",
+                                "${groups.size} тайтл. · ${flat.size} гл." +
+                                    if (readTotal > 0) " · прочитано $readTotal" else "",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TomiloMuted,
                             )
@@ -142,9 +165,11 @@ fun OfflineLibraryScreen(
             ) {
                 items(groups, key = { it.titleId }) { group ->
                     val isOpen = group.titleId in expanded
+                    val readIds = readByTitle[group.titleId] ?: emptySet()
                     OfflineTitleBlock(
                         group = group,
                         expanded = isOpen,
+                        readChapterIds = readIds,
                         onToggle = {
                             expanded = if (isOpen) expanded - group.titleId
                             else expanded + group.titleId
@@ -169,11 +194,13 @@ fun OfflineLibraryScreen(
 private fun OfflineTitleBlock(
     group: OfflineTitleGroup,
     expanded: Boolean,
+    readChapterIds: Set<String>,
     onToggle: () -> Unit,
     onOpenChapter: (OfflineChapterEntity) -> Unit,
     onDeleteChapter: (OfflineChapterEntity) -> Unit,
     onDeleteTitle: () -> Unit,
 ) {
+    val readCount = group.chapters.count { it.chapterId in readChapterIds }
     Column(
         Modifier
             .fillMaxWidth()
@@ -208,21 +235,29 @@ private fun OfflineTitleBlock(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${group.chapters.size} гл. · ${formatBytes(group.bytesTotal)}",
+                    buildString {
+                        append("${group.chapters.size} гл. · ${formatBytes(group.bytesTotal)}")
+                        if (readCount > 0) append(" · ✓ $readCount")
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = TomiloMuted,
                 )
+                // progress bar text
+                if (group.chapters.isNotEmpty() && readCount > 0) {
+                    val pct = (100 * readCount / group.chapters.size)
+                    Text(
+                        "Прогресс офлайн: $pct%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
             IconButton(onClick = onDeleteTitle) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Удалить тайтл",
-                    tint = TomiloMuted,
-                )
+                Icon(Icons.Default.Delete, contentDescription = "Удалить тайтл", tint = TomiloMuted)
             }
             Icon(
                 if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                contentDescription = null,
                 tint = TomiloMuted,
             )
         }
@@ -230,6 +265,7 @@ private fun OfflineTitleBlock(
         AnimatedVisibility(visible = expanded) {
             Column(Modifier.padding(bottom = 6.dp)) {
                 group.chapters.forEach { ch ->
+                    val isRead = ch.chapterId in readChapterIds
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -239,27 +275,25 @@ private fun OfflineTitleBlock(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "Глава ${ch.chapterNumber}",
+                                "Глава ${ch.chapterNumber}" + if (isRead) "  ✓" else "",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Medium,
+                                color = if (isRead) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onBackground,
                             )
                             val sub = listOfNotNull(
                                 ch.chapterName?.takeIf {
                                     it.isNotBlank() && !it.equals("Глава ${ch.chapterNumber}", true)
                                 },
                                 "${ch.pageCount} стр.",
-                                formatBytes(ch.bytesTotal).takeIf { ch.bytesTotal > 0 },
+                                if (isRead) "прочитано" else null,
                             ).joinToString(" · ")
                             if (sub.isNotBlank()) {
                                 Text(sub, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
                             }
                         }
                         IconButton(onClick = { onDeleteChapter(ch) }) {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = "Удалить главу",
-                                tint = TomiloMuted,
-                            )
+                            Icon(Icons.Default.Delete, contentDescription = "Удалить главу", tint = TomiloMuted)
                         }
                     }
                 }

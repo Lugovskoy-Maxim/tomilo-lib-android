@@ -200,11 +200,20 @@ interface TomiloApi {
         @Query("light") light: Boolean = true,
     ): ApiResponse<JsonElement>
 
+    @GET("users/profile/history/{titleId}/read-ids")
+    suspend fun historyReadIds(@Path("titleId") titleId: String): ApiResponse<ReadIdsDto>
+
+    @GET("users/profile/history/{titleId}")
+    suspend fun historyByTitle(@Path("titleId") titleId: String): ApiResponse<JsonElement>
+
     @POST("users/profile/history/{titleId}/{chapterId}")
     suspend fun addHistory(
         @Path("titleId") titleId: String,
         @Path("chapterId") chapterId: String,
     ): ApiResponse<JsonElement>
+
+    @DELETE("users/profile/history/{titleId}")
+    suspend fun deleteTitleHistory(@Path("titleId") titleId: String): ApiResponse<JsonElement>
 
     // ── Title rating ────────────────────────────────────────────
     @POST("titles/{id}/rating")

@@ -110,6 +110,8 @@ fun TitleScreen(
     var showDownloadSheet by remember { mutableStateOf(false) }
     var sort by remember { mutableStateOf(ChapterSort.NumberAsc) }
     var myRating by remember { mutableIntStateOf(0) }
+    var readChapterIds by remember { mutableStateOf(setOf<String>()) }
+    var continueChapterId by remember { mutableStateOf<String?>(null) }
 
     val sortedChapters = remember(chapters, sort) {
         when (sort) {
@@ -162,6 +164,32 @@ fun TitleScreen(
             .onSuccess {
                 bookmarked = it.active()
                 bookmarkCategory = it.category
+            }
+    }
+
+    LaunchedEffect(title?.stableId(), user?.stableId(), chapters) {
+        val tid = title?.stableId().orEmpty()
+        if (tid.isBlank() || user == null) {
+            readChapterIds = emptySet()
+            continueChapterId = chapters.firstOrNull()?.stableId()
+            return@LaunchedEffect
+        }
+        historyRepository.readIds(tid)
+            .onSuccess { ids ->
+                readChapterIds = ids
+                val byNum = chapters.sortedBy { it.chapterNumberAsDouble() ?: -1.0 }
+                val lastRead = byNum.lastOrNull { it.stableId() in ids }
+                val nextUnread = byNum.firstOrNull {
+                    val n = it.chapterNumberAsDouble()
+                    val lastN = lastRead?.chapterNumberAsDouble()
+                    n != null && lastN != null && n > lastN
+                }
+                continueChapterId = nextUnread?.stableId()
+                    ?: lastRead?.stableId()
+                    ?: byNum.firstOrNull()?.stableId()
+            }
+            .onFailure {
+                continueChapterId = chapters.minByOrNull { it.chapterNumberAsDouble() ?: 0.0 }?.stableId()
             }
     }
 
@@ -326,10 +354,36 @@ fun TitleScreen(
                                 Text(meta, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "Долгое нажатие / □ — выбор глав для офлайн",
+                                    "□ — выбор глав для офлайн",
                                     color = TomiloMuted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
+                                if (user != null && readChapterIds.isNotEmpty()) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Прочитано: ${readChapterIds.size}" +
+                                            (t.totalChapters?.let { " / $it" } ?: ""),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (continueChapterId != null) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Button(
+                                        onClick = {
+                                            onOpenChapter(
+                                                t.stableId(),
+                                                continueChapterId!!,
+                                                continueChapterId in downloadedIds,
+                                            )
+                                        },
+                                    ) {
+                                        Text(
+                                            if (readChapterIds.isEmpty()) "Начать чтение"
+                                            else "Продолжить",
+                                        )
+                                    }
+                                }
                             }
                         }
                         if (!t.description.isNullOrBlank()) {
@@ -401,6 +455,7 @@ fun TitleScreen(
                         val id = chapter.stableId()
                         val isOffline = id in downloadedIds
                         val isSelected = id in selected
+                        val isRead = id in readChapterIds
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -426,13 +481,23 @@ fun TitleScreen(
                                 )
                             }
                             Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-                                Text("Глава ${chapter.numberLabel()}")
+                                Text(
+                                    "Глава ${chapter.numberLabel()}" + if (isRead) "  ✓" else "",
+                                    color = if (isRead) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onBackground,
+                                )
                                 if (!chapter.name.isNullOrBlank() &&
                                     chapter.name != "Глава ${chapter.numberLabel()}"
                                 ) {
                                     Text(
                                         chapter.name!!,
                                         color = TomiloMuted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                } else if (isRead) {
+                                    Text(
+                                        "Прочитано",
+                                        color = MaterialTheme.colorScheme.primary,
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
