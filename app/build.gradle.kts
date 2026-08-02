@@ -42,9 +42,8 @@ android {
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
         // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
         buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
-        // Interstitial между главами (~1/10 мин). Создайте блок «Межстраничная» в кабинете РСЯ.
-        // Пока пусто: debug → demo-interstitial-yandex; release → fallback на rewarded.
-        buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", "\"\"")
+        // Interstitial между главами (~1/10 мин), блок РСЯ «Межстраничная»
+        buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", "\"R-M-19689456-2\"")
     }
 
     signingConfigs {
