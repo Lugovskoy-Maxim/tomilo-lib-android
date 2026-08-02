@@ -209,9 +209,13 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Offline) {
                 OfflineLibraryScreen(
                     offlineRepository = container.offlineRepository,
-                    onOpenChapter = { chapterId ->
+                    onOpenChapter = { chapterId, titleId ->
                         navController.navigate(
-                            Routes.reader(chapterId, offline = true, titleId = null),
+                            Routes.reader(
+                                chapterId,
+                                offline = true,
+                                titleId = titleId.ifBlank { null },
+                            ),
                         )
                     },
                 )
