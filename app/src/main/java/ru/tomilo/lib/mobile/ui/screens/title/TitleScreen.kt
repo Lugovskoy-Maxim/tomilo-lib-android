@@ -20,9 +20,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,13 +35,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,11 +57,13 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
+import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
+import ru.tomilo.lib.mobile.ui.components.DownloadProgressSheet
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -72,6 +78,7 @@ fun TitleScreen(
     offlineRepository: OfflineRepository,
     authRepository: AuthRepository,
     socialRepository: SocialRepository,
+    downloadManager: DownloadManager,
     onBack: () -> Unit,
     onLogin: () -> Unit,
     onOpenChapter: (titleId: String, chapterId: String, offline: Boolean) -> Unit,
@@ -84,18 +91,24 @@ fun TitleScreen(
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
     var bookmarked by remember { mutableStateOf(false) }
     var bookmarkCategory by remember { mutableStateOf<String?>(null) }
+    var selectMode by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var showDownloadSheet by remember { mutableStateOf(false) }
+
     val offlineAll by offlineRepository.observeAll().collectAsState(initial = emptyList())
+    val downloadState by downloadManager.state.collectAsState()
     val downloadedIds = remember(offlineAll, title?.stableId()) {
         val tid = title?.stableId().orEmpty()
         offlineAll.filter { tid.isNotBlank() && it.titleId == tid }.map { it.chapterId }.toSet()
     }
-    val downloading = remember { mutableStateMapOf<String, Boolean>() }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(titleKey) {
         loading = true
         error = null
+        selectMode = false
+        selected = emptySet()
         val t = catalogRepository.title(titleKey)
         t.onFailure {
             error = it.message
@@ -104,8 +117,8 @@ fun TitleScreen(
         }
         val detail = t.getOrThrow()
         title = detail
-        val ch = catalogRepository.chapters(detail.stableId())
-        ch.onSuccess { chapters = it }
+        catalogRepository.chapters(detail.stableId(), limit = 200)
+            .onSuccess { chapters = it }
             .onFailure { error = it.message }
         loading = false
     }
@@ -124,6 +137,10 @@ fun TitleScreen(
             }
     }
 
+    LaunchedEffect(downloadState.finished, downloadState.items) {
+        if (downloadState.items.isNotEmpty()) showDownloadSheet = true
+    }
+
     Scaffold(
         containerColor = TomiloBg,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -131,70 +148,129 @@ fun TitleScreen(
             TopAppBar(
                 title = {
                     Text(
-                        title?.name ?: "Тайтл",
+                        if (selectMode) "Выбрано: ${selected.size}"
+                        else title?.name ?: "Тайтл",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    IconButton(onClick = {
+                        if (selectMode) {
+                            selectMode = false
+                            selected = emptySet()
+                        } else onBack()
+                    }) {
+                        Icon(
+                            if (selectMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Назад",
+                        )
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = {
-                            val tid = title?.stableId().orEmpty()
-                            if (tid.isBlank()) return@IconButton
-                            if (user == null) {
-                                onLogin()
-                                return@IconButton
-                            }
-                            scope.launch {
-                                if (bookmarked) {
-                                    socialRepository.removeBookmark(tid)
-                                        .onSuccess {
-                                            bookmarked = false
-                                            bookmarkCategory = null
-                                            snackbar.showSnackbar("Убрано из закладок")
-                                        }
-                                        .onFailure {
-                                            snackbar.showSnackbar(it.message ?: "Ошибка")
-                                        }
-                                } else {
-                                    socialRepository.addBookmark(tid, "reading")
-                                        .onSuccess {
-                                            bookmarked = true
-                                            bookmarkCategory = "reading"
-                                            snackbar.showSnackbar("В закладках")
-                                        }
-                                        .onFailure {
-                                            snackbar.showSnackbar(it.message ?: "Ошибка")
-                                        }
+                    if (selectMode) {
+                        IconButton(onClick = {
+                            val allIds = chapters.map { it.stableId() }.filter { it !in downloadedIds }
+                            selected = if (selected.size >= allIds.size) emptySet() else allIds.toSet()
+                        }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
+                        }
+                    } else {
+                        IconButton(onClick = { selectMode = true }) {
+                            Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Выбор загрузки")
+                        }
+                        IconButton(
+                            onClick = {
+                                val tid = title?.stableId().orEmpty()
+                                if (tid.isBlank()) return@IconButton
+                                if (user == null) {
+                                    onLogin()
+                                    return@IconButton
                                 }
-                            }
-                        },
-                    ) {
-                        Icon(
-                            imageVector = if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            contentDescription = "Закладка",
-                            tint = if (bookmarked) MaterialTheme.colorScheme.primary else TomiloMuted,
-                        )
+                                scope.launch {
+                                    if (bookmarked) {
+                                        socialRepository.removeBookmark(tid)
+                                            .onSuccess {
+                                                bookmarked = false
+                                                bookmarkCategory = null
+                                                snackbar.showSnackbar("Убрано из закладок")
+                                            }
+                                    } else {
+                                        socialRepository.addBookmark(tid, "reading")
+                                            .onSuccess {
+                                                bookmarked = true
+                                                bookmarkCategory = "reading"
+                                                snackbar.showSnackbar("В закладках")
+                                            }
+                                    }
+                                }
+                            },
+                        ) {
+                            Icon(
+                                if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                contentDescription = "Закладка",
+                                tint = if (bookmarked) MaterialTheme.colorScheme.primary else TomiloMuted,
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
             )
         },
+        bottomBar = {
+            if (selectMode) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(TomiloSurface2)
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextButton(onClick = {
+                        selectMode = false
+                        selected = emptySet()
+                    }, modifier = Modifier.weight(1f)) { Text("Отмена") }
+                    Button(
+                        onClick = {
+                            val t = title ?: return@Button
+                            if (user == null) {
+                                onLogin()
+                                return@Button
+                            }
+                            val toDownload = chapters.filter {
+                                it.stableId() in selected && it.stableId() !in downloadedIds
+                            }
+                            if (toDownload.isEmpty()) {
+                                scope.launch { snackbar.showSnackbar("Нечего скачивать") }
+                                return@Button
+                            }
+                            downloadManager.enqueue(
+                                titleId = t.stableId(),
+                                titleName = t.name.orEmpty(),
+                                titleSlug = t.slug.orEmpty(),
+                                titleCover = t.coverImage,
+                                chapters = toDownload,
+                            )
+                            showDownloadSheet = true
+                            selectMode = false
+                            selected = emptySet()
+                        },
+                        modifier = Modifier.weight(1f),
+                        enabled = selected.isNotEmpty() && !downloadManager.isBusy(),
+                    ) {
+                        Text("Скачать (${selected.size})")
+                    }
+                }
+            }
+        },
     ) { padding ->
         when {
             loading -> LoadingBox(Modifier.padding(padding))
-            error != null && title == null -> ErrorBox(error ?: "Ошибка", onRetry = null)
+            error != null && title == null -> ErrorBox(error ?: "Ошибка")
             title != null -> {
                 val t = title!!
                 LazyColumn(
-                    Modifier
-                        .padding(padding)
-                        .fillMaxSize(),
+                    Modifier.padding(padding).fillMaxSize(),
                 ) {
                     item {
                         Row(Modifier.padding(16.dp)) {
@@ -220,14 +296,12 @@ fun TitleScreen(
                                     t.totalChapters?.let { "$it гл." },
                                 ).joinToString(" · ")
                                 Text(meta, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                                if (bookmarked && !bookmarkCategory.isNullOrBlank()) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "Закладка: $bookmarkCategory",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Долгое нажатие / □ — выбор глав для офлайн",
+                                    color = TomiloMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             }
                         }
                         if (!t.description.isNullOrBlank()) {
@@ -235,33 +309,50 @@ fun TitleScreen(
                                 t.description!!,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TomiloMuted,
-                                maxLines = 6,
+                                maxLines = 5,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(horizontal = 16.dp),
                             )
-                            Spacer(Modifier.height(8.dp))
                         }
                         Text(
                             "Главы",
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         )
                     }
                     items(chapters, key = { it.stableId() }) { chapter ->
                         val id = chapter.stableId()
                         val isOffline = id in downloadedIds
-                        val isLoading = downloading[id] == true
+                        val isSelected = id in selected
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { onOpenChapter(t.stableId(), id, isOffline) }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .clickable {
+                                    if (selectMode) {
+                                        if (isOffline) return@clickable
+                                        selected = if (isSelected) selected - id else selected + id
+                                    } else {
+                                        onOpenChapter(t.stableId(), id, isOffline)
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
-                            Column(Modifier.weight(1f)) {
+                            if (selectMode) {
+                                Checkbox(
+                                    checked = isSelected || isOffline,
+                                    onCheckedChange = {
+                                        if (isOffline) return@Checkbox
+                                        selected = if (isSelected) selected - id else selected + id
+                                    },
+                                    enabled = !isOffline,
+                                )
+                            }
+                            Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
                                 Text("Глава ${chapter.numberLabel()}")
-                                if (!chapter.name.isNullOrBlank() && chapter.name != "Глава ${chapter.numberLabel()}") {
+                                if (!chapter.name.isNullOrBlank() &&
+                                    chapter.name != "Глава ${chapter.numberLabel()}"
+                                ) {
                                     Text(
                                         chapter.name!!,
                                         color = TomiloMuted,
@@ -269,44 +360,43 @@ fun TitleScreen(
                                     )
                                 }
                             }
-                            if (isLoading) {
-                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
+                            if (!selectMode) {
                                 IconButton(
                                     onClick = {
-                                        scope.launch {
-                                            if (isOffline) {
+                                        if (isOffline) {
+                                            scope.launch {
                                                 offlineRepository.deleteChapter(id)
                                                 snackbar.showSnackbar("Удалено из офлайн")
-                                                return@launch
                                             }
-                                            downloading[id] = true
-                                            val result = offlineRepository.downloadChapter(
-                                                titleId = t.stableId(),
-                                                titleName = t.name.orEmpty(),
-                                                titleSlug = t.slug.orEmpty(),
-                                                titleCover = t.coverImage,
-                                                chapterId = id,
-                                            )
-                                            downloading[id] = false
-                                            result
-                                                .onSuccess { snackbar.showSnackbar("Скачано для офлайн") }
-                                                .onFailure {
-                                                    snackbar.showSnackbar(it.message ?: "Ошибка скачивания")
-                                                }
+                                            return@IconButton
                                         }
+                                        if (user == null) {
+                                            onLogin()
+                                            return@IconButton
+                                        }
+                                        downloadManager.enqueue(
+                                            titleId = t.stableId(),
+                                            titleName = t.name.orEmpty(),
+                                            titleSlug = t.slug.orEmpty(),
+                                            titleCover = t.coverImage,
+                                            chapters = listOf(chapter),
+                                        )
+                                        showDownloadSheet = true
                                     },
                                 ) {
                                     Icon(
-                                        imageVector = if (isOffline) {
-                                            Icons.Default.DownloadDone
-                                        } else {
-                                            Icons.Default.CloudDownload
-                                        },
-                                        contentDescription = if (isOffline) "Удалить офлайн" else "Скачать",
+                                        if (isOffline) Icons.Default.DownloadDone else Icons.Default.CloudDownload,
+                                        contentDescription = null,
                                         tint = if (isOffline) MaterialTheme.colorScheme.primary else TomiloMuted,
                                     )
                                 }
+                            } else if (isOffline) {
+                                Icon(
+                                    Icons.Default.DownloadDone,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(22.dp).padding(end = 8.dp),
+                                )
                             }
                         }
                     }
@@ -319,10 +409,21 @@ fun TitleScreen(
                             onLoginRequired = onLogin,
                             onOpenUser = onOpenUser,
                         )
-                        Spacer(Modifier.height(80.dp))
+                        Spacer(Modifier.height(100.dp))
                     }
                 }
             }
         }
+    }
+
+    if (showDownloadSheet && downloadState.items.isNotEmpty()) {
+        DownloadProgressSheet(
+            state = downloadState,
+            onCancel = { downloadManager.cancel() },
+            onDismiss = {
+                showDownloadSheet = false
+                downloadManager.clear()
+            },
+        )
     }
 }

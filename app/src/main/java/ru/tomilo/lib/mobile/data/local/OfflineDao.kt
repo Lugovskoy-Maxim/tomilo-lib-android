@@ -31,4 +31,7 @@ interface OfflineDao {
 
     @Query("DELETE FROM offline_chapters WHERE titleId = :titleId")
     suspend fun deleteTitle(titleId: String)
+
+    @Query("DELETE FROM offline_chapters")
+    suspend fun clearAll()
 }

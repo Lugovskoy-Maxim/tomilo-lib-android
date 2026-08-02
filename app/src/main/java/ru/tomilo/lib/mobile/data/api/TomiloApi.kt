@@ -14,6 +14,12 @@ interface TomiloApi {
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): ApiResponse<AuthPayload>
 
+    @POST("auth/yandex-token")
+    suspend fun loginYandexToken(@Body body: YandexTokenRequest): ApiResponse<AuthPayload>
+
+    @POST("auth/vk-id")
+    suspend fun loginVkId(@Body body: VkIdLoginRequest): ApiResponse<AuthPayload>
+
     @GET("users/profile")
     suspend fun profile(): ApiResponse<UserDto>
 
@@ -48,6 +54,12 @@ interface TomiloApi {
 
     @GET("chapters/{id}")
     suspend fun chapterById(@Path("id") id: String): ApiResponse<ChapterDto>
+
+    @GET("chapters/{id}/next")
+    suspend fun chapterNext(@Path("id") id: String): ApiResponse<ChapterDto>
+
+    @GET("chapters/{id}/prev")
+    suspend fun chapterPrev(@Path("id") id: String): ApiResponse<ChapterDto>
 
     @GET("search/autocomplete")
     suspend fun searchAutocomplete(

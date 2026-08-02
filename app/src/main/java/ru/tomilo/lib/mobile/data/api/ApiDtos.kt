@@ -19,6 +19,19 @@ data class LoginRequest(
 )
 
 @Serializable
+data class YandexTokenRequest(
+    @SerialName("access_token") val accessToken: String,
+)
+
+@Serializable
+data class VkIdLoginRequest(
+    val code: String,
+    @SerialName("code_verifier") val codeVerifier: String,
+    @SerialName("device_id") val deviceId: String,
+    val state: String,
+)
+
+@Serializable
 data class AuthPayload(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String? = null,

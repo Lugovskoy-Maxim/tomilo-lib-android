@@ -28,6 +28,7 @@ import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.SectionTitle
 import ru.tomilo.lib.mobile.ui.components.TitleCoverCard
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +61,16 @@ fun HomeScreen(
         containerColor = TomiloBg,
         topBar = {
             TopAppBar(
-                title = { Text("Tomilo") },
+                title = {
+                    Column {
+                        Text("Tomilo")
+                        Text(
+                            "Каталог манги и манхвы",
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                            color = TomiloMuted,
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
             )
         },

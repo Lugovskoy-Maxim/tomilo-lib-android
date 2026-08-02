@@ -52,13 +52,13 @@ object Routes {
     const val Notifications = "notifications"
     const val Login = "login"
     const val Title = "title/{key}"
-    const val Reader = "reader/{chapterId}?offline={offline}"
+    const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
     const val ChatThread = "chat/{id}?title={title}"
     const val User = "user/{id}"
 
     fun title(key: String) = "title/${enc(key)}"
-    fun reader(chapterId: String, offline: Boolean = false) =
-        "reader/${enc(chapterId)}?offline=$offline"
+    fun reader(chapterId: String, offline: Boolean = false, titleId: String? = null) =
+        "reader/${enc(chapterId)}?offline=$offline&titleId=${enc(titleId.orEmpty())}"
     fun chat(id: String, title: String) = "chat/${enc(id)}?title=${enc(title)}"
     fun user(id: String) = "user/${enc(id)}"
 
@@ -159,6 +159,7 @@ fun TomiloNavHost(container: AppContainer) {
                 ProfileScreen(
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
+                    offlineRepository = container.offlineRepository,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },
@@ -170,7 +171,9 @@ fun TomiloNavHost(container: AppContainer) {
                 OfflineLibraryScreen(
                     offlineRepository = container.offlineRepository,
                     onOpenChapter = { chapterId ->
-                        navController.navigate(Routes.reader(chapterId, offline = true))
+                        navController.navigate(
+                            Routes.reader(chapterId, offline = true, titleId = null),
+                        )
                     },
                 )
             }
@@ -205,10 +208,13 @@ fun TomiloNavHost(container: AppContainer) {
                     offlineRepository = container.offlineRepository,
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
+                    downloadManager = container.downloadManager,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
-                    onOpenChapter = { _, chapterId, offline ->
-                        navController.navigate(Routes.reader(chapterId, offline))
+                    onOpenChapter = { titleId, chapterId, offline ->
+                        navController.navigate(
+                            Routes.reader(chapterId, offline, titleId),
+                        )
                     },
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                 )
@@ -221,16 +227,33 @@ fun TomiloNavHost(container: AppContainer) {
                         type = NavType.BoolType
                         defaultValue = false
                     },
+                    navArgument("titleId") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
                 ),
             ) { entry ->
                 val chapterId = Routes.dec(entry.arguments?.getString("chapterId").orEmpty())
                 val offline = entry.arguments?.getBoolean("offline") == true
+                val titleId = Routes.dec(entry.arguments?.getString("titleId").orEmpty())
+                    .ifBlank { null }
                 ReaderScreen(
                     chapterId = chapterId,
+                    titleId = titleId,
                     preferOffline = offline,
                     catalogRepository = container.catalogRepository,
                     offlineRepository = container.offlineRepository,
+                    readingPrefs = container.readingPrefs,
                     onBack = { navController.popBackStack() },
+                    onOpenChapter = { nextId ->
+                        navController.navigate(
+                            Routes.reader(nextId, offline = false, titleId = titleId),
+                        ) {
+                            // replace current reader so back returns to title
+                            popUpTo(entry.destination.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             composable(

@@ -21,24 +21,31 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.annotation.ExperimentalCoilApi
+import coil.imageLoader
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
+import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalCoilApi::class)
 @Composable
 fun ProfileScreen(
     authRepository: AuthRepository,
     socialRepository: SocialRepository,
+    offlineRepository: OfflineRepository,
     onLogin: () -> Unit,
     onOpenOffline: () -> Unit,
     onOpenNotifications: () -> Unit,
@@ -47,7 +54,10 @@ fun ProfileScreen(
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var notifUnread by remember { mutableIntStateOf(0) }
+    var offlineBytes by remember { mutableLongStateOf(0L) }
+    var cacheMsg by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(user?.stableId()) {
         if (user != null) {
@@ -56,6 +66,7 @@ fun ProfileScreen(
         } else {
             notifUnread = 0
         }
+        offlineBytes = offlineRepository.offlineBytesTotal()
     }
 
     Scaffold(
@@ -78,7 +89,7 @@ fun ProfileScreen(
                 Text("Вы не вошли", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Войдите для закладок, чатов, уведомлений и офлайн-чтения (Premium).",
+                    "Войдите через email, Яндекс или VK — закладки, чаты, офлайн (Premium).",
                     color = TomiloMuted,
                 )
                 Spacer(Modifier.height(20.dp))
@@ -104,27 +115,14 @@ fun ProfileScreen(
                     color = if (premium) TomiloPremium else TomiloMuted,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                if (premium && !user!!.subscriptionExpiresAt.isNullOrBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "до ${user!!.subscriptionExpiresAt}",
-                        color = TomiloMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
                 Spacer(Modifier.height(20.dp))
                 Button(
                     onClick = { onOpenMyPublicProfile(user!!.stableId()) },
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Мой публичный профиль")
-                }
+                ) { Text("Мой публичный профиль") }
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(onClick = onOpenNotifications, modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        if (notifUnread > 0) "Уведомления ($notifUnread)"
-                        else "Уведомления",
-                    )
+                    Text(if (notifUnread > 0) "Уведомления ($notifUnread)" else "Уведомления")
                 }
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(onClick = onOpenLeaders, modifier = Modifier.fillMaxWidth()) {
@@ -135,13 +133,53 @@ fun ProfileScreen(
                     Text("Офлайн-библиотека")
                 }
                 Spacer(Modifier.height(16.dp))
+                Text(
+                    "Офлайн: ${formatBytes(offlineBytes)}",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            context.imageLoader.memoryCache?.clear()
+                            context.imageLoader.diskCache?.clear()
+                            // http cache
+                            runCatching {
+                                val dir = context.cacheDir
+                                dir.listFiles()?.forEach { f ->
+                                    if (f.name.contains("cache") || f.name.contains("http") ||
+                                        f.name.contains("coil") || f.name.contains("media")
+                                    ) {
+                                        f.deleteRecursively()
+                                    }
+                                }
+                            }
+                            offlineBytes = offlineRepository.offlineBytesTotal()
+                            cacheMsg = "Кеш изображений и API очищен (офлайн-главы сохранены)"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Очистить кеш") }
+                if (cacheMsg != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(cacheMsg!!, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(Modifier.height(16.dp))
                 OutlinedButton(
                     onClick = { scope.launch { authRepository.logout() } },
                     modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Выйти")
-                }
+                ) { Text("Выйти") }
             }
         }
     }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return "%.1f KB".format(kb)
+    val mb = kb / 1024.0
+    if (mb < 1024) return "%.1f MB".format(mb)
+    return "%.2f GB".format(mb / 1024.0)
 }

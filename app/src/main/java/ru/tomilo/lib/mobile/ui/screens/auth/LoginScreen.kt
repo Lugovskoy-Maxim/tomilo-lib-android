@@ -1,7 +1,11 @@
 package ru.tomilo.lib.mobile.ui.screens.auth
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -22,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -37,11 +44,46 @@ fun LoginScreen(
     authRepository: AuthRepository,
     onSuccess: () -> Unit,
 ) {
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    val oauthLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            val msg = result.data?.getStringExtra(OAuthWebActivity.EXTRA_ERROR)
+            if (!msg.isNullOrBlank()) error = msg
+            return@rememberLauncherForActivityResult
+        }
+        val data = result.data ?: return@rememberLauncherForActivityResult
+        val provider = data.getStringExtra(OAuthWebActivity.EXTRA_PROVIDER)
+        scope.launch {
+            loading = true
+            error = null
+            val res = when (provider) {
+                OAuthWebActivity.PROVIDER_YANDEX -> {
+                    val token = data.getStringExtra(OAuthWebActivity.EXTRA_ACCESS_TOKEN).orEmpty()
+                    authRepository.loginYandex(token)
+                }
+                OAuthWebActivity.PROVIDER_VK -> {
+                    authRepository.loginVkId(
+                        code = data.getStringExtra(OAuthWebActivity.EXTRA_CODE).orEmpty(),
+                        codeVerifier = data.getStringExtra(OAuthWebActivity.EXTRA_CODE_VERIFIER).orEmpty(),
+                        deviceId = data.getStringExtra(OAuthWebActivity.EXTRA_DEVICE_ID).orEmpty(),
+                        state = data.getStringExtra(OAuthWebActivity.EXTRA_STATE).orEmpty(),
+                    )
+                }
+                else -> Result.failure(IllegalStateException("Неизвестный провайдер"))
+            }
+            res.onSuccess { onSuccess() }
+                .onFailure { error = it.message ?: "Ошибка входа" }
+            loading = false
+        }
+    }
 
     Scaffold(
         containerColor = TomiloBg,
@@ -59,13 +101,36 @@ fun LoginScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Аккаунт Tomilo", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
+            Text("Аккаунт Tomilo", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
-            Text(
-                "Тот же логин, что на tomilo-lib.ru",
-                color = TomiloMuted,
-            )
-            Spacer(Modifier.height(24.dp))
+            Text("Тот же аккаунт, что на tomilo-lib.ru", color = TomiloMuted)
+            Spacer(Modifier.height(20.dp))
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        oauthLauncher.launch(
+                            OAuthWebActivity.intent(context, OAuthWebActivity.PROVIDER_YANDEX),
+                        )
+                    },
+                    enabled = !loading,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Яндекс") }
+                OutlinedButton(
+                    onClick = {
+                        oauthLauncher.launch(
+                            OAuthWebActivity.intent(context, OAuthWebActivity.PROVIDER_VK),
+                        )
+                    },
+                    enabled = !loading,
+                    modifier = Modifier.weight(1f),
+                ) { Text("VK") }
+            }
+
+            Spacer(Modifier.height(20.dp))
+            Text("или email", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(8.dp))
+
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },

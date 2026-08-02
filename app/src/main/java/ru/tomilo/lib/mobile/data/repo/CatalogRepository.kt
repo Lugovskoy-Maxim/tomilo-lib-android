@@ -43,6 +43,18 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data ?: error("Глава недоступна")
     }
 
+    suspend fun chapterNext(chapterId: String): Result<ChapterDto> = runCatching {
+        val res = api.chapterNext(chapterId)
+        if (!res.success) error(res.message ?: "Нет следующей главы")
+        res.data ?: error("Нет следующей главы")
+    }
+
+    suspend fun chapterPrev(chapterId: String): Result<ChapterDto> = runCatching {
+        val res = api.chapterPrev(chapterId)
+        if (!res.success) error(res.message ?: "Нет предыдущей главы")
+        res.data ?: error("Нет предыдущей главы")
+    }
+
     suspend fun search(query: String): Result<List<SearchHitDto>> = runCatching {
         val q = query.trim()
         if (q.length < 2) return@runCatching emptyList()
