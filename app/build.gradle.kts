@@ -34,8 +34,9 @@ android {
         applicationId = "ru.tomilo.lib.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0"
+        // RuStore / production consumer release
+        versionCode = 6
+        versionName = "0.6.0"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -44,6 +45,33 @@ android {
         buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
         // Interstitial между главами (~1/10 мин), блок РСЯ «Межстраничная»
         buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", "\"R-M-19689456-2\"")
+        // по умолчанию (переопределяется flavor)
+        buildConfigField("String", "STORE_CHANNEL", "\"rustore\"")
+        buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
+    }
+
+    /**
+     * Каналы магазинов.
+     * - rustore — обычные пользователи, RuStore (APK/AAB, isDefault)
+     * - play — Google Play
+     * Один applicationId, один signing key → единая линейка обновлений.
+     */
+    flavorDimensions += "store"
+    productFlavors {
+        create("rustore") {
+            dimension = "store"
+            isDefault = true
+            buildConfigField("String", "STORE_CHANNEL", "\"rustore\"")
+            buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
+            // Имя приложения в лаунчере для стора
+            resValue("string", "app_name", "Tomilo")
+        }
+        create("play") {
+            dimension = "store"
+            buildConfigField("String", "STORE_CHANNEL", "\"play\"")
+            buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
+            resValue("string", "app_name", "Tomilo")
+        }
     }
 
     signingConfigs {
@@ -89,6 +117,18 @@ android {
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    // Удобные имена артефактов: tomilo-rustore-0.6.0-release.apk
+    applicationVariants.configureEach {
+        val variant = this
+        outputs.configureEach {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            val ver = variant.versionName ?: "0"
+            val flavor = variant.flavorName.ifBlank { "main" }
+            val type = variant.buildType.name
+            output.outputFileName = "tomilo-$flavor-$ver-$type.apk"
+        }
     }
 }
 

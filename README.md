@@ -55,27 +55,31 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`
 
-### Release (Google Play)
+### Release — RuStore (обычные пользователи)
 
-Один раз создать upload-keystore (пароли пишутся в `keystore.properties`, **не в git**):
+Подписанный **consumer**-APK для консоли [RuStore](https://console.rustore.ru/):
 
 ```bash
-./scripts/generate-upload-keystore.sh
+./scripts/generate-upload-keystore.sh   # один раз, если ещё нет keystore
+./scripts/build-rustore.sh
 ```
 
-Собрать подписанные **AAB** (Play) и **APK**:
+Артефакты: `dist/rustore/tomilo-rustore-v0.6.0-….apk`
+
+Карточка магазина (текст, возраст, чеклист): [`store/rustore/listing.md`](store/rustore/listing.md)
+
+Flavor: `rustore` · package: `ru.tomilo.lib.mobile` · minify/shrink · production API.
+
+### Release — Google Play
 
 ```bash
 ./scripts/build-release.sh
 ```
 
-Артефакты:
-- `app/build/outputs/bundle/release/app-release.aab` ← загрузка в Play Console
-- `app/build/outputs/apk/release/app-release.apk` ← прямая установка
+AAB: `app/build/outputs/bundle/playRelease/…aab`
 
-**Важно:** сохрани `keystores/tomilo-upload.jks` и `keystore.properties` в офлайн-бэкапе. Без них нельзя выпускать обновления с тем же ключом.
-
-В Play Console рекомендуется **Play App Signing** (Google хранит app signing key; ты загружаешь AAB, подписанный upload key).
+**Важно:** сохрани `keystores/tomilo-upload.jks` и `keystore.properties` в офлайн-бэкапе.  
+Один и тот же keystore для RuStore и Play (один `applicationId`).
 
 ## Структура
 

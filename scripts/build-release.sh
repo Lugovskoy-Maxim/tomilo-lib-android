@@ -24,20 +24,21 @@ if [[ ! -f "$ROOT/$STORE_FILE" ]]; then
   exit 1
 fi
 
-echo "→ bundleRelease (AAB для Play Console)"
-./gradlew :app:bundleRelease --quiet
+echo "→ bundlePlayRelease (AAB для Play Console)"
+./gradlew :app:bundlePlayRelease --quiet
 
-echo "→ assembleRelease (APK)"
-./gradlew :app:assembleRelease --quiet
+echo "→ assemblePlayRelease (APK)"
+./gradlew :app:assemblePlayRelease --quiet
 
-AAB="$ROOT/app/build/outputs/bundle/release/app-release.aab"
-APK="$ROOT/app/build/outputs/apk/release/app-release.apk"
+AAB="$(find "$ROOT/app/build/outputs/bundle/playRelease" -name '*.aab' 2>/dev/null | head -1 || true)"
+APK="$(find "$ROOT/app/build/outputs/apk/play/release" -name '*.apk' ! -name '*.apk.idsig' 2>/dev/null | head -1 || true)"
 
 echo ""
 echo "Артефакты:"
 ls -lh "$AAB" "$APK" 2>/dev/null || true
 echo ""
-echo "В Google Play загружай: $AAB"
+echo "В Google Play загружай AAB: $AAB"
+echo "Для RuStore используй: ./scripts/build-rustore.sh"
 echo ""
 echo "Проверка подписи APK (apksigner):"
 APKSIGNER="$(find "${ANDROID_HOME:-$HOME/.bubblewrap/android_sdk}/build-tools" -name apksigner 2>/dev/null | sort | tail -1 || true)"
