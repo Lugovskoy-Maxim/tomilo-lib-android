@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.download.DownloadManager
+import ru.tomilo.lib.mobile.ads.RewardedAdManager
+import ru.tomilo.lib.mobile.data.local.AdRewardStore
 import ru.tomilo.lib.mobile.data.local.AuthStore
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.OfflineDatabase
@@ -24,6 +26,8 @@ class AppContainer(context: Context) {
     val authStore = AuthStore(appContext)
     val readingPrefs = ReadingPrefs(appContext)
     val contentPrefs = ContentPrefs(appContext)
+    val adRewardStore = AdRewardStore(appContext)
+    val rewardedAdManager = RewardedAdManager(appContext)
     private val tokenHolder = TokenHolder()
 
     val tomiloApi = NetworkModule.createApi(appContext) {
@@ -42,6 +46,7 @@ class AppContainer(context: Context) {
         api = tomiloApi,
         dao = offlineDb.offlineDao(),
         authRepository = authRepository,
+        adRewardStore = adRewardStore,
     )
     val downloadManager = DownloadManager(offlineRepository, appScope)
 

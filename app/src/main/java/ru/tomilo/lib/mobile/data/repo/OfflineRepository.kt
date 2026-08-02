@@ -22,6 +22,7 @@ class OfflineRepository(
     private val api: TomiloApi,
     private val dao: OfflineDao,
     private val authRepository: AuthRepository,
+    private val adRewardStore: ru.tomilo.lib.mobile.data.local.AdRewardStore? = null,
 ) {
     private val http by lazy { NetworkModule.createMediaClient(context) }
     private val json = NetworkModule.json
@@ -159,71 +160,84 @@ class OfflineRepository(
         runCatching {
             onStage(DownloadStage.CheckingAccess, 0, 0, null)
             if (!authRepository.isLoggedIn()) error("Войдите в аккаунт")
-            if (!authRepository.isPremium()) {
-                error("Офлайн-чтение доступно только Premium")
-            }
-            // Всегда обновляем метаданные тайтла (список глав для офлайн-UI)
-            runCatching {
-                syncTitleCatalog(titleId, titleName, titleSlug, titleCover)
-            }
-
-            if (dao.isDownloaded(chapterId)) {
-                onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
-                return@runCatching dao.get(chapterId)!!
-            }
-
-            onStage(DownloadStage.FetchingChapter, 0, 0, null)
-            val res = api.chapterById(chapterId)
-            if (!res.success) error(res.message ?: "Не удалось получить главу")
-            val chapter = res.data ?: error("Глава пуста")
-            val pages = chapter.pages.orEmpty()
-            if (pages.isEmpty()) error("У главы нет страниц")
-
-            val root = File(context.filesDir, "offline/$titleId/$chapterId")
-            if (root.exists()) root.deleteRecursively()
-            root.mkdirs()
-
-            var bytes = 0L
-            pages.forEachIndexed { index, path ->
-                onStage(DownloadStage.DownloadingPages, index, pages.size, null)
-                val url = MediaUrl.resolve(path)
-                val ext = path.substringAfterLast('.', "jpg").filter { it.isLetterOrDigit() }.take(5)
-                    .ifBlank { "jpg" }
-                val out = File(root, String.format("%04d.%s", index + 1, ext))
-                val req = Request.Builder().url(url).get().build()
-                http.newCall(req).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        error("Не удалось скачать страницу ${index + 1}")
-                    }
-                    val body = response.body ?: error("Пустой ответ страницы")
-                    body.byteStream().use { input ->
-                        out.outputStream().use { output -> input.copyTo(output) }
-                    }
-                    bytes += out.length()
+            val premium = authRepository.isPremium()
+            var usedAdCredit = false
+            if (!premium) {
+                val store = adRewardStore
+                    ?: error("Офлайн доступен с Premium или после просмотра рекламы")
+                usedAdCredit = store.tryConsumeOfflineCredit()
+                if (!usedAdCredit) {
+                    error("Офлайн: Premium или «Смотреть рекламу» (+1 глава)")
                 }
-                onProgress(index + 1, pages.size)
-                onStage(DownloadStage.DownloadingPages, index + 1, pages.size, null)
             }
+            try {
+                // Всегда обновляем метаданные тайтла (список глав для офлайн-UI)
+                runCatching {
+                    syncTitleCatalog(titleId, titleName, titleSlug, titleCover)
+                }
 
-            onStage(DownloadStage.Saving, pages.size, pages.size, null)
-            val entity = OfflineChapterEntity(
-                chapterId = chapterId,
-                titleId = titleId,
-                titleName = titleName,
-                titleSlug = titleSlug,
-                titleCover = titleCover,
-                chapterNumber = chapter.numberLabel(),
-                chapterName = chapter.name,
-                pageCount = pages.size,
-                localDir = root.absolutePath,
-                downloadedAt = System.currentTimeMillis(),
-                bytesTotal = bytes,
-            )
-            dao.upsert(entity)
-            // ещё раз синк — на случай новых глав
-            runCatching { syncTitleCatalog(titleId, titleName, titleSlug, titleCover) }
-            onStage(DownloadStage.Completed, pages.size, pages.size, null)
-            entity
+                if (dao.isDownloaded(chapterId)) {
+                    // уже есть — вернём кредит, если списывали
+                    if (usedAdCredit) adRewardStore?.refundOfflineCredit()
+                    onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
+                    return@runCatching dao.get(chapterId)!!
+                }
+
+                onStage(DownloadStage.FetchingChapter, 0, 0, null)
+                val res = api.chapterById(chapterId)
+                if (!res.success) error(res.message ?: "Не удалось получить главу")
+                val chapter = res.data ?: error("Глава пуста")
+                val pages = chapter.pages.orEmpty()
+                if (pages.isEmpty()) error("У главы нет страниц")
+
+                val root = File(context.filesDir, "offline/$titleId/$chapterId")
+                if (root.exists()) root.deleteRecursively()
+                root.mkdirs()
+
+                var bytes = 0L
+                pages.forEachIndexed { index, path ->
+                    onStage(DownloadStage.DownloadingPages, index, pages.size, null)
+                    val url = MediaUrl.resolve(path)
+                    val ext = path.substringAfterLast('.', "jpg").filter { it.isLetterOrDigit() }.take(5)
+                        .ifBlank { "jpg" }
+                    val out = File(root, String.format("%04d.%s", index + 1, ext))
+                    val req = Request.Builder().url(url).get().build()
+                    http.newCall(req).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            error("Не удалось скачать страницу ${index + 1}")
+                        }
+                        val body = response.body ?: error("Пустой ответ страницы")
+                        body.byteStream().use { input ->
+                            out.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        bytes += out.length()
+                    }
+                    onProgress(index + 1, pages.size)
+                    onStage(DownloadStage.DownloadingPages, index + 1, pages.size, null)
+                }
+
+                onStage(DownloadStage.Saving, pages.size, pages.size, null)
+                val entity = OfflineChapterEntity(
+                    chapterId = chapterId,
+                    titleId = titleId,
+                    titleName = titleName,
+                    titleSlug = titleSlug,
+                    titleCover = titleCover,
+                    chapterNumber = chapter.numberLabel(),
+                    chapterName = chapter.name,
+                    pageCount = pages.size,
+                    localDir = root.absolutePath,
+                    downloadedAt = System.currentTimeMillis(),
+                    bytesTotal = bytes,
+                )
+                dao.upsert(entity)
+                runCatching { syncTitleCatalog(titleId, titleName, titleSlug, titleCover) }
+                onStage(DownloadStage.Completed, pages.size, pages.size, null)
+                entity
+            } catch (e: Throwable) {
+                if (usedAdCredit) adRewardStore?.refundOfflineCredit()
+                throw e
+            }
         }
     }
 

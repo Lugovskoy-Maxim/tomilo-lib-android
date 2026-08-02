@@ -174,6 +174,12 @@ fun ProfileScreen(
                 OutlinedButton(onClick = onOpenOffline, modifier = Modifier.fillMaxWidth()) {
                     Text("Офлайн-библиотека")
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Без Premium: 1 офлайн-глава = 1 просмотр рекламы",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 if (user!!.isStaff()) {
                     Spacer(Modifier.height(10.dp))
                     Button(onClick = onOpenAdmin, modifier = Modifier.fillMaxWidth()) {

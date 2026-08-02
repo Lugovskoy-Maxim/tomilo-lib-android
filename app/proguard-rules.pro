@@ -10,3 +10,9 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn retrofit2.**
+
+# Yandex Mobile Ads
+-keep class com.yandex.mobile.ads.** { *; }
+-dontwarn com.yandex.mobile.ads.**
+-keep class com.monetization.ads.** { *; }
+-dontwarn com.monetization.ads.**

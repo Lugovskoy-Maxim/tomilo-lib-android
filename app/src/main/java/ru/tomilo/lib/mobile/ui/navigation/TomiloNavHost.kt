@@ -285,6 +285,8 @@ fun TomiloNavHost(container: AppContainer) {
                     socialRepository = container.socialRepository,
                     historyRepository = container.historyRepository,
                     downloadManager = container.downloadManager,
+                    rewardedAdManager = container.rewardedAdManager,
+                    adRewardStore = container.adRewardStore,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
                     onOpenChapter = { titleId, chapterId, offline ->
@@ -293,6 +295,7 @@ fun TomiloNavHost(container: AppContainer) {
                         )
                     },
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },
+                    onOpenPremium = { navController.navigate(Routes.Premium) },
                 )
             }
             composable(

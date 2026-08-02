@@ -40,6 +40,8 @@ android {
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
+        // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
+        buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
     }
 
     signingConfigs {
@@ -122,4 +124,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     implementation("androidx.work:work-runtime-ktx:2.10.0")
+
+    // Яндекс РСЯ — rewarded (R-M-…)
+    implementation("com.yandex.android:mobileads:8.3.0")
 }

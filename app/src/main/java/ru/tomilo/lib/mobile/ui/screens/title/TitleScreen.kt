@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import android.app.Activity
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,14 +56,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.ads.RewardedAdManager
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.download.DownloadManager
+import ru.tomilo.lib.mobile.data.local.AdRewardStore
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
@@ -93,12 +99,19 @@ fun TitleScreen(
     socialRepository: SocialRepository,
     historyRepository: HistoryRepository,
     downloadManager: DownloadManager,
+    rewardedAdManager: RewardedAdManager,
+    adRewardStore: AdRewardStore,
     onBack: () -> Unit,
     onLogin: () -> Unit,
     onOpenChapter: (titleId: String, chapterId: String, offline: Boolean) -> Unit,
     onOpenUser: (userId: String) -> Unit,
+    onOpenPremium: () -> Unit = {},
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
+    val offlineCredits by adRewardStore.offlineCreditsFlow.collectAsState(initial = 0)
+    val isPremium = Premium.isActive(user?.subscriptionExpiresAt)
+    val context = LocalContext.current
+    val activity = context as? Activity
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var title by remember { mutableStateOf<TitleDetailDto?>(null) }
@@ -112,6 +125,9 @@ fun TitleScreen(
     var myRating by remember { mutableIntStateOf(0) }
     var readChapterIds by remember { mutableStateOf(setOf<String>()) }
     var continueChapterId by remember { mutableStateOf<String?>(null) }
+    /** Главы, ждущие просмотр рекламы перед скачиванием */
+    var pendingAdChapters by remember { mutableStateOf<List<ChapterDto>?>(null) }
+    var adBusy by remember { mutableStateOf(false) }
 
     val sortedChapters = remember(chapters, sort) {
         when (sort) {
@@ -133,6 +149,98 @@ fun TitleScreen(
     }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    fun startDownload(chaptersToDl: List<ChapterDto>) {
+        val t = title ?: return
+        if (chaptersToDl.isEmpty()) return
+        downloadManager.enqueue(
+            titleId = t.stableId(),
+            titleName = t.name.orEmpty(),
+            titleSlug = t.slug.orEmpty(),
+            titleCover = t.coverImage,
+            chapters = chaptersToDl,
+        )
+        showDownloadSheet = true
+        selectMode = false
+        selected = emptySet()
+    }
+
+    /**
+     * Premium — сразу. Иначе кредиты с рекламы: хватает → скачать;
+     * не хватает → диалог «смотреть рекламу» (1 Reward = 1 глава).
+     */
+    fun requestDownload(chaptersToDl: List<ChapterDto>) {
+        if (user == null) {
+            onLogin()
+            return
+        }
+        if (chaptersToDl.isEmpty()) {
+            scope.launch { snackbar.showSnackbar("Нечего скачивать") }
+            return
+        }
+        if (isPremium) {
+            startDownload(chaptersToDl)
+            return
+        }
+        if (offlineCredits >= chaptersToDl.size) {
+            startDownload(chaptersToDl)
+            return
+        }
+        // Одна глава без кредитов — предложить рекламу; несколько — скачать сколько есть или ad+1
+        if (chaptersToDl.size == 1 && offlineCredits == 0) {
+            pendingAdChapters = chaptersToDl
+            return
+        }
+        if (offlineCredits > 0) {
+            startDownload(chaptersToDl.take(offlineCredits))
+            scope.launch {
+                snackbar.showSnackbar(
+                    "Без Premium: скачано ${minOf(offlineCredits, chaptersToDl.size)} из ${chaptersToDl.size} " +
+                        "(кредиты за рекламу). Остальное — Premium или ещё реклама.",
+                )
+            }
+            return
+        }
+        pendingAdChapters = chaptersToDl.take(1)
+    }
+
+    fun showRewardedForPending() {
+        val pending = pendingAdChapters ?: return
+        val act = activity
+        if (act == null) {
+            scope.launch { snackbar.showSnackbar("Не удалось открыть рекламу") }
+            pendingAdChapters = null
+            return
+        }
+        adBusy = true
+        rewardedAdManager.show(
+            activity = act,
+            onRewarded = { amount, _ ->
+                scope.launch {
+                    val granted = amount.coerceAtLeast(1)
+                    adRewardStore.addOfflineCredits(granted)
+                    snackbar.showSnackbar("Награда: +$granted офлайн-глава")
+                    // кредит начислен — OfflineRepository спишет при скачивании
+                    startDownload(pending.take(granted.coerceAtLeast(1)))
+                    pendingAdChapters = null
+                    adBusy = false
+                }
+            },
+            onFailed = { msg ->
+                scope.launch {
+                    snackbar.showSnackbar(msg)
+                    adBusy = false
+                }
+            },
+            onDismissed = {
+                adBusy = false
+            },
+        )
+    }
+
+    LaunchedEffect(Unit) {
+        rewardedAdManager.preload()
+    }
 
     LaunchedEffect(titleKey) {
         loading = true
@@ -288,33 +396,21 @@ fun TitleScreen(
                     }, modifier = Modifier.weight(1f)) { Text("Отмена") }
                     Button(
                         onClick = {
-                            val t = title ?: return@Button
-                            if (user == null) {
-                                onLogin()
-                                return@Button
-                            }
                             val toDownload = sortedChapters.filter {
                                 it.stableId() in selected && it.stableId() !in downloadedIds
                             }
-                            if (toDownload.isEmpty()) {
-                                scope.launch { snackbar.showSnackbar("Нечего скачивать") }
-                                return@Button
-                            }
-                            downloadManager.enqueue(
-                                titleId = t.stableId(),
-                                titleName = t.name.orEmpty(),
-                                titleSlug = t.slug.orEmpty(),
-                                titleCover = t.coverImage,
-                                chapters = toDownload,
-                            )
-                            showDownloadSheet = true
-                            selectMode = false
-                            selected = emptySet()
+                            requestDownload(toDownload)
                         },
                         modifier = Modifier.weight(1f),
-                        enabled = selected.isNotEmpty() && !downloadManager.isBusy(),
+                        enabled = selected.isNotEmpty() && !downloadManager.isBusy() && !adBusy,
                     ) {
-                        Text("Скачать (${selected.size})")
+                        Text(
+                            when {
+                                isPremium -> "Скачать (${selected.size})"
+                                offlineCredits > 0 -> "Скачать (${selected.size}) · $offlineCredits кр."
+                                else -> "Скачать / реклама"
+                            },
+                        )
                     }
                 }
             }
@@ -354,7 +450,13 @@ fun TitleScreen(
                                 Text(meta, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(8.dp))
                                 Text(
-                                    "□ — выбор глав для офлайн",
+                                    when {
+                                        isPremium -> "□ — выбор глав для офлайн (Premium)"
+                                        offlineCredits > 0 ->
+                                            "□ — офлайн: $offlineCredits кредит(ов) за рекламу"
+                                        else ->
+                                            "□ — офлайн: Premium или реклама (+1 глава)"
+                                    },
                                     color = TomiloMuted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -512,18 +614,7 @@ fun TitleScreen(
                                             }
                                             return@IconButton
                                         }
-                                        if (user == null) {
-                                            onLogin()
-                                            return@IconButton
-                                        }
-                                        downloadManager.enqueue(
-                                            titleId = t.stableId(),
-                                            titleName = t.name.orEmpty(),
-                                            titleSlug = t.slug.orEmpty(),
-                                            titleCover = t.coverImage,
-                                            chapters = listOf(chapter),
-                                        )
-                                        showDownloadSheet = true
+                                        requestDownload(listOf(chapter))
                                     },
                                 ) {
                                     Icon(
@@ -565,6 +656,38 @@ fun TitleScreen(
             onDismiss = {
                 showDownloadSheet = false
                 downloadManager.clear()
+            },
+        )
+    }
+
+    pendingAdChapters?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { if (!adBusy) pendingAdChapters = null },
+            title = { Text("Офлайн без Premium") },
+            text = {
+                Text(
+                    "Скачать главу ${pending.firstOrNull()?.numberLabel() ?: ""} можно после " +
+                        "просмотра рекламы (+1 кредит) или с подпиской Premium (безлимит).",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showRewardedForPending() },
+                    enabled = !adBusy,
+                ) {
+                    Text(if (adBusy) "Загрузка…" else "Смотреть рекламу")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        if (!adBusy) {
+                            pendingAdChapters = null
+                            onOpenPremium()
+                        }
+                    },
+                    enabled = !adBusy,
+                ) { Text("Premium") }
             },
         )
     }
