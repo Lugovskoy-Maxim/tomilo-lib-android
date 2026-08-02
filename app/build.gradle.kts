@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -5,6 +7,24 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
 }
+
+/** Release-подпись: keystore.properties в корне проекта (не в git). */
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+
+fun prop(name: String): String? =
+    keystoreProperties.getProperty(name)
+        ?: System.getenv(name)
+
+val hasReleaseSigning =
+    !prop("STORE_FILE").isNullOrBlank() &&
+        !prop("STORE_PASSWORD").isNullOrBlank() &&
+        !prop("KEY_ALIAS").isNullOrBlank() &&
+        !prop("KEY_PASSWORD").isNullOrBlank()
 
 android {
     namespace = "ru.tomilo.lib.mobile"
@@ -22,6 +42,18 @@ android {
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                val storePath = prop("STORE_FILE")!!
+                storeFile = rootProject.file(storePath)
+                storePassword = prop("STORE_PASSWORD")
+                keyAlias = prop("KEY_ALIAS")
+                keyPassword = prop("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -30,6 +62,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         debug {
             applicationIdSuffix = ".debug"

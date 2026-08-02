@@ -1,6 +1,7 @@
 *.iml
 .gradle/
 /local.properties
+/keystore.properties
 /.idea/
 .DS_Store
 /build/
@@ -12,3 +13,5 @@
 *.aab
 *.keystore
 *.jks
+/keystores/
+!keystore.properties.example

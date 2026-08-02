@@ -46,20 +46,36 @@
 
 Требования: JDK 17+, Android SDK 35, Android Studio Ladybug+ или CLI.
 
+### Debug
+
 ```bash
-export JAVA_HOME=/path/to/jdk-17
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 ./gradlew :app:assembleDebug
 ```
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`
 
-Release:
+### Release (Google Play)
+
+Один раз создать upload-keystore (пароли пишутся в `keystore.properties`, **не в git**):
 
 ```bash
-./gradlew :app:assembleRelease
+./scripts/generate-upload-keystore.sh
 ```
 
-(нужен signing config — по умолчанию debug-keystore для debug-сборки).
+Собрать подписанные **AAB** (Play) и **APK**:
+
+```bash
+./scripts/build-release.sh
+```
+
+Артефакты:
+- `app/build/outputs/bundle/release/app-release.aab` ← загрузка в Play Console
+- `app/build/outputs/apk/release/app-release.apk` ← прямая установка
+
+**Важно:** сохрани `keystores/tomilo-upload.jks` и `keystore.properties` в офлайн-бэкапе. Без них нельзя выпускать обновления с тем же ключом.
+
+В Play Console рекомендуется **Play App Signing** (Google хранит app signing key; ты загружаешь AAB, подписанный upload key).
 
 ## Структура
 
