@@ -33,14 +33,13 @@ class HistoryRepository(private val api: TomiloApi) {
         val ids = titleIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (ids.isEmpty()) return emptyMap()
         return kotlinx.coroutines.coroutineScope {
-            ids.map { id ->
+            val deferred = ids.map { id ->
                 kotlinx.coroutines.async {
-                    id to progress(id).getOrNull()
+                    val p = progress(id).getOrNull()
+                    if (p != null) id to p else null
                 }
-            }.mapNotNull { def ->
-                val (id, p) = def.await()
-                p?.let { id to it }
-            }.toMap()
+            }
+            deferred.mapNotNull { it.await() }.toMap()
         }
     }
 
