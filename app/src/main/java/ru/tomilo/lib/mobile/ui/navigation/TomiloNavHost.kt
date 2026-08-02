@@ -69,16 +69,18 @@ object Routes {
     const val Premium = "premium"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
-    const val ChatThread = "chat/{id}?title={title}"
+    /** title в path — надёжнее, чем query, для кириллицы */
+    const val ChatThread = "chat/{id}/{title}"
     const val User = "user/{id}"
 
     fun title(key: String) = "title/${enc(key)}"
     fun reader(chapterId: String, offline: Boolean = false, titleId: String? = null) =
         "reader/${enc(chapterId)}?offline=$offline&titleId=${enc(titleId.orEmpty())}"
-    fun chat(id: String, title: String) = "chat/${enc(id)}?title=${enc(title)}"
+    fun chat(id: String, title: String) =
+        "chat/${enc(id)}/${enc(title.ifBlank { "Чат" })}"
     fun user(id: String) = "user/${enc(id)}"
 
-    fun enc(v: String) = URLEncoder.encode(v, StandardCharsets.UTF_8.toString())
+    fun enc(v: String) = URLEncoder.encode(v, StandardCharsets.UTF_8.toString()).replace("+", "%20")
     fun dec(v: String) = URLDecoder.decode(v, StandardCharsets.UTF_8.toString())
 }
 
@@ -363,14 +365,11 @@ fun TomiloNavHost(container: AppContainer) {
                 route = Routes.ChatThread,
                 arguments = listOf(
                     navArgument("id") { type = NavType.StringType },
-                    navArgument("title") {
-                        type = NavType.StringType
-                        defaultValue = "Чат"
-                    },
+                    navArgument("title") { type = NavType.StringType },
                 ),
             ) { entry ->
                 val id = Routes.dec(entry.arguments?.getString("id").orEmpty())
-                val title = Routes.dec(entry.arguments?.getString("title") ?: "Чат")
+                val title = Routes.dec(entry.arguments?.getString("title").orEmpty().ifBlank { "Чат" })
                 ChatThreadScreen(
                     conversationId = id,
                     title = title,

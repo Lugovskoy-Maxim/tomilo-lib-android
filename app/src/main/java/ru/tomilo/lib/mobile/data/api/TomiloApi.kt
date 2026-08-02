@@ -159,7 +159,7 @@ interface TomiloApi {
     suspend fun sendMessage(
         @Path("id") id: String,
         @Body body: SendMessageRequest,
-    ): ApiResponse<DirectMessageDto>
+    ): ApiResponse<JsonElement>
 
     @POST("conversations/{id}/read")
     suspend fun markConversationRead(@Path("id") id: String): ApiResponse<JsonElement>

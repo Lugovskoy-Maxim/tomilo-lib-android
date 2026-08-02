@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.TokenBridge
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -50,6 +52,7 @@ import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
@@ -67,14 +70,15 @@ fun ChatsScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<ConversationPreviewDto>>(emptyList()) }
     var reload by remember { mutableIntStateOf(0) }
+    var supportBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // userFlow/tokenFlow initially null until DataStore emits
     var authReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        // first real emission
         runCatching { authRepository.tokenFlow.first() }
-        delay(30)
+        // убедиться, что TokenBridge синхронизирован
+        TokenBridge.setCached(authRepository.tokenFlow.first())
+        delay(40)
         authReady = true
     }
 
@@ -83,14 +87,18 @@ fun ChatsScreen(
         if (user == null || token.isNullOrBlank()) {
             items = emptyList()
             loading = false
+            error = null
             return@LaunchedEffect
         }
+        // синхронизация токена перед запросом
+        TokenBridge.setCached(token)
         loading = true
         error = null
-        // небольшая пауза, если токен только что сохранился
-        if (token.isNullOrBlank()) delay(50)
         socialRepository.conversations()
-            .onSuccess { items = it }
+            .onSuccess {
+                items = it
+                error = null
+            }
             .onFailure { error = it.message ?: "Не удалось загрузить чаты" }
         loading = false
     }
@@ -102,14 +110,24 @@ fun ChatsScreen(
                 title = { Text("Чаты") },
                 actions = {
                     if (user != null && !token.isNullOrBlank()) {
+                        IconButton(onClick = { reload += 1 }) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Обновить")
+                        }
                         IconButton(
+                            enabled = !supportBusy,
                             onClick = {
                                 scope.launch {
+                                    supportBusy = true
+                                    error = null
+                                    TokenBridge.setCached(token)
                                     socialRepository.supportConversation()
                                         .onSuccess {
                                             onOpenChat(it.stableId(), "Поддержка")
                                         }
-                                        .onFailure { error = it.message }
+                                        .onFailure {
+                                            error = it.message ?: "Не удалось открыть поддержку"
+                                        }
+                                    supportBusy = false
                                 }
                             },
                         ) {
@@ -122,7 +140,7 @@ fun ChatsScreen(
         },
     ) { padding ->
         if (!authReady || (loading && user != null && items.isEmpty() && error == null)) {
-            LoadingBox(Modifier.padding(padding))
+            LoadingBox(Modifier.padding(padding), message = "Загружаем чаты…")
             return@Scaffold
         }
         if (user == null || token.isNullOrBlank()) {
@@ -132,27 +150,60 @@ fun ChatsScreen(
             return@Scaffold
         }
         when {
-            loading && items.isEmpty() -> LoadingBox(Modifier.padding(padding))
+            loading && items.isEmpty() -> LoadingBox(
+                Modifier.padding(padding),
+                message = "Загружаем чаты…",
+            )
             error != null && items.isEmpty() -> Column(Modifier.padding(padding)) {
                 ErrorBox(error ?: "Ошибка") { reload += 1 }
             }
-            items.isEmpty() -> Text(
-                "Нет диалогов. Откройте профиль пользователя и напишите ему, " +
-                    "или нажмите на иконку поддержки справа сверху.",
-                color = TomiloMuted,
-                modifier = Modifier.padding(padding).padding(16.dp),
-            )
+            items.isEmpty() -> Column(Modifier.padding(padding).padding(16.dp)) {
+                Text(
+                    "Нет диалогов",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(Modifier.padding(6.dp))
+                Text(
+                    "• Личные сообщения — только с друзьями (добавьте на сайте).\n" +
+                        "• Поддержка — кнопка наушников справа сверху.",
+                    color = TomiloMuted,
+                )
+                if (error != null) {
+                    Spacer(Modifier.padding(8.dp))
+                    Text(error!!, color = TomiloDanger, style = MaterialTheme.typography.bodySmall)
+                }
+            }
             else -> LazyColumn(
                 Modifier.padding(padding),
                 contentPadding = ScreenPadding,
             ) {
-                items(items, key = { it.stableId() }) { c ->
+                if (error != null) {
+                    item {
+                        Text(
+                            error!!,
+                            color = TomiloDanger,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+                items(
+                    items,
+                    key = { c -> c.stableId().ifBlank { c.hashCode().toString() } },
+                ) { c ->
                     val name = c.participant?.username
-                        ?: if (c.type == "support") "Поддержка" else "Диалог"
+                        ?: if (c.type == "support" || c.participant?.isSupport == true) {
+                            "Поддержка"
+                        } else {
+                            "Диалог"
+                        }
+                    val id = c.stableId()
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenChat(c.stableId(), name) }
+                            .clickable(enabled = id.isNotBlank()) {
+                                onOpenChat(id, name)
+                            }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

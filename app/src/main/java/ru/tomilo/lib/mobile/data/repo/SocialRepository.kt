@@ -112,40 +112,64 @@ class SocialRepository(private val api: TomiloApi) {
     }
 
     // ── Chats ───────────────────────────────────────────────────
+    private fun apiError(res: ru.tomilo.lib.mobile.data.api.ApiResponse<*>, fallback: String): String {
+        val msg = res.message?.takeIf { it.isNotBlank() }
+            ?: res.errors?.firstOrNull { it.isNotBlank() }
+            ?: fallback
+        // Понятные тексты с сервера
+        return when {
+            msg.contains("friends", ignoreCase = true) ||
+                msg.contains("only message friends", ignoreCase = true) ->
+                "Писать можно только друзьям. Добавьте пользователя в друзья на сайте."
+            msg.contains("Not allowed", ignoreCase = true) ->
+                "Нет доступа к этому диалогу"
+            msg.contains("Invalid token", ignoreCase = true) ||
+                msg.contains("Unauthorized", ignoreCase = true) ->
+                "Сессия устарела — войдите снова"
+            msg.contains("not found", ignoreCase = true) ->
+                "Диалог не найден"
+            else -> msg
+        }
+    }
+
     suspend fun conversations(): Result<List<ConversationPreviewDto>> = runCatching {
         val res = api.conversations()
-        if (!res.success) {
-            error(res.message ?: res.errors?.firstOrNull() ?: "Ошибка чатов")
-        }
+        if (!res.success) error(apiError(res, "Ошибка чатов"))
         parseConversationList(res.data)
     }
 
     suspend fun supportConversation(): Result<ConversationPreviewDto> = runCatching {
         val res = api.supportConversation()
-        if (!res.success) error(res.message ?: "Не удалось открыть поддержку")
-        parseConversation(res.data) ?: error("Пустой диалог")
+        if (!res.success) error(apiError(res, "Не удалось открыть поддержку"))
+        parseConversation(res.data) ?: error("Пустой диалог поддержки")
     }
 
     suspend fun openConversationWith(userId: String): Result<ConversationPreviewDto> = runCatching {
+        if (userId.isBlank()) error("Не указан пользователь")
         val res = api.createConversation(CreateConversationRequest(userId))
-        if (!res.success) error(res.message ?: "Не удалось создать чат")
+        if (!res.success) error(apiError(res, "Не удалось создать чат"))
         parseConversation(res.data) ?: error("Пустой диалог")
     }
 
     suspend fun messages(conversationId: String): Result<List<DirectMessageDto>> = runCatching {
+        if (conversationId.isBlank()) error("Пустой id диалога")
         val res = api.messages(conversationId)
-        if (!res.success) error(res.message ?: "Ошибка сообщений")
+        if (!res.success) error(apiError(res, "Ошибка сообщений"))
         parseMessages(res.data)
     }
 
     suspend fun sendMessage(conversationId: String, body: String): Result<DirectMessageDto> =
         runCatching {
-            val res = api.sendMessage(conversationId, SendMessageRequest(body.trim()))
-            if (!res.success) error(res.message ?: "Не удалось отправить")
-            res.data ?: error("Пустое сообщение")
+            if (conversationId.isBlank()) error("Пустой id диалога")
+            val text = body.trim()
+            if (text.isEmpty()) error("Пустое сообщение")
+            val res = api.sendMessage(conversationId, SendMessageRequest(body = text))
+            if (!res.success) error(apiError(res, "Не удалось отправить"))
+            parseMessage(res.data) ?: error("Сервер не вернул сообщение")
         }
 
     suspend fun markConversationRead(conversationId: String) {
+        if (conversationId.isBlank()) return
         runCatching { api.markConversationRead(conversationId) }
     }
 
@@ -154,69 +178,91 @@ class SocialRepository(private val api: TomiloApi) {
         val data = res.data
         when (data) {
             is JsonObject -> data["count"]?.toString()?.trim('"')?.toIntOrNull() ?: 0
+            is kotlinx.serialization.json.JsonPrimitive -> data.content.toIntOrNull() ?: 0
             else -> 0
         }
     }.getOrDefault(0)
 
+    private fun jsonStr(el: JsonElement?): String? = when (el) {
+        is kotlinx.serialization.json.JsonPrimitive ->
+            el.content.takeIf { it.isNotBlank() && it != "null" }
+        is JsonObject -> {
+            (el["\$oid"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                ?: (el["_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                ?: (el["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+        }
+        else -> null
+    }
+
     private fun parseConversationList(data: JsonElement?): List<ConversationPreviewDto> {
         if (data == null) return emptyList()
-        val arr = when (data) {
+        val arr: JsonArray? = when (data) {
             is JsonArray -> data
             is JsonObject -> {
-                val nested = data["conversations"] ?: data["items"] ?: data["data"] ?: data["results"]
+                val nested = data["conversations"]
+                    ?: data["items"]
+                    ?: data["data"]
+                    ?: data["results"]
+                    ?: data["docs"]
                 when (nested) {
                     is JsonArray -> nested
-                    is JsonObject -> (nested["conversations"] ?: nested["items"]) as? JsonArray
+                    is JsonObject -> (
+                        nested["conversations"] ?: nested["items"]
+                        ) as? JsonArray
                     else -> null
                 }
             }
             else -> null
-        } ?: return emptyList()
-        return arr.mapNotNull { el -> parseConversation(el) }
+        }
+        if (arr == null) {
+            // иногда data — один объект
+            parseConversation(data)?.let { return listOf(it) }
+            return emptyList()
+        }
+        return arr.mapNotNull { parseConversation(it) }
             .filter { it.stableId().isNotBlank() }
     }
 
     private fun parseConversation(data: JsonElement?): ConversationPreviewDto? {
         if (data == null) return null
-        // прямой decode
-        runCatching { json.decodeFromJsonElement<ConversationPreviewDto>(data) }
-            .getOrNull()
-            ?.takeIf { it.stableId().isNotBlank() }
-            ?.let { return it }
-        // ручной разбор (participant может быть вложеннее / с лишними полями)
         val obj = data as? JsonObject ?: return null
-        fun str(key: String): String? =
-            obj[key]?.let {
-                when (it) {
-                    is kotlinx.serialization.json.JsonPrimitive -> it.content
-                    else -> null
-                }
-            }?.takeIf { it.isNotBlank() && it != "null" }
-        val id = str("_id") ?: str("id") ?: return null
+        val id = jsonStr(obj["_id"]) ?: jsonStr(obj["id"]) ?: return null
         val participantEl = obj["participant"]
         val participant = when (participantEl) {
-            is JsonObject -> runCatching {
-                json.decodeFromJsonElement<ru.tomilo.lib.mobile.data.api.ConversationUserDto>(participantEl)
-            }.getOrNull() ?: ru.tomilo.lib.mobile.data.api.ConversationUserDto(
-                underscoreId = (participantEl["_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
-                id = (participantEl["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
-                username = (participantEl["username"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
-                avatar = (participantEl["avatar"] as? kotlinx.serialization.json.JsonPrimitive)?.content,
-            )
+            is JsonObject -> {
+                val isSupportFlag =
+                    (participantEl["isSupport"] as? kotlinx.serialization.json.JsonPrimitive)
+                        ?.content?.toBooleanStrictOrNull() == true ||
+                        jsonStr(participantEl["username"])?.equals("Поддержка", true) == true ||
+                        jsonStr(participantEl["_id"]) == "support" ||
+                        jsonStr(participantEl["id"]) == "support"
+                ru.tomilo.lib.mobile.data.api.ConversationUserDto(
+                    underscoreId = jsonStr(participantEl["_id"]),
+                    id = jsonStr(participantEl["id"]),
+                    username = jsonStr(participantEl["username"]),
+                    avatar = jsonStr(participantEl["avatar"]),
+                    level = (participantEl["level"] as? kotlinx.serialization.json.JsonPrimitive)
+                        ?.content?.toIntOrNull(),
+                    isSupport = isSupportFlag,
+                )
+            }
             else -> null
         }
         val unread = when (val u = obj["unreadCount"]) {
             is kotlinx.serialization.json.JsonPrimitive -> u.content.toIntOrNull() ?: 0
             else -> 0
         }
+        val type = jsonStr(obj["type"])
+            ?: if (participant?.isSupport == true || participant?.stableId() == "support") "support"
+            else "direct"
         return ConversationPreviewDto(
             underscoreId = id,
             id = id,
-            type = str("type"),
+            type = type,
             participant = participant,
-            lastMessageAt = str("lastMessageAt"),
-            lastMessagePreview = str("lastMessagePreview"),
-            lastMessageSenderId = str("lastMessageSenderId"),
+            lastMessageAt = jsonStr(obj["lastMessageAt"]),
+            lastMessagePreview = jsonStr(obj["lastMessagePreview"]),
+            lastMessageSenderId = jsonStr(obj["lastMessageSenderId"]),
             unreadCount = unread,
         )
     }
@@ -229,52 +275,35 @@ class SocialRepository(private val api: TomiloApi) {
                 val nested = data["messages"] ?: data["items"] ?: data["data"] ?: data["docs"]
                 when (nested) {
                     is JsonArray -> nested
-                    is JsonObject -> (nested["messages"] ?: nested["items"]) as? JsonArray
+                    is JsonObject -> {
+                        val inner = nested["messages"] ?: nested["items"]
+                        inner as? JsonArray
+                    }
                     else -> null
                 }
             }
             else -> null
-        } ?: return emptyList()
+        }
+        if (arr == null) return emptyList()
         return arr.mapNotNull { el -> parseMessage(el) }
             .filter { it.stableId().isNotBlank() }
     }
 
     private fun parseMessage(data: JsonElement?): DirectMessageDto? {
         if (data == null) return null
-        runCatching { json.decodeFromJsonElement<DirectMessageDto>(data) }
-            .getOrNull()
-            ?.takeIf { it.stableId().isNotBlank() }
-            ?.let { return it }
-
         val obj = data as? JsonObject ?: return null
-        fun str(vararg keys: String): String? {
-            for (key in keys) {
-                val v = obj[key] ?: continue
-                when (v) {
-                    is kotlinx.serialization.json.JsonPrimitive -> {
-                        val c = v.content
-                        if (c.isNotBlank() && c != "null") return c
-                    }
-                    is JsonObject -> {
-                        val oid = (v["\$oid"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        if (!oid.isNullOrBlank()) return oid
-                        val nested = (v["_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
-                        if (!nested.isNullOrBlank()) return nested
-                    }
-                    else -> Unit
-                }
-            }
-            return null
-        }
-        val id = str("_id", "id") ?: return null
-        val body = str("body", "text", "content", "message")
+        val id = jsonStr(obj["_id"]) ?: jsonStr(obj["id"]) ?: return null
+        val body = jsonStr(obj["body"])
+            ?: jsonStr(obj["text"])
+            ?: jsonStr(obj["content"])
+            ?: jsonStr(obj["message"])
         return DirectMessageDto(
             underscoreId = id,
             id = id,
-            conversationId = str("conversationId"),
+            conversationId = jsonStr(obj["conversationId"]),
             senderId = obj["senderId"],
             body = body,
-            deletedAt = str("deletedAt"),
+            deletedAt = jsonStr(obj["deletedAt"]),
             createdAt = obj["createdAt"],
         )
     }
