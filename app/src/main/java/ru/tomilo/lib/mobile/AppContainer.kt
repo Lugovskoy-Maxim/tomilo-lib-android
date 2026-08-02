@@ -60,7 +60,7 @@ class AppContainer(context: Context) {
         authRepository = authRepository,
         adRewardStore = adRewardStore,
     )
-    val downloadManager = DownloadManager(offlineRepository, appScope)
+    val downloadManager = DownloadManager(appContext, offlineRepository)
 
     init {
         TokenBridge.holder = tokenHolder

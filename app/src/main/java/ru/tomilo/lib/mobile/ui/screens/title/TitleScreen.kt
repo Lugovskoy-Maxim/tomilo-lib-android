@@ -687,7 +687,11 @@ fun TitleScreen(
             onCancel = { downloadManager.cancel() },
             onDismiss = {
                 showDownloadSheet = false
-                downloadManager.clear()
+                if (downloadState.finished) downloadManager.clear()
+            },
+            onContinueInBackground = {
+                // закрываем sheet — сервис + уведомление продолжают качать
+                showDownloadSheet = false
             },
         )
     }

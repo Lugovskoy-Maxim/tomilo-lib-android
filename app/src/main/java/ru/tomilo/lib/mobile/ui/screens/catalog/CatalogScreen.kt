@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -41,10 +42,12 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -57,9 +60,8 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
@@ -164,38 +166,65 @@ fun CatalogScreen(
         reload,
     ) {
         loading = true
+        loadingMore = false
         error = null
         page = 1
         catalogRepository.catalog(buildQuery(1))
             .onSuccess { data ->
-                items = data.titles
+                // unique keys — иначе crash LazyGrid
+                items = data.titles.distinctBy { it.stableId().ifBlank { it.slug.orEmpty() } }
                 totalPages = data.pagination?.pages?.coerceAtLeast(1) ?: 1
                 total = data.pagination?.total ?: data.titles.size
             }
-            .onFailure { error = it.message }
+            .onFailure {
+                error = it.message
+                items = emptyList()
+            }
         loading = false
-        gridState.scrollToItem(0)
+        runCatching { gridState.scrollToItem(0) }
     }
 
-    // infinite scroll
-    LaunchedEffect(gridState, page, totalPages, loading, loadingMore) {
+    // infinite scroll — один collector, без перезапуска на каждый page
+    LaunchedEffect(gridState) {
         snapshotFlow {
             val info = gridState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            last to info.totalItemsCount
-        }.collect { (last, totalItems) ->
-            if (!loading && !loadingMore && page < totalPages && last >= totalItems - 4 && totalItems > 0) {
+            val totalItems = info.totalItemsCount
+            Triple(last, totalItems, loading || loadingMore)
+        }
+            .filter { (last, totalItems, busy) ->
+                !busy && totalItems > 0 && last >= totalItems - 6
+            }
+            .collect {
+                // повторно проверяем актуальные page/totalPages (не из closure keys)
+                if (loading || loadingMore) return@collect
+                if (page >= totalPages) return@collect
                 loadingMore = true
                 val next = page + 1
-                catalogRepository.catalog(buildQuery(next))
-                    .onSuccess { data ->
-                        items = items + data.titles
-                        page = next
-                        totalPages = data.pagination?.pages?.coerceAtLeast(1) ?: totalPages
-                    }
-                loadingMore = false
+                try {
+                    catalogRepository.catalog(buildQuery(next))
+                        .onSuccess { data ->
+                            val existing = items.map {
+                                it.stableId().ifBlank { it.slug.orEmpty() }
+                            }.filter { it.isNotBlank() }.toHashSet()
+                            val merged = items + data.titles.filter { t ->
+                                val key = t.stableId().ifBlank { t.slug.orEmpty() }
+                                key.isNotBlank() && key !in existing
+                            }
+                            items = merged
+                            page = next
+                            totalPages = data.pagination?.pages?.coerceAtLeast(1) ?: totalPages
+                            total = data.pagination?.total ?: total
+                        }
+                        .onFailure {
+                            // не роняем UI — просто не листаем дальше в этот раз
+                        }
+                } catch (_: Throwable) {
+                    // защита от OOM/сетевых сбоев при догрузке
+                } finally {
+                    loadingMore = false
+                }
             }
-        }
     }
 
     val activeFilters = selectedTypes.size + selectedGenres.size +
@@ -259,7 +288,9 @@ fun CatalogScreen(
             )
 
             when {
-                loading && items.isEmpty() -> LoadingBox()
+                loading && items.isEmpty() -> LoadingBox(
+                    message = "Загружаем каталог…",
+                )
                 error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка") { reload += 1 }
                 items.isEmpty() -> Text(
                     "Ничего не найдено",
@@ -274,21 +305,46 @@ fun CatalogScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items, key = { it.stableId().ifBlank { it.slug.orEmpty() + it.displayTitle() } }) { item ->
+                    items(
+                        items = items,
+                        key = { item ->
+                            item.stableId().ifBlank {
+                                "${item.slug.orEmpty()}_${item.displayTitle()}_${item.hashCode()}"
+                            }
+                        },
+                    ) { item ->
                         CatalogCard(item) {
                             onOpenTitle(item.stableId(), item.slug)
                         }
                     }
                     if (loadingMore) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "loading_more") {
+                            Column(
                                 Modifier
                                     .fillMaxWidth()
                                     .padding(16.dp),
-                                contentAlignment = Alignment.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                Text("Загрузка…", color = TomiloMuted)
+                                CircularProgressIndicator(strokeWidth = 2.dp)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Подгружаем ещё… стр. ${page + 1}" +
+                                        if (totalPages > 0) " / $totalPages" else "",
+                                    color = TomiloMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             }
+                        }
+                    } else if (page >= totalPages && items.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "end") {
+                            Text(
+                                "Все $total тайтлов загружены",
+                                color = TomiloMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                            )
                         }
                     }
                 }

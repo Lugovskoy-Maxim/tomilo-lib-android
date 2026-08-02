@@ -38,22 +38,24 @@ data class ChapterDownloadProgress(
     val stageLabel: String
         get() = when (stage) {
             DownloadStage.Queued -> "В очереди"
-            DownloadStage.CheckingAccess -> "Проверка Premium…"
-            DownloadStage.FetchingChapter -> "Загрузка метаданных…"
+            DownloadStage.CheckingAccess -> "Проверка доступа…"
+            DownloadStage.FetchingChapter -> "Получение главы…"
             DownloadStage.DownloadingPages ->
-                if (pagesTotal > 0) "Страницы $pagesDone / $pagesTotal"
+                if (pagesTotal > 0) "Скачивание $pagesDone из $pagesTotal стр."
                 else "Скачивание страниц…"
-            DownloadStage.Saving -> "Сохранение…"
-            DownloadStage.Completed -> "Готово"
+            DownloadStage.Saving -> "Сохранение на устройство…"
+            DownloadStage.Completed -> "✓ Готово"
             DownloadStage.Failed -> message ?: "Ошибка"
             DownloadStage.Cancelled -> "Отменено"
         }
 }
 
 data class BatchDownloadState(
+    val titleName: String = "",
     val items: List<ChapterDownloadProgress> = emptyList(),
     val activeIndex: Int = -1,
     val finished: Boolean = false,
+    val runningInBackground: Boolean = false,
 ) {
     val overallFraction: Float
         get() {
@@ -63,4 +65,42 @@ data class BatchDownloadState(
 
     val completedCount: Int get() = items.count { it.stage == DownloadStage.Completed }
     val failedCount: Int get() = items.count { it.stage == DownloadStage.Failed }
+    val activeItem: ChapterDownloadProgress?
+        get() = items.getOrNull(activeIndex)
+
+    val statusSummary: String
+        get() {
+            if (items.isEmpty()) return ""
+            if (finished) {
+                return buildString {
+                    append("Готово: $completedCount из ${items.size}")
+                    if (failedCount > 0) append(" · ошибок $failedCount")
+                }
+            }
+            val active = activeItem
+            return buildString {
+                append("${completedCount + if (active?.stage == DownloadStage.Completed) 0 else 0}")
+                // current index is 1-based for user
+                val n = (activeIndex + 1).coerceAtLeast(1)
+                append("Глава $n из ${items.size}")
+                active?.let {
+                    append(" · ")
+                    append(it.stageLabel)
+                }
+            }
+        }
 }
+
+/** Пакет для фонового сервиса */
+data class DownloadBatchRequest(
+    val titleId: String,
+    val titleName: String,
+    val titleSlug: String,
+    val titleCover: String?,
+    val chapters: List<DownloadChapterRef>,
+)
+
+data class DownloadChapterRef(
+    val chapterId: String,
+    val chapterLabel: String,
+)
