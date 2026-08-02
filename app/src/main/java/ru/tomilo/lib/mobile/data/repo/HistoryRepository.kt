@@ -1,5 +1,7 @@
 package ru.tomilo.lib.mobile.data.repo
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -32,15 +34,12 @@ class HistoryRepository(private val api: TomiloApi) {
     suspend fun progressMap(titleIds: Collection<String>): Map<String, ReadingProgressDto> {
         val ids = titleIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (ids.isEmpty()) return emptyMap()
-        return kotlinx.coroutines.coroutineScope {
-            val deferred = ids.map { id ->
-                kotlinx.coroutines.async {
-                    val p = progress(id).getOrNull()
-                    if (p != null) id to p else null
-                }
-            }
-            deferred.mapNotNull { it.await() }.toMap()
+        // Последовательно безопаснее для API; список закладок обычно небольшой
+        val out = LinkedHashMap<String, ReadingProgressDto>()
+        for (id in ids) {
+            progress(id).getOrNull()?.let { out[id] = it }
         }
+        return out
     }
 
     /**
