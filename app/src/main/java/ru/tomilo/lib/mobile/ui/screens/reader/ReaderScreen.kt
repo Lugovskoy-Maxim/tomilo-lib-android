@@ -31,12 +31,14 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -71,7 +73,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
+import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -97,11 +101,14 @@ fun ReaderScreen(
     chapterTransitionAds: ChapterTransitionAds,
     onBack: () -> Unit,
     onOpenChapter: (chapterId: String) -> Unit,
+    onOpenPremium: () -> Unit = {},
+    onLogin: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val activity = context as? android.app.Activity
     val user by authRepository.userFlow.collectAsState(initial = null)
+    val isPremium = Premium.isActive(user?.subscriptionExpiresAt)
     val settings by readingPrefs.settingsFlow.collectAsState(
         initial = ru.tomilo.lib.mobile.data.local.ReadingSettings(),
     )
@@ -110,6 +117,8 @@ fun ReaderScreen(
 
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var needsPremium by remember { mutableStateOf(false) }
+    var needsLogin by remember { mutableStateOf(false) }
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var title by remember { mutableStateOf("Глава") }
     var offline by remember { mutableStateOf(false) }
@@ -171,8 +180,13 @@ fun ReaderScreen(
         scope.launch {
             loading = true
             error = null
+            needsPremium = false
+            needsLogin = false
             currentChapterId = id
             autoScroll = false
+            pages = emptyList()
+
+            // Офлайн-копия
             if (preferOffline || offlineRepository.isDownloaded(id)) {
                 val local = offlineRepository.getLocalPages(id)
                 if (!local.isNullOrEmpty()) {
@@ -182,32 +196,83 @@ fun ReaderScreen(
                     offline = true
                     loading = false
                     val tid = titleId ?: entity?.titleId
-                    if (!tid.isNullOrBlank()) {
-                        historyRepository.markRead(tid, id)
-                    }
+                    if (!tid.isNullOrBlank()) historyRepository.markRead(tid, id)
                     listState.scrollToItem(0)
                     return@launch
                 }
             }
-            catalogRepository.chapter(id)
-                .onSuccess { ch ->
-                    title = ch.name?.ifBlank { "Глава ${ch.numberLabel()}" }
-                        ?: "Глава ${ch.numberLabel()}"
-                    pages = ch.pages.orEmpty().map { MediaUrl.resolve(it) }
-                    offline = false
-                    if (pages.isEmpty()) error = "Страницы недоступны"
-                    val tid = titleId
-                    if (!tid.isNullOrBlank() && pages.isNotEmpty()) {
-                        historyRepository.markRead(tid, id)
-                    }
+
+            // JWT + свежий Premium (сервер отдаёт pages по subscriptionExpiresAt)
+            var subExpires = user?.subscriptionExpiresAt
+            if (authRepository.isLoggedIn()) {
+                authRepository.refreshProfile().onSuccess { subExpires = it.subscriptionExpiresAt }
+            }
+
+            suspend fun applyChapter(chapter: ChapterDto, allowRetry: Boolean) {
+                title = chapter.name?.ifBlank { "Глава ${chapter.numberLabel()}" }
+                    ?: "Глава ${chapter.numberLabel()}"
+                offline = false
+
+                if (chapter.isWithdrawn()) {
+                    error = "Глава скрыта или удалена"
+                    return
                 }
+
+                val canRead = ChapterAccess.userCanRead(
+                    isPaid = chapter.isPaid,
+                    freeAt = chapter.freeAt,
+                    unlockedByActivityCoins = chapter.isUnlockedByActivityCoins,
+                    subscriptionExpiresAt = subExpires,
+                )
+                val resolved = chapter.pages.orEmpty().map { MediaUrl.resolve(it) }
+
+                when {
+                    resolved.isNotEmpty() -> {
+                        pages = resolved
+                        if (!titleId.isNullOrBlank()) historyRepository.markRead(titleId, id)
+                    }
+                    chapter.isPaid == true && !canRead -> {
+                        needsPremium = true
+                        needsLogin = !authRepository.isLoggedIn()
+                        error = ChapterAccess.lockHint(
+                            isPaid = true,
+                            freeAt = chapter.freeAt,
+                            unlockPrice = chapter.unlockPrice,
+                            isPremiumUser = false,
+                        )
+                    }
+                    // Premium (или freeAt), но pages пустые — повтор запроса
+                    canRead && allowRetry && authRepository.isLoggedIn() -> {
+                        authRepository.refreshProfile().onSuccess {
+                            subExpires = it.subscriptionExpiresAt
+                        }
+                        catalogRepository.chapter(id)
+                            .onSuccess { applyChapter(it, allowRetry = false) }
+                            .onFailure { error = it.message ?: "Не удалось открыть главу" }
+                    }
+                    canRead -> {
+                        error = "Страницы пока недоступны. Потяните назад и откройте главу снова."
+                    }
+                    else -> error = "Страницы недоступны"
+                }
+            }
+
+            catalogRepository.chapter(id)
+                .onSuccess { applyChapter(it, allowRetry = true) }
                 .onFailure { error = it.message ?: "Не удалось открыть главу" }
+
             loading = false
             listState.scrollToItem(0)
         }
     }
 
     LaunchedEffect(chapterId) { loadChapter(chapterId) }
+    // После входа / активации Premium — перезагрузить главу
+    LaunchedEffect(user?.stableId(), user?.subscriptionExpiresAt) {
+        if (pages.isEmpty() && !loading && (needsPremium || error != null)) {
+            loadChapter(currentChapterId)
+        }
+    }
 
     LaunchedEffect(titleId, currentChapterId) {
         val tid = titleId
@@ -275,7 +340,38 @@ fun ReaderScreen(
     ) {
         when {
             loading -> LoadingBox()
+            error != null && needsPremium -> {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        error ?: "Платная глава",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    if (needsLogin) {
+                        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
+                            Text("Войти")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Button(onClick = onOpenPremium, modifier = Modifier.fillMaxWidth()) {
+                        Text("Оформить Premium")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { loadChapter(currentChapterId) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Повторить") }
+                }
+            }
             error != null -> ErrorBox(error ?: "Ошибка") { loadChapter(currentChapterId) }
+            pages.isEmpty() -> ErrorBox("Нет страниц") { loadChapter(currentChapterId) }
             else -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),

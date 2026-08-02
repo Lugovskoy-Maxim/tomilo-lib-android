@@ -98,6 +98,12 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data ?: error("Глава недоступна")
     }
 
+    /**
+     * Загрузка главы с учётом Premium: при пустых pages и isPaid повторяет после refresh-профиля
+     * не имеет смысла здесь — см. Reader. Возвращает главу как есть.
+     */
+    suspend fun chapterForReading(chapterId: String): Result<ChapterDto> = chapter(chapterId)
+
     suspend fun chapterNext(chapterId: String): Result<ChapterDto> = runCatching {
         val res = api.chapterNext(chapterId)
         if (!res.success) error(res.message ?: "Нет следующей главы")

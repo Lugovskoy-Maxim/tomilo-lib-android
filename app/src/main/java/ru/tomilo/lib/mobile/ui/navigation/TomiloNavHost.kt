@@ -353,6 +353,8 @@ fun TomiloNavHost(container: AppContainer) {
                             launchSingleTop = true
                         }
                     },
+                    onOpenPremium = { navController.navigate(Routes.Premium) },
+                    onLogin = { goLogin() },
                 )
             }
             composable(

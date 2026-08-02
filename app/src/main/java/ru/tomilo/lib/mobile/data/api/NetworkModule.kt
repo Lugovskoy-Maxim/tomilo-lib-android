@@ -27,14 +27,18 @@ object NetworkModule {
 
         val authInterceptor = Interceptor { chain ->
             val token = tokenProvider()
-            val req = if (!token.isNullOrBlank()) {
-                chain.request().newBuilder()
-                    .header("Authorization", "Bearer $token")
-                    .build()
-            } else {
-                chain.request()
+            val original = chain.request()
+            val builder = original.newBuilder()
+            if (!token.isNullOrBlank()) {
+                builder.header("Authorization", "Bearer $token")
             }
-            chain.proceed(req)
+            // Платные главы зависят от JWT — не отдавать устаревший кеш без/со старым токеном
+            val path = original.url.encodedPath
+            if (path.contains("/chapters/") && !path.contains("/chapters/title/")) {
+                builder.header("Cache-Control", "no-cache")
+                builder.header("Pragma", "no-cache")
+            }
+            chain.proceed(builder.build())
         }
 
         // Кеш только публичных GET без Authorization (иначе 401/пустые чаты залипают)

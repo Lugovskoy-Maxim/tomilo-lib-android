@@ -149,13 +149,16 @@ fun PremiumScreen(
             Spacer(Modifier.height(20.dp))
             Text("Что даёт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
-            Benefit("Платные главы без ожидания")
+            Benefit("Скрытые (платные) главы — как на сайте, без ожидания freeAt")
             Benefit("Офлайн-библиотека без лимита (без рекламы)")
+            Benefit("Без межглавной рекламы в приложении")
             Benefit("Без рекламных блоков на сайте")
             Benefit("Длинные пакеты дешевле помесячно")
             Spacer(Modifier.height(8.dp))
             Text(
-                "Без Premium можно скачать 1 главу офлайн за просмотр рекламы с вознаграждением.",
+                "Без Premium можно читать бесплатные главы онлайн; " +
+                    "1 главу офлайн — за просмотр рекламы. Платные главы — только Premium " +
+                    "(или разблокировка за монеты на сайте).",
                 color = TomiloMuted,
                 style = MaterialTheme.typography.bodySmall,
             )

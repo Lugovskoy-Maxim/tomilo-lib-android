@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
+import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
@@ -558,6 +559,17 @@ fun TitleScreen(
                         val isOffline = id in downloadedIds
                         val isSelected = id in selected
                         val isRead = id in readChapterIds
+                        val paidLocked = ChapterAccess.isPremiumOnly(
+                            chapter.isPaid,
+                            chapter.freeAt,
+                            chapter.isUnlockedByActivityCoins,
+                        ) && !isPremium && !isOffline
+                        val canOpenPaid = ChapterAccess.userCanRead(
+                            isPaid = chapter.isPaid,
+                            freeAt = chapter.freeAt,
+                            unlockedByActivityCoins = chapter.isUnlockedByActivityCoins,
+                            subscriptionExpiresAt = user?.subscriptionExpiresAt,
+                        ) || isOffline || isPremium
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -566,6 +578,8 @@ fun TitleScreen(
                                         if (isOffline) return@clickable
                                         selected = if (isSelected) selected - id else selected + id
                                     } else {
+                                        // Premium и офлайн — открываем; иначе тоже открываем
+                                        // (ридер покажет экран Premium, если страниц нет)
                                         onOpenChapter(t.stableId(), id, isOffline)
                                     }
                                 }
@@ -584,23 +598,41 @@ fun TitleScreen(
                             }
                             Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
                                 Text(
-                                    "Глава ${chapter.numberLabel()}" + if (isRead) "  ✓" else "",
-                                    color = if (isRead) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onBackground,
+                                    buildString {
+                                        append("Глава ${chapter.numberLabel()}")
+                                        if (isRead) append("  ✓")
+                                        if (paidLocked) append("  🔒")
+                                        else if (chapter.isPaid == true && (isPremium || canOpenPaid)) {
+                                            append("  ★")
+                                        }
+                                    },
+                                    color = when {
+                                        isRead -> MaterialTheme.colorScheme.primary
+                                        paidLocked -> TomiloMuted
+                                        else -> MaterialTheme.colorScheme.onBackground
+                                    },
                                 )
-                                if (!chapter.name.isNullOrBlank() &&
-                                    chapter.name != "Глава ${chapter.numberLabel()}"
-                                ) {
-                                    Text(
-                                        chapter.name!!,
-                                        color = TomiloMuted,
-                                        style = MaterialTheme.typography.bodySmall,
+                                val subHint = when {
+                                    paidLocked -> ChapterAccess.lockHint(
+                                        chapter.isPaid,
+                                        chapter.freeAt,
+                                        chapter.unlockPrice,
+                                        isPremiumUser = false,
                                     )
-                                } else if (isRead) {
+                                    !chapter.name.isNullOrBlank() &&
+                                        chapter.name != "Глава ${chapter.numberLabel()}" -> chapter.name
+                                    isRead -> "Прочитано"
+                                    chapter.isPaid == true && isPremium -> "Premium · доступна"
+                                    else -> null
+                                }
+                                if (!subHint.isNullOrBlank()) {
                                     Text(
-                                        "Прочитано",
-                                        color = MaterialTheme.colorScheme.primary,
+                                        subHint,
+                                        color = if (paidLocked) MaterialTheme.colorScheme.primary
+                                        else if (isRead) MaterialTheme.colorScheme.primary
+                                        else TomiloMuted,
                                         style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
                                     )
                                 }
                             }

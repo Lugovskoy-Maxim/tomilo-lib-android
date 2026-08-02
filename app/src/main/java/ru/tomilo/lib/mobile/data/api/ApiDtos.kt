@@ -397,6 +397,9 @@ data class ChapterDto(
     val unlockPrice: Int? = null,
     val freeAt: String? = null,
     val releaseDate: String? = null,
+    /** Разблокировка за монеты активности (с сервера). */
+    val isUnlockedByActivityCoins: Boolean? = null,
+    val status: String? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
 
@@ -416,6 +419,11 @@ data class ChapterDto(
         } catch (_: Exception) {
             null
         }
+    }
+
+    fun isWithdrawn(): Boolean {
+        val s = status?.lowercase().orEmpty()
+        return s == "hidden" || s == "deleted"
     }
 }
 
