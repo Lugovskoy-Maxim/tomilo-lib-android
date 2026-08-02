@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
@@ -68,11 +69,23 @@ data class BookmarkEntryDto(
     val titleId: JsonElement? = null,
     val category: String? = null,
     val addedAt: String? = null,
+    /** Иногда клиент/legacy кладёт тайтл отдельно; обычно populate идёт в titleId. */
     val title: BookmarkTitleDto? = null,
 ) {
+    fun resolvedTitle(): BookmarkTitleDto? {
+        title?.let { return it }
+        val el = titleId
+        if (el is JsonObject) {
+            return runCatching {
+                NetworkModule.json.decodeFromJsonElement<BookmarkTitleDto>(el)
+            }.getOrNull()
+        }
+        return null
+    }
+
     fun resolvedTitleId(): String {
-        title?._id?.let { return it }
-        title?.id?.let { return it }
+        resolvedTitle()?._id?.let { if (it.isNotBlank()) return it }
+        resolvedTitle()?.id?.let { if (it.isNotBlank()) return it }
         val el = titleId ?: return ""
         return when (el) {
             is JsonPrimitive -> el.contentOrNull.orEmpty()
@@ -84,6 +97,16 @@ data class BookmarkEntryDto(
             else -> ""
         }
     }
+
+    fun displayName(): String {
+        val t = resolvedTitle()
+        return t?.name?.takeIf { it.isNotBlank() }
+            ?: t?.title?.takeIf { it.isNotBlank() }
+            ?: t?.slug?.takeIf { it.isNotBlank() }
+            ?: "Тайтл"
+    }
+
+    fun coverPath(): String? = resolvedTitle()?.coverImage ?: resolvedTitle()?.cover
 }
 
 @Serializable
@@ -91,19 +114,27 @@ data class BookmarkTitleDto(
     @SerialName("_id") val _id: String? = null,
     val id: String? = null,
     val name: String? = null,
+    /** legacy / неверный select на бэке */
+    val title: String? = null,
     val slug: String? = null,
     val coverImage: String? = null,
+    val cover: String? = null,
     val type: String? = null,
     val status: String? = null,
     val totalChapters: Int? = null,
+    val chaptersCount: Int? = null,
     val averageRating: Double? = null,
 )
 
 @Serializable
 data class BookmarkStatusDto(
+    val isBookmarked: Boolean = false,
+    /** legacy alias */
     val bookmarked: Boolean = false,
     val category: String? = null,
-)
+) {
+    fun active(): Boolean = isBookmarked || bookmarked
+}
 
 @Serializable
 data class UpdateBookmarkRequest(val category: String)

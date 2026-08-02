@@ -25,9 +25,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,6 +64,7 @@ import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
+import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
@@ -70,6 +75,14 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
+private enum class ChapterSort(val label: String) {
+    NumberAsc("№ ↑"),
+    NumberDesc("№ ↓"),
+    DateNew("Новые"),
+    DateOld("Старые"),
+    Views("Просмотры"),
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TitleScreen(
@@ -78,6 +91,7 @@ fun TitleScreen(
     offlineRepository: OfflineRepository,
     authRepository: AuthRepository,
     socialRepository: SocialRepository,
+    historyRepository: HistoryRepository,
     downloadManager: DownloadManager,
     onBack: () -> Unit,
     onLogin: () -> Unit,
@@ -94,6 +108,20 @@ fun TitleScreen(
     var selectMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     var showDownloadSheet by remember { mutableStateOf(false) }
+    var sort by remember { mutableStateOf(ChapterSort.NumberAsc) }
+    var myRating by remember { mutableIntStateOf(0) }
+
+    val sortedChapters = remember(chapters, sort) {
+        when (sort) {
+            ChapterSort.NumberAsc -> chapters.sortedBy { it.chapterNumberAsDouble() ?: Double.MAX_VALUE }
+            ChapterSort.NumberDesc -> chapters.sortedByDescending { it.chapterNumberAsDouble() ?: -1.0 }
+            ChapterSort.DateNew -> chapters.sortedByDescending { it.releaseDate.orEmpty() }
+            ChapterSort.DateOld -> chapters.sortedBy { it.releaseDate.orEmpty() }
+            ChapterSort.Views -> chapters.sortedByDescending {
+                it.views?.toString()?.trim('"')?.toDoubleOrNull() ?: 0.0
+            }
+        }
+    }
 
     val offlineAll by offlineRepository.observeAll().collectAsState(initial = emptyList())
     val downloadState by downloadManager.state.collectAsState()
@@ -132,7 +160,7 @@ fun TitleScreen(
         }
         socialRepository.bookmarkStatus(tid)
             .onSuccess {
-                bookmarked = it.bookmarked
+                bookmarked = it.active()
                 bookmarkCategory = it.category
             }
     }
@@ -170,7 +198,7 @@ fun TitleScreen(
                 actions = {
                     if (selectMode) {
                         IconButton(onClick = {
-                            val allIds = chapters.map { it.stableId() }.filter { it !in downloadedIds }
+                            val allIds = sortedChapters.map { it.stableId() }.filter { it !in downloadedIds }
                             selected = if (selected.size >= allIds.size) emptySet() else allIds.toSet()
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
@@ -237,7 +265,7 @@ fun TitleScreen(
                                 onLogin()
                                 return@Button
                             }
-                            val toDownload = chapters.filter {
+                            val toDownload = sortedChapters.filter {
                                 it.stableId() in selected && it.stableId() !in downloadedIds
                             }
                             if (toDownload.isEmpty()) {
@@ -314,13 +342,62 @@ fun TitleScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp),
                             )
                         }
+                        // Rating
                         Text(
-                            "Главы",
+                            "Оценка",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        )
+                        Row(
+                            Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp),
+                        ) {
+                            (1..10).forEach { star ->
+                                FilterChip(
+                                    selected = myRating == star,
+                                    onClick = {
+                                        if (user == null) {
+                                            onLogin()
+                                            return@FilterChip
+                                        }
+                                        scope.launch {
+                                            historyRepository.rateTitle(t.stableId(), star)
+                                                .onSuccess {
+                                                    myRating = star
+                                                    snackbar.showSnackbar("Оценка: $star/10")
+                                                }
+                                                .onFailure {
+                                                    snackbar.showSnackbar(it.message ?: "Ошибка")
+                                                }
+                                        }
+                                    },
+                                    label = { Text("$star") },
+                                    modifier = Modifier.padding(horizontal = 2.dp),
+                                )
+                            }
+                        }
+                        Text(
+                            "Главы · сортировка",
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                         )
+                        Row(
+                            Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                        ) {
+                            ChapterSort.entries.forEach { option ->
+                                FilterChip(
+                                    selected = sort == option,
+                                    onClick = { sort = option },
+                                    label = { Text(option.label) },
+                                    modifier = Modifier.padding(horizontal = 3.dp),
+                                )
+                            }
+                        }
                     }
-                    items(chapters, key = { it.stableId() }) { chapter ->
+                    items(sortedChapters, key = { it.stableId() }) { chapter ->
                         val id = chapter.stableId()
                         val isOffline = id in downloadedIds
                         val isSelected = id in selected

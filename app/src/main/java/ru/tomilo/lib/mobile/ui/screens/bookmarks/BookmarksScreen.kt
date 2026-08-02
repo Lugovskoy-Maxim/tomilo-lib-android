@@ -56,16 +56,29 @@ fun BookmarksScreen(
     var items by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
     var reload by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(user?.stableId(), catIndex, reload) {
+    // userFlow initially null until DataStore emits — show loading, not empty login
+    var authReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        // first emission from DataStore
+        kotlinx.coroutines.delay(50)
+        authReady = true
+    }
+
+    LaunchedEffect(user?.stableId(), catIndex, reload, authReady) {
+        if (!authReady) return@LaunchedEffect
         if (user == null) {
             items = emptyList()
+            loading = false
             return@LaunchedEffect
         }
         loading = true
         error = null
         val cat = CATEGORIES[catIndex].first
         socialRepository.bookmarks(cat)
-            .onSuccess { items = it }
+            .onSuccess { list ->
+                items = list.filter { it.resolvedTitleId().isNotBlank() || it.displayName() != "Тайтл" || it.coverPath() != null }
+                    .ifEmpty { list }
+            }
             .onFailure { error = it.message }
         loading = false
     }
@@ -79,8 +92,14 @@ fun BookmarksScreen(
             )
         },
     ) { padding ->
+        if (!authReady || (loading && user == null)) {
+            LoadingBox(Modifier.padding(padding))
+            return@Scaffold
+        }
         if (user == null) {
-            ErrorBox("Войдите, чтобы видеть закладки", onRetry = onLogin)
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                ErrorBox("Войдите, чтобы видеть закладки", onRetry = onLogin)
+            }
             return@Scaffold
         }
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -108,21 +127,27 @@ fun BookmarksScreen(
                     modifier = Modifier.padding(16.dp),
                 )
                 else -> LazyColumn(contentPadding = ScreenPadding) {
-                    items(items, key = { it.resolvedTitleId() + (it.category ?: "") }) { bm ->
+                    items(
+                        items,
+                        key = { bm ->
+                            val id = bm.resolvedTitleId().ifBlank { bm.hashCode().toString() }
+                            id + "|" + (bm.category ?: "") + "|" + (bm.addedAt ?: "")
+                        },
+                    ) { bm ->
                         val titleId = bm.resolvedTitleId()
-                        val name = bm.title?.name ?: "Тайтл"
+                        val t = bm.resolvedTitle()
                         val meta = listOfNotNull(
                             categoryLabel(bm.category),
-                            bm.title?.type,
-                            bm.title?.totalChapters?.let { "$it гл." },
+                            t?.type,
+                            (t?.totalChapters ?: t?.chaptersCount)?.let { "$it гл." },
                         ).joinToString(" · ")
                         TitleListRow(
-                            title = name,
-                            cover = bm.title?.coverImage,
-                            meta = meta,
+                            title = bm.displayName(),
+                            cover = bm.coverPath(),
+                            meta = meta.ifBlank { null },
                             onClick = {
                                 if (titleId.isNotBlank()) {
-                                    onOpenTitle(titleId, bm.title?.slug)
+                                    onOpenTitle(titleId, t?.slug)
                                 }
                             },
                         )

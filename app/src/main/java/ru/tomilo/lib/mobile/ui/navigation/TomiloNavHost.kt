@@ -23,10 +23,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import ru.tomilo.lib.mobile.AppContainer
+import ru.tomilo.lib.mobile.ui.screens.admin.AdminScreen
 import ru.tomilo.lib.mobile.ui.screens.auth.LoginScreen
 import ru.tomilo.lib.mobile.ui.screens.bookmarks.BookmarksScreen
 import ru.tomilo.lib.mobile.ui.screens.chats.ChatThreadScreen
 import ru.tomilo.lib.mobile.ui.screens.chats.ChatsScreen
+import ru.tomilo.lib.mobile.ui.screens.history.HistoryScreen
 import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
@@ -50,6 +52,8 @@ object Routes {
     const val Offline = "offline"
     const val Leaders = "leaders"
     const val Notifications = "notifications"
+    const val History = "history"
+    const val Admin = "admin"
     const val Login = "login"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
@@ -164,7 +168,32 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
+                    onOpenHistory = { navController.navigate(Routes.History) },
+                    onOpenAdmin = { navController.navigate(Routes.Admin) },
                     onOpenMyPublicProfile = { id -> navController.navigate(Routes.user(id)) },
+                )
+            }
+            composable(Routes.History) {
+                HistoryScreen(
+                    authRepository = container.authRepository,
+                    historyRepository = container.historyRepository,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
+                    onOpenChapter = { titleId, chapterId ->
+                        navController.navigate(Routes.reader(chapterId, offline = false, titleId = titleId))
+                    },
+                )
+            }
+            composable(Routes.Admin) {
+                AdminScreen(
+                    adminRepository = container.adminRepository,
+                    onBack = { navController.popBackStack() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
                 )
             }
             composable(Routes.Offline) {
@@ -208,6 +237,7 @@ fun TomiloNavHost(container: AppContainer) {
                     offlineRepository = container.offlineRepository,
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
+                    historyRepository = container.historyRepository,
                     downloadManager = container.downloadManager,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
@@ -243,6 +273,7 @@ fun TomiloNavHost(container: AppContainer) {
                     preferOffline = offline,
                     catalogRepository = container.catalogRepository,
                     offlineRepository = container.offlineRepository,
+                    historyRepository = container.historyRepository,
                     readingPrefs = container.readingPrefs,
                     onBack = { navController.popBackStack() },
                     onOpenChapter = { nextId ->

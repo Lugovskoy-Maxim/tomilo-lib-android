@@ -9,8 +9,10 @@ import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.local.AuthStore
 import ru.tomilo.lib.mobile.data.local.OfflineDatabase
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
+import ru.tomilo.lib.mobile.data.repo.AdminRepository
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
+import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 
@@ -27,6 +29,8 @@ class AppContainer(context: Context) {
     val authRepository = AuthRepository(tomiloApi, authStore)
     val catalogRepository = CatalogRepository(tomiloApi)
     val socialRepository = SocialRepository(tomiloApi)
+    val historyRepository = HistoryRepository(tomiloApi)
+    val adminRepository = AdminRepository(tomiloApi)
     private val offlineDb = OfflineDatabase.create(appContext)
     val offlineRepository = OfflineRepository(
         context = appContext,

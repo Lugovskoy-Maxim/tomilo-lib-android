@@ -74,6 +74,7 @@ import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
+import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -88,6 +89,7 @@ fun ReaderScreen(
     preferOffline: Boolean,
     catalogRepository: CatalogRepository,
     offlineRepository: OfflineRepository,
+    historyRepository: HistoryRepository,
     readingPrefs: ReadingPrefs,
     onBack: () -> Unit,
     onOpenChapter: (chapterId: String) -> Unit,
@@ -174,6 +176,10 @@ fun ReaderScreen(
                     pages = ch.pages.orEmpty().map { MediaUrl.resolve(it) }
                     offline = false
                     if (pages.isEmpty()) error = "Страницы недоступны"
+                    val tid = titleId
+                    if (!tid.isNullOrBlank() && pages.isNotEmpty()) {
+                        historyRepository.markRead(tid, id)
+                    }
                 }
                 .onFailure { error = it.message ?: "Не удалось открыть главу" }
             loading = false

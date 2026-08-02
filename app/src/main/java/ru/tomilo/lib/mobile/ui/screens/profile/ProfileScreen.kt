@@ -53,6 +53,8 @@ fun ProfileScreen(
     onOpenOffline: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenLeaders: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenAdmin: () -> Unit,
     onOpenMyPublicProfile: (userId: String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
@@ -137,12 +139,22 @@ fun ProfileScreen(
                     Text(if (notifUnread > 0) "Уведомления ($notifUnread)" else "Уведомления")
                 }
                 Spacer(Modifier.height(10.dp))
+                OutlinedButton(onClick = onOpenHistory, modifier = Modifier.fillMaxWidth()) {
+                    Text("История чтения")
+                }
+                Spacer(Modifier.height(10.dp))
                 OutlinedButton(onClick = onOpenLeaders, modifier = Modifier.fillMaxWidth()) {
                     Text("Лидеры")
                 }
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(onClick = onOpenOffline, modifier = Modifier.fillMaxWidth()) {
                     Text("Офлайн-библиотека")
+                }
+                if (user!!.isStaff()) {
+                    Spacer(Modifier.height(10.dp))
+                    Button(onClick = onOpenAdmin, modifier = Modifier.fillMaxWidth()) {
+                        Text("Админка")
+                    }
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(

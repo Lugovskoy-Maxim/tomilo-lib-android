@@ -173,4 +173,93 @@ interface TomiloApi {
 
     @DELETE("notifications/{id}")
     suspend fun deleteNotification(@Path("id") id: String): ApiResponse<JsonElement>
+
+    // ── Reading history ─────────────────────────────────────────
+    @GET("users/profile/history")
+    suspend fun readingHistory(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 40,
+        @Query("light") light: Boolean = true,
+    ): ApiResponse<JsonElement>
+
+    @POST("users/profile/history/{titleId}/{chapterId}")
+    suspend fun addHistory(
+        @Path("titleId") titleId: String,
+        @Path("chapterId") chapterId: String,
+    ): ApiResponse<JsonElement>
+
+    // ── Title rating ────────────────────────────────────────────
+    @POST("titles/{id}/rating")
+    suspend fun rateTitle(
+        @Path("id") id: String,
+        @Body body: RateTitleRequest,
+    ): ApiResponse<JsonElement>
+
+    @GET("titles/{id}/my-rating")
+    suspend fun myTitleRating(@Path("id") id: String): ApiResponse<JsonElement>
+
+    // ── Admin ───────────────────────────────────────────────────
+    @GET("admin/dashboard")
+    suspend fun adminDashboard(): ApiResponse<AdminDashboardDto>
+
+    @GET("admin/activity")
+    suspend fun adminActivity(
+        @Query("limit") limit: Int = 30,
+        @Query("page") page: Int = 1,
+    ): ApiResponse<JsonElement>
+
+    @GET("admin/system")
+    suspend fun adminSystem(): ApiResponse<JsonElement>
+
+    @POST("admin/cache/clear")
+    suspend fun adminClearCache(): ApiResponse<JsonElement>
+
+    @GET("admin/users")
+    suspend fun adminUsers(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 30,
+        @Query("search") search: String? = null,
+        @Query("role") role: String? = null,
+    ): ApiResponse<AdminUsersPageDto>
+
+    @POST("admin/users/{id}/ban")
+    suspend fun adminBanUser(
+        @Path("id") id: String,
+        @Body body: AdminBanRequest,
+    ): ApiResponse<JsonElement>
+
+    @POST("admin/users/{id}/unban")
+    suspend fun adminUnbanUser(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @PUT("admin/users/{id}/role")
+    suspend fun adminSetRole(
+        @Path("id") id: String,
+        @Body body: AdminRoleRequest,
+    ): ApiResponse<JsonElement>
+
+    @GET("admin/comments")
+    suspend fun adminComments(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 30,
+        @Query("search") search: String? = null,
+    ): ApiResponse<AdminCommentsPageDto>
+
+    @PUT("admin/comments/{id}/visibility")
+    suspend fun adminCommentVisibility(
+        @Path("id") id: String,
+        @Body body: AdminCommentVisibilityRequest,
+    ): ApiResponse<JsonElement>
+
+    @DELETE("admin/comments/{id}")
+    suspend fun adminDeleteComment(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @GET("admin/titles")
+    suspend fun adminTitles(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 30,
+        @Query("search") search: String? = null,
+    ): ApiResponse<AdminTitlesPageDto>
+
+    @GET("admin/comments/stats")
+    suspend fun adminCommentsStats(): ApiResponse<JsonElement>
 }

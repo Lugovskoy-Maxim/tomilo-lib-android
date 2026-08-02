@@ -59,6 +59,158 @@ data class UserDto(
     val balance: Int? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun isStaff(): Boolean {
+        val r = role?.lowercase().orEmpty()
+        return r == "admin" || r == "moderator"
+    }
+    fun isAdmin(): Boolean = role?.equals("admin", ignoreCase = true) == true
+}
+
+@Serializable
+data class RateTitleRequest(val rating: Int)
+
+@Serializable
+data class HistoryEntryDto(
+    @SerialName("_id") val underscoreId: String? = null,
+    val id: String? = null,
+    val titleId: JsonElement? = null,
+    val chapterId: JsonElement? = null,
+    val titleName: String? = null,
+    val titleSlug: String? = null,
+    val coverImage: String? = null,
+    val cover: String? = null,
+    val chapterNumber: JsonElement? = null,
+    val chapterName: String? = null,
+    val readAt: String? = null,
+    val updatedAt: String? = null,
+) {
+    fun titleKey(): String = extractId(titleId)
+    fun chapterKey(): String = extractId(chapterId)
+    fun displayTitle(): String = titleName?.takeIf { it.isNotBlank() } ?: "Тайтл"
+    fun coverPath(): String? = coverImage ?: cover
+    fun chapterLabel(): String {
+        val n = chapterNumber?.toString()?.trim('"')
+        return when {
+            !chapterName.isNullOrBlank() -> chapterName
+            !n.isNullOrBlank() -> "Глава $n"
+            else -> "Глава"
+        }
+    }
+
+    private fun extractId(el: JsonElement?): String {
+        if (el == null) return ""
+        return when (el) {
+            is kotlinx.serialization.json.JsonPrimitive -> el.content
+            is kotlinx.serialization.json.JsonObject ->
+                el["_id"]?.toString()?.trim('"')
+                    ?: el["id"]?.toString()?.trim('"')
+                    ?: ""
+            else -> ""
+        }
+    }
+}
+
+@Serializable
+data class AdminDashboardDto(
+    val totalUsers: Int? = null,
+    val totalTitles: Int? = null,
+    val totalChapters: Int? = null,
+    val totalComments: Int? = null,
+    val totalViews: Long? = null,
+    val activeUsers: Int? = null,
+    val newUsersToday: Int? = null,
+    val newUsersWeek: Int? = null,
+    val premiumUsers: Int? = null,
+    val users: Int? = null,
+    val titles: Int? = null,
+    val chapters: Int? = null,
+    val comments: Int? = null,
+)
+
+@Serializable
+data class AdminUsersPageDto(
+    val users: List<AdminUserDto> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+    val limit: Int = 30,
+)
+
+@Serializable
+data class AdminUserDto(
+    @SerialName("_id") val underscoreId: String? = null,
+    val id: String? = null,
+    val username: String? = null,
+    val email: String? = null,
+    val role: String? = null,
+    val level: Int? = null,
+    val avatar: String? = null,
+    val isBanned: Boolean? = null,
+    val banned: Boolean? = null,
+    val createdAt: String? = null,
+    val subscriptionExpiresAt: String? = null,
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun banned(): Boolean = isBanned == true || banned == true
+}
+
+@Serializable
+data class AdminBanRequest(
+    val reason: String? = "Нарушение правил",
+    val permanent: Boolean = true,
+)
+
+@Serializable
+data class AdminRoleRequest(val role: String)
+
+@Serializable
+data class AdminCommentsPageDto(
+    val comments: List<AdminCommentDto> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+)
+
+@Serializable
+data class AdminCommentDto(
+    @SerialName("_id") val underscoreId: String? = null,
+    val id: String? = null,
+    val content: String? = null,
+    val isHidden: Boolean? = null,
+    val hiddenBySystem: Boolean? = null,
+    val createdAt: String? = null,
+    val user: AdminUserDto? = null,
+    val author: AdminUserDto? = null,
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun authorName(): String = (user ?: author)?.username ?: "user"
+    fun hidden(): Boolean = isHidden == true || hiddenBySystem == true
+}
+
+@Serializable
+data class AdminCommentVisibilityRequest(val isHidden: Boolean)
+
+@Serializable
+data class AdminTitlesPageDto(
+    val titles: List<AdminTitleDto> = emptyList(),
+    val total: Int = 0,
+    val page: Int = 1,
+)
+
+@Serializable
+data class AdminTitleDto(
+    @SerialName("_id") val underscoreId: String? = null,
+    val id: String? = null,
+    val name: String? = null,
+    val title: String? = null,
+    val slug: String? = null,
+    val coverImage: String? = null,
+    val cover: String? = null,
+    val isPublished: Boolean? = null,
+    val totalChapters: Int? = null,
+    val type: String? = null,
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun displayName(): String = name ?: title ?: slug ?: "Тайтл"
+    fun coverPath(): String? = coverImage ?: cover
 }
 
 @Serializable
