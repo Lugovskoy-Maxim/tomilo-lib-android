@@ -189,6 +189,7 @@ fun TomiloNavHost(container: AppContainer) {
                 BookmarksScreen(
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
+                    historyRepository = container.historyRepository,
                     onLogin = { goLogin() },
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))

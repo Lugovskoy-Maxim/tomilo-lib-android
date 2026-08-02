@@ -69,6 +69,29 @@ data class UserDto(
 @Serializable
 data class RateTitleRequest(val rating: Int)
 
+/** GET users/profile/progress/:titleId */
+@Serializable
+data class ReadingProgressDto(
+    val titleId: String? = null,
+    val lastChapterId: String? = null,
+    val lastChapterNumber: Double? = null,
+    val chaptersRead: Int = 0,
+    val totalChapters: Int = 0,
+    val progressPercent: Int = 0,
+    val readAt: String? = null,
+) {
+    fun progressLine(): String {
+        val read = chaptersRead.coerceAtLeast(0)
+        val total = totalChapters.coerceAtLeast(0)
+        return when {
+            total > 0 -> "Прочитано $read / $total гл." +
+                if (progressPercent > 0) " · $progressPercent%" else ""
+            read > 0 -> "Прочитано $read гл."
+            else -> "Не начато"
+        }
+    }
+}
+
 @Serializable
 data class HistoryLastChapterDto(
     val chapterId: JsonElement? = null,

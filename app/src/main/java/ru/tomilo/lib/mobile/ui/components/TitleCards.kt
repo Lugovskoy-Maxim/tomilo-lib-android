@@ -214,6 +214,8 @@ fun TitleSearchCard(
     year: Int? = null,
     status: String? = null,
     subtitle: String? = null,
+    /** Например: «Прочитано 12 / 48 гл. · 25%» */
+    progressLine: String? = null,
     isAdult: Boolean = false,
 ) {
     Surface(
@@ -312,7 +314,14 @@ fun TitleSearchCard(
                         )
                         Spacer(Modifier.width(10.dp))
                     }
-                    if (totalChapters != null) {
+                    if (!progressLine.isNullOrBlank()) {
+                        Text(
+                            progressLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    } else if (totalChapters != null) {
                         Text(
                             "$totalChapters гл.",
                             style = MaterialTheme.typography.bodySmall,

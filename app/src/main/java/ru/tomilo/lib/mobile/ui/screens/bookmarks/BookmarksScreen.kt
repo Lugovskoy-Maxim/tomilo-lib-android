@@ -22,8 +22,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
+import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
+import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -46,6 +49,7 @@ private val CATEGORIES = listOf(
 fun BookmarksScreen(
     authRepository: AuthRepository,
     socialRepository: SocialRepository,
+    historyRepository: HistoryRepository,
     onLogin: () -> Unit,
     onOpenTitle: (id: String, slug: String?) -> Unit,
 ) {
@@ -54,13 +58,12 @@ fun BookmarksScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
+    var progressByTitle by remember { mutableStateOf<Map<String, ReadingProgressDto>>(emptyMap()) }
     var reload by remember { mutableIntStateOf(0) }
 
-    // userFlow initially null until DataStore emits — show loading, not empty login
     var authReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        // first emission from DataStore
-        kotlinx.coroutines.delay(50)
+        delay(50)
         authReady = true
     }
 
@@ -68,6 +71,7 @@ fun BookmarksScreen(
         if (!authReady) return@LaunchedEffect
         if (user == null) {
             items = emptyList()
+            progressByTitle = emptyMap()
             loading = false
             return@LaunchedEffect
         }
@@ -76,11 +80,24 @@ fun BookmarksScreen(
         val cat = CATEGORIES[catIndex].first
         socialRepository.bookmarks(cat)
             .onSuccess { list ->
-                items = list.filter { it.resolvedTitleId().isNotBlank() || it.displayName() != "Тайтл" || it.coverPath() != null }
-                    .ifEmpty { list }
+                items = list.filter {
+                    it.resolvedTitleId().isNotBlank() ||
+                        it.displayName() != "Тайтл" ||
+                        it.coverPath() != null
+                }.ifEmpty { list }
             }
             .onFailure { error = it.message }
         loading = false
+    }
+
+    // Прогресс чтения (прочитано X / Y) для карточек
+    LaunchedEffect(items, user?.stableId()) {
+        if (user == null || items.isEmpty()) {
+            progressByTitle = emptyMap()
+            return@LaunchedEffect
+        }
+        val ids = items.map { it.resolvedTitleId() }.filter { it.isNotBlank() }.distinct()
+        progressByTitle = historyRepository.progressMap(ids)
     }
 
     Scaffold(
@@ -136,14 +153,39 @@ fun BookmarksScreen(
                     ) { bm ->
                         val titleId = bm.resolvedTitleId()
                         val t = bm.resolvedTitle()
+                        val progress = progressByTitle[titleId]
+                        val totalFromTitle = t?.totalChapters ?: t?.chaptersCount
+                        val progressLine = when {
+                            progress != null -> {
+                                // если API total=0, подставим total из карточки тайтла
+                                val read = progress.chaptersRead
+                                val total = progress.totalChapters.takeIf { it > 0 }
+                                    ?: totalFromTitle
+                                    ?: 0
+                                val pct = when {
+                                    progress.progressPercent > 0 -> progress.progressPercent
+                                    total > 0 -> (100 * read / total).coerceIn(0, 100)
+                                    else -> 0
+                                }
+                                when {
+                                    total > 0 -> "Прочитано $read / $total гл." +
+                                        if (pct > 0) " · $pct%" else ""
+                                    read > 0 -> "Прочитано $read гл."
+                                    else -> "Не начато"
+                                }
+                            }
+                            totalFromTitle != null -> "0 / $totalFromTitle гл."
+                            else -> null
+                        }
                         TitleSearchCard(
                             title = bm.displayName(),
                             cover = bm.coverPath(),
                             type = t?.type,
                             rating = t?.averageRating,
-                            totalChapters = t?.totalChapters ?: t?.chaptersCount,
+                            totalChapters = totalFromTitle,
                             status = t?.status,
                             subtitle = categoryLabel(bm.category),
+                            progressLine = progressLine,
                             onClick = {
                                 if (titleId.isNotBlank()) {
                                     onOpenTitle(titleId, t?.slug)

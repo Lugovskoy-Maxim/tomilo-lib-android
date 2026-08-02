@@ -192,13 +192,19 @@ interface TomiloApi {
     @DELETE("notifications/{id}")
     suspend fun deleteNotification(@Path("id") id: String): ApiResponse<JsonElement>
 
-    // ── Reading history ─────────────────────────────────────────
+    // ── Reading history / progress ──────────────────────────────
     @GET("users/profile/history")
     suspend fun readingHistory(
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 40,
         @Query("light") light: Boolean = true,
     ): ApiResponse<JsonElement>
+
+    /** Прогресс: chaptersRead / totalChapters / progressPercent */
+    @GET("users/profile/progress/{titleId}")
+    suspend fun readingProgress(
+        @Path("titleId") titleId: String,
+    ): ApiResponse<ReadingProgressDto>
 
     @GET("users/profile/history/{titleId}/read-ids")
     suspend fun historyReadIds(@Path("titleId") titleId: String): ApiResponse<ReadIdsDto>

@@ -9,6 +9,7 @@ import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.RateTitleRequest
 import ru.tomilo.lib.mobile.data.api.ReadIdsDto
+import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 
 class HistoryRepository(private val api: TomiloApi) {
@@ -18,6 +19,29 @@ class HistoryRepository(private val api: TomiloApi) {
         val res = api.readingHistory(page = page, limit = 50, light = true)
         if (!res.success) error(res.message ?: "Ошибка истории")
         parseHistory(res.data)
+    }
+
+    suspend fun progress(titleId: String): Result<ReadingProgressDto> = runCatching {
+        if (titleId.isBlank()) error("empty titleId")
+        val res = api.readingProgress(titleId)
+        if (!res.success) error(res.message ?: "Ошибка прогресса")
+        res.data ?: ReadingProgressDto(titleId = titleId)
+    }
+
+    /** Параллельно для списка тайтлов (закладки). */
+    suspend fun progressMap(titleIds: Collection<String>): Map<String, ReadingProgressDto> {
+        val ids = titleIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (ids.isEmpty()) return emptyMap()
+        return kotlinx.coroutines.coroutineScope {
+            ids.map { id ->
+                kotlinx.coroutines.async {
+                    id to progress(id).getOrNull()
+                }
+            }.mapNotNull { def ->
+                val (id, p) = def.await()
+                p?.let { id to it }
+            }.toMap()
+        }
     }
 
     /**
