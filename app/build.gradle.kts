@@ -14,8 +14,8 @@ android {
         applicationId = "ru.tomilo.lib.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -85,4 +85,6 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 }

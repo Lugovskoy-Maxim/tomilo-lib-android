@@ -34,7 +34,16 @@ data class UserDto(
     val avatar: String? = null,
     val role: String? = null,
     val level: Int? = null,
+    val experience: Int? = null,
     val subscriptionExpiresAt: String? = null,
+    val commentsCount: Int? = null,
+    val likesReceivedCount: Int? = null,
+    val chaptersRead: Int? = null,
+    val readingTimeMinutes: Int? = null,
+    val currentStreak: Int? = null,
+    val titlesReadCount: Int? = null,
+    val completedTitlesCount: Int? = null,
+    val balance: Int? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
 }

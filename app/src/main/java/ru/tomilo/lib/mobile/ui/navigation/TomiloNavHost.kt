@@ -2,8 +2,9 @@ package ru.tomilo.lib.mobile.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.OfflinePin
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
@@ -23,12 +24,18 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import ru.tomilo.lib.mobile.AppContainer
 import ru.tomilo.lib.mobile.ui.screens.auth.LoginScreen
+import ru.tomilo.lib.mobile.ui.screens.bookmarks.BookmarksScreen
+import ru.tomilo.lib.mobile.ui.screens.chats.ChatThreadScreen
+import ru.tomilo.lib.mobile.ui.screens.chats.ChatsScreen
 import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
+import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
+import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
 import ru.tomilo.lib.mobile.ui.screens.profile.ProfileScreen
 import ru.tomilo.lib.mobile.ui.screens.reader.ReaderScreen
 import ru.tomilo.lib.mobile.ui.screens.search.SearchScreen
 import ru.tomilo.lib.mobile.ui.screens.title.TitleScreen
+import ru.tomilo.lib.mobile.ui.screens.user.UserProfileScreen
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -37,21 +44,33 @@ import java.nio.charset.StandardCharsets
 object Routes {
     const val Home = "home"
     const val Search = "search"
-    const val Offline = "offline"
+    const val Bookmarks = "bookmarks"
+    const val Chats = "chats"
     const val Profile = "profile"
+    const val Offline = "offline"
+    const val Leaders = "leaders"
+    const val Notifications = "notifications"
     const val Login = "login"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}"
+    const val ChatThread = "chat/{id}?title={title}"
+    const val User = "user/{id}"
 
     fun title(key: String) = "title/${enc(key)}"
     fun reader(chapterId: String, offline: Boolean = false) =
         "reader/${enc(chapterId)}?offline=$offline"
+    fun chat(id: String, title: String) = "chat/${enc(id)}?title=${enc(title)}"
+    fun user(id: String) = "user/${enc(id)}"
 
-    private fun enc(v: String) = URLEncoder.encode(v, StandardCharsets.UTF_8.toString())
+    fun enc(v: String) = URLEncoder.encode(v, StandardCharsets.UTF_8.toString())
     fun dec(v: String) = URLDecoder.decode(v, StandardCharsets.UTF_8.toString())
 }
 
-private data class Tab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+private data class Tab(
+    val route: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+)
 
 @Composable
 fun TomiloNavHost(container: AppContainer) {
@@ -62,10 +81,13 @@ fun TomiloNavHost(container: AppContainer) {
     val tabs = listOf(
         Tab(Routes.Home, "Главная", Icons.Default.Home),
         Tab(Routes.Search, "Поиск", Icons.Default.Search),
-        Tab(Routes.Offline, "Офлайн", Icons.Default.OfflinePin),
+        Tab(Routes.Bookmarks, "Закладки", Icons.Default.Bookmark),
+        Tab(Routes.Chats, "Чаты", Icons.AutoMirrored.Filled.Chat),
         Tab(Routes.Profile, "Профиль", Icons.Default.Person),
     )
-    val showBottomBar = tabs.any { current == it.route || current.startsWith(it.route) }
+    val showBottomBar = tabs.any { current == it.route }
+
+    fun goLogin() = navController.navigate(Routes.Login)
 
     Scaffold(
         containerColor = TomiloBg,
@@ -113,6 +135,37 @@ fun TomiloNavHost(container: AppContainer) {
                     },
                 )
             }
+            composable(Routes.Bookmarks) {
+                BookmarksScreen(
+                    authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
+                    onLogin = { goLogin() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
+                )
+            }
+            composable(Routes.Chats) {
+                ChatsScreen(
+                    authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
+                    onLogin = { goLogin() },
+                    onOpenChat = { id, title ->
+                        navController.navigate(Routes.chat(id, title))
+                    },
+                )
+            }
+            composable(Routes.Profile) {
+                ProfileScreen(
+                    authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
+                    onLogin = { goLogin() },
+                    onOpenOffline = { navController.navigate(Routes.Offline) },
+                    onOpenNotifications = { navController.navigate(Routes.Notifications) },
+                    onOpenLeaders = { navController.navigate(Routes.Leaders) },
+                    onOpenMyPublicProfile = { id -> navController.navigate(Routes.user(id)) },
+                )
+            }
             composable(Routes.Offline) {
                 OfflineLibraryScreen(
                     offlineRepository = container.offlineRepository,
@@ -121,23 +174,24 @@ fun TomiloNavHost(container: AppContainer) {
                     },
                 )
             }
-            composable(Routes.Profile) {
-                ProfileScreen(
+            composable(Routes.Leaders) {
+                LeadersScreen(
+                    socialRepository = container.socialRepository,
+                    onOpenUser = { id -> navController.navigate(Routes.user(id)) },
+                )
+            }
+            composable(Routes.Notifications) {
+                NotificationsScreen(
                     authRepository = container.authRepository,
-                    onLogin = { navController.navigate(Routes.Login) },
-                    onOpenOffline = {
-                        navController.navigate(Routes.Offline) {
-                            launchSingleTop = true
-                        }
-                    },
+                    socialRepository = container.socialRepository,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
                 )
             }
             composable(Routes.Login) {
                 LoginScreen(
                     authRepository = container.authRepository,
-                    onSuccess = {
-                        navController.popBackStack()
-                    },
+                    onSuccess = { navController.popBackStack() },
                 )
             }
             composable(
@@ -150,10 +204,13 @@ fun TomiloNavHost(container: AppContainer) {
                     catalogRepository = container.catalogRepository,
                     offlineRepository = container.offlineRepository,
                     authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
                     onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
                     onOpenChapter = { _, chapterId, offline ->
                         navController.navigate(Routes.reader(chapterId, offline))
                     },
+                    onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                 )
             }
             composable(
@@ -174,6 +231,42 @@ fun TomiloNavHost(container: AppContainer) {
                     catalogRepository = container.catalogRepository,
                     offlineRepository = container.offlineRepository,
                     onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = Routes.ChatThread,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("title") {
+                        type = NavType.StringType
+                        defaultValue = "Чат"
+                    },
+                ),
+            ) { entry ->
+                val id = Routes.dec(entry.arguments?.getString("id").orEmpty())
+                val title = Routes.dec(entry.arguments?.getString("title") ?: "Чат")
+                ChatThreadScreen(
+                    conversationId = id,
+                    title = title,
+                    authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = Routes.User,
+                arguments = listOf(navArgument("id") { type = NavType.StringType }),
+            ) { entry ->
+                val id = Routes.dec(entry.arguments?.getString("id").orEmpty())
+                UserProfileScreen(
+                    userId = id,
+                    authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
+                    onOpenChat = { convId, title ->
+                        navController.navigate(Routes.chat(convId, title))
+                    },
                 )
             }
         }

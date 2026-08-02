@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +56,8 @@ import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
+import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.ui.components.CommentsSection
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -67,13 +71,19 @@ fun TitleScreen(
     catalogRepository: CatalogRepository,
     offlineRepository: OfflineRepository,
     authRepository: AuthRepository,
+    socialRepository: SocialRepository,
     onBack: () -> Unit,
+    onLogin: () -> Unit,
     onOpenChapter: (titleId: String, chapterId: String, offline: Boolean) -> Unit,
+    onOpenUser: (userId: String) -> Unit,
 ) {
+    val user by authRepository.userFlow.collectAsState(initial = null)
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var title by remember { mutableStateOf<TitleDetailDto?>(null) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
+    var bookmarked by remember { mutableStateOf(false) }
+    var bookmarkCategory by remember { mutableStateOf<String?>(null) }
     val offlineAll by offlineRepository.observeAll().collectAsState(initial = emptyList())
     val downloadedIds = remember(offlineAll, title?.stableId()) {
         val tid = title?.stableId().orEmpty()
@@ -100,6 +110,20 @@ fun TitleScreen(
         loading = false
     }
 
+    LaunchedEffect(title?.stableId(), user?.stableId()) {
+        val tid = title?.stableId().orEmpty()
+        if (tid.isBlank() || user == null) {
+            bookmarked = false
+            bookmarkCategory = null
+            return@LaunchedEffect
+        }
+        socialRepository.bookmarkStatus(tid)
+            .onSuccess {
+                bookmarked = it.bookmarked
+                bookmarkCategory = it.category
+            }
+    }
+
     Scaffold(
         containerColor = TomiloBg,
         snackbarHost = { SnackbarHost(snackbar) },
@@ -115,6 +139,47 @@ fun TitleScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            val tid = title?.stableId().orEmpty()
+                            if (tid.isBlank()) return@IconButton
+                            if (user == null) {
+                                onLogin()
+                                return@IconButton
+                            }
+                            scope.launch {
+                                if (bookmarked) {
+                                    socialRepository.removeBookmark(tid)
+                                        .onSuccess {
+                                            bookmarked = false
+                                            bookmarkCategory = null
+                                            snackbar.showSnackbar("Убрано из закладок")
+                                        }
+                                        .onFailure {
+                                            snackbar.showSnackbar(it.message ?: "Ошибка")
+                                        }
+                                } else {
+                                    socialRepository.addBookmark(tid, "reading")
+                                        .onSuccess {
+                                            bookmarked = true
+                                            bookmarkCategory = "reading"
+                                            snackbar.showSnackbar("В закладках")
+                                        }
+                                        .onFailure {
+                                            snackbar.showSnackbar(it.message ?: "Ошибка")
+                                        }
+                                }
+                            }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            contentDescription = "Закладка",
+                            tint = if (bookmarked) MaterialTheme.colorScheme.primary else TomiloMuted,
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
@@ -155,9 +220,13 @@ fun TitleScreen(
                                     t.totalChapters?.let { "$it гл." },
                                 ).joinToString(" · ")
                                 Text(meta, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                                if (!t.author.isNullOrBlank()) {
+                                if (bookmarked && !bookmarkCategory.isNullOrBlank()) {
                                     Spacer(Modifier.height(4.dp))
-                                    Text("Автор: ${t.author}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        "Закладка: $bookmarkCategory",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
                                 }
                             }
                         }
@@ -185,9 +254,7 @@ fun TitleScreen(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    onOpenChapter(t.stableId(), id, isOffline)
-                                }
+                                .clickable { onOpenChapter(t.stableId(), id, isOffline) }
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -195,7 +262,11 @@ fun TitleScreen(
                             Column(Modifier.weight(1f)) {
                                 Text("Глава ${chapter.numberLabel()}")
                                 if (!chapter.name.isNullOrBlank() && chapter.name != "Глава ${chapter.numberLabel()}") {
-                                    Text(chapter.name!!, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        chapter.name!!,
+                                        color = TomiloMuted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
                                 }
                             }
                             if (isLoading) {
@@ -227,7 +298,11 @@ fun TitleScreen(
                                     },
                                 ) {
                                     Icon(
-                                        imageVector = if (isOffline) Icons.Default.DownloadDone else Icons.Default.CloudDownload,
+                                        imageVector = if (isOffline) {
+                                            Icons.Default.DownloadDone
+                                        } else {
+                                            Icons.Default.CloudDownload
+                                        },
                                         contentDescription = if (isOffline) "Удалить офлайн" else "Скачать",
                                         tint = if (isOffline) MaterialTheme.colorScheme.primary else TomiloMuted,
                                     )
@@ -235,7 +310,17 @@ fun TitleScreen(
                             }
                         }
                     }
-                    item { Spacer(Modifier.height(80.dp)) }
+                    item {
+                        CommentsSection(
+                            entityType = "title",
+                            entityId = t.stableId(),
+                            socialRepository = socialRepository,
+                            isLoggedIn = user != null,
+                            onLoginRequired = onLogin,
+                            onOpenUser = onOpenUser,
+                        )
+                        Spacer(Modifier.height(80.dp))
+                    }
                 }
             }
         }
