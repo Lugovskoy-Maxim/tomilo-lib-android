@@ -86,6 +86,19 @@ AAB: `app/build/outputs/bundle/playRelease/…aab`
 **Важно:** сохрани `keystores/tomilo-upload.jks` и `keystore.properties` в офлайн-бэкапе.  
 Один и тот же keystore для RuStore и Play (один `applicationId`).
 
+### GitHub Releases
+
+Каждый тег `v*` собирает подписанный APK и публикует его в
+[Releases](https://github.com/Lugovskoy-Maxim/tomilo-lib-android/releases).
+
+```bash
+# versionName в app/build.gradle.kts должен совпадать с тегом без «v»
+git tag v1.1.1
+git push origin v1.1.1
+```
+
+Либо Actions → **Release** → Run workflow. Подробности: [`.github/RELEASE.md`](.github/RELEASE.md).
+
 ## Структура
 
 ```

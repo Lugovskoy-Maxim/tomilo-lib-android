@@ -1,0 +1,160 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build signed APK and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      STORE_FILE: keystores/tomilo-upload.jks
+      STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require signing secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          missing=0
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::GitHub secret $name is not set"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Add repository secrets: KEYSTORE_BASE64, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD"
+            exit 1
+          fi
+
+      - name: Decode upload keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p keystores
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$STORE_FILE"
+          test -s "$STORE_FILE"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platforms
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Read version from Gradle
+        id: version
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          text = Path("app/build.gradle.kts").read_text()
+          name = re.search(r'versionName\s*=\s*"([^"]+)"', text).group(1)
+          code = re.search(r'versionCode\s*=\s*(\d+)', text).group(1)
+          tag_ref = os.environ.get("GITHUB_REF", "")
+          if tag_ref.startswith("refs/tags/"):
+              tag = tag_ref.split("/", 2)[-1]
+              expected = "v" + name
+              if tag != expected:
+                  raise SystemExit(
+                      f"Tag {tag} does not match versionName {name} (expected {expected})"
+                  )
+          else:
+              tag = "v" + name
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"name={name}\n")
+              fh.write(f"code={code}\n")
+              fh.write(f"tag={tag}\n")
+          print(f"versionName={name} versionCode={code} tag={tag}")
+          PY
+
+      - name: Assemble signed rustore release
+        run: ./gradlew :app:assembleRustoreRelease --stacktrace --no-daemon
+
+      - name: Package release artifacts
+        run: |
+          set -euo pipefail
+          VER="${{ steps.version.outputs.name }}"
+          OUT=dist/github
+          mkdir -p "$OUT"
+          APK_SRC="$(find app/build/outputs/apk/rustore/release -name '*.apk' ! -name '*.apk.idsig' | head -1)"
+          test -n "$APK_SRC" && test -f "$APK_SRC"
+          APK_DST="$OUT/tomilo-lib-${VER}.apk"
+          cp -f "$APK_SRC" "$APK_DST"
+          MAP_SRC="app/build/outputs/mapping/rustoreRelease/mapping.txt"
+          if [ -f "$MAP_SRC" ]; then
+            cp -f "$MAP_SRC" "$OUT/mapping-${VER}.txt"
+          fi
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK_DST"
+          (cd "$OUT" && sha256sum "tomilo-lib-${VER}.apk" > "tomilo-lib-${VER}.sha256")
+          ls -lh "$OUT"
+
+      - name: Build release notes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ver = "${{ steps.version.outputs.name }}"
+          code = "${{ steps.version.outputs.code }}"
+          matches = sorted(Path("store/rustore").glob(f"whats-new-{ver}-*.md"))
+          body = matches[-1].read_text().strip() + "\n\n" if matches else ""
+          Path("dist/github").mkdir(parents=True, exist_ok=True)
+          Path("dist/github/RELEASE_NOTES.md").write_text(
+              f"{body}"
+              f"## Сборка\n\n"
+              f"- Версия **{ver}** (`versionCode {code}`)\n"
+              f"- Flavor: `rustore` · package: `ru.tomilo.lib.mobile`\n"
+              f"- Подписанный release APK для установки с GitHub Releases\n\n"
+              f"## Установка\n\n"
+              f"1. Скачайте `tomilo-lib-{ver}.apk`\n"
+              f"2. Разрешите установку из браузера или файлового менеджера\n"
+              f"3. Нужен Android 8.0+\n"
+          )
+          PY
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VER: ${{ steps.version.outputs.name }}
+        run: |
+          set -euo pipefail
+          ASSETS=(dist/github/tomilo-lib-${VER}.apk dist/github/tomilo-lib-${VER}.sha256)
+          if [ -f "dist/github/mapping-${VER}.txt" ]; then
+            ASSETS+=("dist/github/mapping-${VER}.txt")
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            gh release edit "$TAG" --title "TOMILO LIB ${VER}" --notes-file dist/github/RELEASE_NOTES.md
+          else
+            gh release create "$TAG" "${ASSETS[@]}" \
+              --title "TOMILO LIB ${VER}" \
+              --notes-file dist/github/RELEASE_NOTES.md \
+              --target "${{ github.sha }}"
+          fi
