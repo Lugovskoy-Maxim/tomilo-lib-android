@@ -40,10 +40,22 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data.orEmpty()
     }
 
+    suspend fun latestUpdatesPage(page: Int, limit: Int = 24): Result<List<CatalogTitleDto>> = runCatching {
+        val res = api.latestUpdates(limit = limit, page = page)
+        if (!res.success) error(res.message ?: "Не удалось загрузить обновления")
+        res.data.orEmpty()
+    }
+
     suspend fun popular(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatching {
         val res = api.popular(limit = limit)
         if (!res.success) error(res.message ?: "Ошибка загрузки")
         res.data.orEmpty()
+    }
+
+    suspend fun randomTitle(includeAdult: Boolean = false): Result<CatalogTitleDto> = runCatching {
+        val res = api.randomTitles(limit = 1, includeAdult = includeAdult.takeIf { it })
+        if (!res.success) error(res.message ?: "Не удалось выбрать случайный тайтл")
+        res.data?.firstOrNull() ?: error("В каталоге пока нет подходящих тайтлов")
     }
 
     suspend fun title(idOrSlug: String): Result<TitleDetailDto> = runCatching {

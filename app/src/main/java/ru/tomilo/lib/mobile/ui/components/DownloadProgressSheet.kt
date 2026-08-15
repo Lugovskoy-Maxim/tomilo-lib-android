@@ -15,15 +15,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.tomilo.lib.mobile.data.download.BatchDownloadState
 import ru.tomilo.lib.mobile.data.download.DownloadStage
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +37,7 @@ fun DownloadProgressSheet(
     state: BatchDownloadState,
     onCancel: () -> Unit,
     onDismiss: () -> Unit,
+    onRetryFailed: (() -> Unit)? = null,
     /** Свернуть sheet, оставив загрузку в фоне (уведомление). */
     onContinueInBackground: () -> Unit = onDismiss,
 ) {
@@ -42,13 +49,29 @@ fun DownloadProgressSheet(
             else onContinueInBackground()
         },
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = TomiloSurface2,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text(
-                if (state.finished) "Загрузка завершена" else "Скачивание офлайн",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (state.finished) "Загрузка завершена" else "Скачивание офлайн",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (!state.finished) {
+                    IconButton(onClick = onContinueInBackground) {
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Свернуть загрузку",
+                        )
+                    }
+                }
+            }
             if (state.titleName.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(state.titleName, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
@@ -153,6 +176,15 @@ fun DownloadProgressSheet(
                     Text("Отменить загрузку")
                 }
             } else {
+                if (state.failedCount > 0 && onRetryFailed != null) {
+                    Button(
+                        onClick = onRetryFailed,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Повторить ошибки (${state.failedCount})")
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                     Text("Закрыть")
                 }

@@ -1,6 +1,7 @@
 package ru.tomilo.lib.mobile.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -20,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -35,6 +42,7 @@ import ru.tomilo.lib.mobile.data.api.CommentDto
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 
 @Composable
 fun CommentsSection(
@@ -51,7 +59,7 @@ fun CommentsSection(
     var error by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf("") }
     var posting by remember { mutableStateOf(false) }
-    var reload by remember { mutableStateOf(0) }
+    var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(entityId, entityType, reload) {
@@ -64,7 +72,13 @@ fun CommentsSection(
     }
 
     Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
-        Text("Комментарии", style = MaterialTheme.typography.titleMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.ChatBubbleOutline, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(8.dp))
+            Text("Комментарии", style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            if (!loading) StatusPill("${comments.size}")
+        }
         Spacer(Modifier.height(8.dp))
 
         if (isLoggedIn) {
@@ -74,6 +88,7 @@ fun CommentsSection(
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Написать комментарий…") },
                 minLines = 2,
+                shape = RoundedCornerShape(18.dp),
             )
             Spacer(Modifier.height(8.dp))
             Button(
@@ -91,6 +106,7 @@ fun CommentsSection(
                     }
                 },
                 enabled = !posting && draft.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(if (posting) "Отправка…" else "Отправить")
             }
@@ -106,14 +122,51 @@ fun CommentsSection(
         }
 
         Spacer(Modifier.height(12.dp))
+        if (error != null && comments.isNotEmpty()) {
+            Text(
+                error.orEmpty(),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
         when {
             loading -> Text("Загрузка…", color = TomiloMuted)
             error != null && comments.isEmpty() -> Text(error ?: "", color = TomiloMuted)
             comments.isEmpty() -> Text("Пока нет комментариев", color = TomiloMuted)
             else -> comments.forEach { c ->
-                CommentItem(c, onOpenUser)
+                CommentItem(
+                    comment = c,
+                    onOpenUser = onOpenUser,
+                    onLike = {
+                        if (!isLoggedIn) {
+                            onLoginRequired()
+                        } else {
+                            scope.launch {
+                                socialRepository.likeComment(c.stableId())
+                                    .onSuccess { reload += 1 }
+                                    .onFailure { error = it.message }
+                            }
+                        }
+                    },
+                )
                 c.replies.orEmpty().forEach { reply ->
-                    CommentItem(reply, onOpenUser, indent = true)
+                    CommentItem(
+                        comment = reply,
+                        onOpenUser = onOpenUser,
+                        indent = true,
+                        onLike = {
+                            if (!isLoggedIn) {
+                                onLoginRequired()
+                            } else {
+                                scope.launch {
+                                    socialRepository.likeComment(reply.stableId())
+                                        .onSuccess { reload += 1 }
+                                        .onFailure { error = it.message }
+                                }
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -124,12 +177,17 @@ fun CommentsSection(
 private fun CommentItem(
     comment: CommentDto,
     onOpenUser: (String) -> Unit,
+    onLike: () -> Unit,
     indent: Boolean = false,
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = if (indent) 28.dp else 0.dp, bottom = 12.dp),
+            .padding(start = if (indent) 28.dp else 0.dp, bottom = 10.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(TomiloSurface2.copy(alpha = 0.62f))
+            .border(1.dp, TomiloBorder.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
+            .padding(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
         AsyncImage(
@@ -160,13 +218,24 @@ private fun CommentItem(
                 else comment.content.orEmpty(),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            val meta = listOfNotNull(
-                comment.createdAt?.take(10),
-                comment.likesCount?.let { "👍 $it" },
-            ).joinToString(" · ")
-            if (meta.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(meta, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                comment.createdAt?.take(10)?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
+                    Spacer(Modifier.width(4.dp))
+                }
+                IconButton(onClick = onLike) {
+                    Icon(
+                        Icons.Default.ThumbUp,
+                        contentDescription = "Нравится",
+                        tint = TomiloMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Text(
+                    (comment.likesCount ?: 0).toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TomiloMuted,
+                )
             }
         }
     }

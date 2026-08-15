@@ -24,7 +24,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,7 +71,11 @@ import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.PageIntro
+import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
@@ -245,7 +251,7 @@ fun CatalogScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
@@ -254,6 +260,13 @@ fun CatalogScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
+            PageIntro(
+                title = "Исследуйте библиотеку",
+                subtitle = "Манга, манхва, маньхуа и комиксы в одном каталоге",
+                icon = Icons.Default.AutoAwesome,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                trailing = { if (!loading) StatusPill(if (total > 999) "999+" else "$total") },
+            )
             OutlinedTextField(
                 value = searchInput,
                 onValueChange = { searchInput = it },
@@ -261,6 +274,7 @@ fun CatalogScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 singleLine = true,
+                shape = RoundedCornerShape(20.dp),
                 placeholder = { Text("Название, автор…") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             )
@@ -280,27 +294,39 @@ fun CatalogScreen(
                 }
             }
 
-            Text(
-                if (total > 0) "Найдено: $total" else " ",
-                color = TomiloMuted,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(if (total > 0) "$total тайтлов" else "Подбираем тайтлы", color = TomiloMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                if (activeFilters > 0) StatusPill("$activeFilters фильтр.")
+            }
 
             when {
                 loading && items.isEmpty() -> LoadingBox(
                     message = "Загружаем каталог…",
                 )
                 error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка") { reload += 1 }
-                items.isEmpty() -> Text(
-                    "Ничего не найдено",
-                    color = TomiloMuted,
-                    modifier = Modifier.padding(16.dp),
+                items.isEmpty() -> EmptyState(
+                    title = "Ничего не найдено",
+                    message = "Попробуйте изменить запрос или сбросить выбранные фильтры.",
+                    icon = Icons.Outlined.SearchOff,
+                    actionLabel = if (activeFilters > 0 || searchInput.isNotBlank()) "Сбросить фильтры" else null,
+                    onAction = if (activeFilters > 0 || searchInput.isNotBlank()) {
+                        {
+                            searchInput = ""
+                            sortIndex = 0
+                            selectedTypes = emptySet()
+                            selectedStatus = null
+                            selectedGenres = emptySet()
+                            includeAdult = false
+                        }
+                    } else null,
                 )
                 else -> LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 110.dp),
                     state = gridState,
-                    contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 88.dp),
+                    contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 100.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.fillMaxSize(),

@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.RateTitleRequest
@@ -63,6 +64,18 @@ class HistoryRepository(private val api: TomiloApi) {
     suspend fun rateTitle(titleId: String, rating: Int): Result<Unit> = runCatching {
         val res = api.rateTitle(titleId, RateTitleRequest(rating.coerceIn(1, 10)))
         if (!res.success) error(res.message ?: "Не удалось оценить")
+    }
+
+    suspend fun myTitleRating(titleId: String): Result<Int?> = runCatching {
+        if (titleId.isBlank()) return@runCatching null
+        val res = api.myTitleRating(titleId)
+        if (!res.success) error(res.message ?: "Не удалось загрузить оценку")
+        val data = res.data ?: return@runCatching null
+        when (data) {
+            is kotlinx.serialization.json.JsonPrimitive -> data.content.toIntOrNull()
+            is JsonObject -> data["rating"]?.jsonPrimitive?.content?.toIntOrNull()
+            else -> null
+        }
     }
 
     suspend fun deleteTitleHistory(titleId: String): Result<Unit> = runCatching {

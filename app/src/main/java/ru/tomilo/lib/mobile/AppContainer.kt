@@ -4,6 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.ads.InterstitialAdManager
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
@@ -21,6 +22,7 @@ import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.push.NotificationOpen
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -61,6 +63,7 @@ class AppContainer(context: Context) {
         adRewardStore = adRewardStore,
     )
     val downloadManager = DownloadManager(appContext, offlineRepository)
+    val pendingNotificationOpen = MutableStateFlow<NotificationOpen?>(null)
 
     init {
         TokenBridge.holder = tokenHolder

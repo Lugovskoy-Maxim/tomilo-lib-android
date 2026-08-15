@@ -221,6 +221,41 @@ data class ConversationUserDto(
 }
 
 @Serializable
+data class FriendEntryDto(
+    val friendshipId: String = "",
+    val user: ConversationUserDto = ConversationUserDto(),
+    val acceptedAt: String? = null,
+)
+
+@Serializable
+data class FriendRequestEntryDto(
+    @SerialName("_id") val underscoreId: String? = null,
+    val id: String? = null,
+    val user: ConversationUserDto = ConversationUserDto(),
+    val createdAt: String? = null,
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+}
+
+@Serializable
+data class FriendRequestsDto(
+    val incoming: List<FriendRequestEntryDto> = emptyList(),
+    val outgoing: List<FriendRequestEntryDto> = emptyList(),
+)
+
+@Serializable
+data class FriendSearchResultDto(
+    val user: ConversationUserDto = ConversationUserDto(),
+    val status: String = "none",
+)
+
+@Serializable
+data class FriendStatusDto(val status: String = "none")
+
+@Serializable
+data class SendFriendRequestDto(val userId: String)
+
+@Serializable
 data class CreateConversationRequest(val userId: String)
 
 @Serializable
@@ -322,6 +357,8 @@ data class NotificationDto(
     val isRead: Boolean? = null,
     val createdAt: String? = null,
     val linkUrl: String? = null,
+    val titleId: JsonElement? = null,
+    val chapterId: JsonElement? = null,
     val metadata: JsonElement? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()

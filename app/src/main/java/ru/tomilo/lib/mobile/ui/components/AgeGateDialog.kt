@@ -10,11 +10,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 
 /**
  * Первый запуск: подтверждение возраста.
@@ -27,6 +32,7 @@ fun AgeGateDialog(
 ) {
     AlertDialog(
         onDismissRequest = { /* обязательный ответ */ },
+        icon = { Icon(Icons.Default.Shield, contentDescription = null, tint = TomiloPrimary) },
         title = {
             Text("Подтверждение возраста", fontWeight = FontWeight.Bold)
         },
@@ -61,5 +67,7 @@ fun AgeGateDialog(
                 Text("Мне нет 18")
             }
         },
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+        containerColor = TomiloSurface2,
     )
 }

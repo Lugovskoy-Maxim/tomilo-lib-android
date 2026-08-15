@@ -12,16 +12,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,9 +54,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
+import ru.tomilo.lib.mobile.core.isNetworkAvailable
+import ru.tomilo.lib.mobile.data.download.DownloadManager
+import ru.tomilo.lib.mobile.data.download.BatchDownloadState
+import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.local.OfflineChapterEntity
 import ru.tomilo.lib.mobile.data.local.OfflineChapterMeta
 import ru.tomilo.lib.mobile.data.local.OfflineTitleEntity
@@ -55,9 +70,17 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
+import ru.tomilo.lib.mobile.ui.components.EmptyState
+import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
+import ru.tomilo.lib.mobile.ui.components.DownloadProgressSheet
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.PageIntro
+import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
+import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 
 private data class OfflineChapterRow(
     val chapterId: String,
@@ -87,24 +110,63 @@ fun OfflineLibraryScreen(
     offlineRepository: OfflineRepository,
     historyRepository: HistoryRepository,
     authRepository: AuthRepository,
+    readingPrefs: ReadingPrefs,
+    downloadManager: DownloadManager,
+    onBack: () -> Unit,
     onOpenChapter: (chapterId: String, titleId: String) -> Unit,
     onOpenTitle: ((titleId: String, slug: String?) -> Unit)? = null,
 ) {
     val flat by offlineRepository.observeAll().collectAsState(initial = emptyList())
     val titlesMeta by offlineRepository.observeTitles().collectAsState(initial = emptyList())
     val user by authRepository.userFlow.collectAsState(initial = null)
+    val context = LocalContext.current
+    val connectivityFlow = remember(context) { context.networkAvailabilityFlow() }
+    val online by connectivityFlow.collectAsState(initial = context.isNetworkAvailable())
+    val downloadState by downloadManager.state.collectAsState()
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(setOf<String>()) }
     var readByTitle by remember { mutableStateOf(mapOf<String, Set<String>>()) }
     var refreshing by remember { mutableStateOf(false) }
     var refreshMsg by remember { mutableStateOf<String?>(null) }
+    var deleteChapterRequest by remember { mutableStateOf<OfflineChapterRow?>(null) }
+    var deleteTitleRequest by remember { mutableStateOf<OfflineTitleGroup?>(null) }
+    var showDownloadProgress by remember { mutableStateOf(false) }
+    var minimizedDownloadBatch by remember { mutableStateOf<String?>(null) }
+    var repairing by remember { mutableStateOf(false) }
+    var confirmClearAll by remember { mutableStateOf(false) }
+    var storageVerified by remember { mutableStateOf(false) }
 
     // При открытии — обновить устаревшие каталоги (новые главы)
-    LaunchedEffect(Unit) {
+    LaunchedEffect(online) {
+        if (!storageVerified) {
+            repairing = true
+            val report = offlineRepository.verifyAndRepair()
+            if (report.removedEntries > 0 || report.orphanDirectories > 0) {
+                refreshMsg = "Исправлено повреждённых загрузок: ${report.removedEntries + report.orphanDirectories}"
+            }
+            repairing = false
+            storageVerified = true
+        }
+        if (!online) {
+            refreshMsg = refreshMsg ?: "Вы офлайн — доступны скачанные главы"
+            return@LaunchedEffect
+        }
         refreshing = true
-        val n = runCatching { offlineRepository.refreshStaleTitles() }.getOrDefault(0)
-        refreshMsg = if (n > 0) "Обновлено тайтлов: $n" else null
+        val result = runCatching { offlineRepository.refreshStaleTitles() }
+        result.onSuccess { n -> if (n > 0) refreshMsg = "Обновлено тайтлов: $n" }
+            .onFailure { refreshMsg = "Каталог доступен офлайн" }
         refreshing = false
+    }
+
+    val downloadBatchKey = remember(downloadState.items) {
+        downloadState.items.joinToString("|") { it.chapterId }
+    }
+    LaunchedEffect(downloadBatchKey) {
+        if (downloadBatchKey.isNotBlank() && minimizedDownloadBatch != downloadBatchKey) {
+            showDownloadProgress = true
+        } else if (downloadBatchKey.isBlank()) {
+            minimizedDownloadBatch = null
+        }
     }
 
     val groups = remember(flat, titlesMeta, readByTitle) {
@@ -115,15 +177,17 @@ fun OfflineLibraryScreen(
         if (expanded.isEmpty() && groups.isNotEmpty()) {
             expanded = setOf(groups.first().titleId)
         }
-        if (user == null) {
-            readByTitle = emptyMap()
-            return@LaunchedEffect
-        }
         val map = mutableMapOf<String, Set<String>>()
         groups.forEach { g ->
             if (g.titleId.isNotBlank()) {
-                historyRepository.readIds(g.titleId)
-                    .onSuccess { map[g.titleId] = it }
+                val localIds = readingPrefs.localReadIds(g.titleId)
+                if (user != null && online) {
+                    historyRepository.readIds(g.titleId)
+                        .onSuccess { map[g.titleId] = it + localIds }
+                        .onFailure { map[g.titleId] = localIds }
+                } else {
+                    map[g.titleId] = localIds
+                }
             }
         }
         readByTitle = map
@@ -153,8 +217,28 @@ fun OfflineLibraryScreen(
                         }
                     }
                 },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
                 actions = {
                     IconButton(
+                        onClick = {
+                            scope.launch {
+                                repairing = true
+                                val report = offlineRepository.verifyAndRepair()
+                                refreshMsg = if (report.removedEntries + report.orphanDirectories > 0) {
+                                    "Исправлено: ${report.removedEntries + report.orphanDirectories}"
+                                } else "Все файлы целы"
+                                repairing = false
+                            }
+                        },
+                    ) {
+                        Icon(Icons.Default.Build, contentDescription = "Проверить файлы")
+                    }
+                    IconButton(
+                        enabled = online && !refreshing,
                         onClick = {
                             scope.launch {
                                 refreshing = true
@@ -168,23 +252,31 @@ fun OfflineLibraryScreen(
                         Icon(Icons.Default.Refresh, contentDescription = "Обновить каталог")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
         if (groups.isEmpty()) {
-            Column(
-                Modifier
-                    .padding(padding)
-                    .fillMaxSize()
-                    .padding(20.dp),
-            ) {
-                Text("Нет скачанных глав", color = TomiloMuted)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Откройте тайтл → выберите главы → «Скачать». Нужен Premium. " +
-                        "При скачивании сохраняется весь список глав тайтла — видно, что скачано и прочитано.",
-                    color = TomiloMuted,
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                OfflineStatusCard(
+                    online = online,
+                    bytes = 0L,
+                    chapters = 0,
+                    repairing = repairing,
+                    downloadState = downloadState,
+                    onShowDownloads = { showDownloadProgress = true },
+                    onClearAll = {},
+                )
+                EmptyState(
+                    title = "Нет скачанных глав",
+                    message = if (online) {
+                        "Откройте тайтл, выберите главы и нажмите «Скачать». " +
+                            "Доступен Premium или загрузка за просмотр рекламы."
+                    } else {
+                        "Подключитесь к сети и скачайте главы заранее — после этого они будут доступны здесь без интернета."
+                    },
+                    icon = Icons.Default.CloudOff,
+                    modifier = Modifier.weight(1f),
                 )
             }
         } else {
@@ -192,6 +284,27 @@ fun OfflineLibraryScreen(
                 Modifier.padding(padding),
                 contentPadding = ScreenPadding,
             ) {
+                item(key = "offline_intro") {
+                    PageIntro(
+                        title = if (online) "Готово к поездке" else "Вы читаете офлайн",
+                        subtitle = "Главы хранятся только на этом устройстве",
+                        icon = Icons.Default.DownloadForOffline,
+                        accent = if (online) TomiloPrimary else TomiloPremium,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        trailing = { StatusPill("${groups.sumOf { it.downloadedCount }} глав") },
+                    )
+                }
+                item(key = "offline_status") {
+                    OfflineStatusCard(
+                        online = online,
+                        bytes = groups.sumOf { it.bytesTotal },
+                        chapters = groups.sumOf { it.downloadedCount },
+                        repairing = repairing,
+                        downloadState = downloadState,
+                        onShowDownloads = { showDownloadProgress = true },
+                        onClearAll = { confirmClearAll = true },
+                    )
+                }
                 items(groups, key = { it.titleId }) { group ->
                     val isOpen = group.titleId in expanded
                     val readIds = readByTitle[group.titleId] ?: emptySet()
@@ -218,20 +331,76 @@ fun OfflineLibraryScreen(
                             }
                         },
                         onDeleteChapter = { row ->
-                            row.entity?.let { ch ->
-                                scope.launch { offlineRepository.deleteChapter(ch.chapterId) }
-                            }
+                            deleteChapterRequest = row
                         },
                         onDeleteTitle = {
-                            scope.launch { offlineRepository.deleteTitle(group.titleId) }
+                            deleteTitleRequest = group
                         },
-                        onOpenTitleOnline = {
+                        onOpenTitleOnline = if (online) {{
                             onOpenTitle?.invoke(group.titleId, group.titleSlug.ifBlank { null })
-                        },
+                        }} else null,
                     )
                 }
             }
         }
+    }
+
+    deleteChapterRequest?.let { row ->
+        ConfirmActionDialog(
+            title = "Удалить главу?",
+            message = "Глава ${row.chapterNumber} будет удалена с устройства. Скачать её снова можно со страницы тайтла.",
+            confirmLabel = "Удалить",
+            onConfirm = {
+                deleteChapterRequest = null
+                row.entity?.let { entity ->
+                    scope.launch { offlineRepository.deleteChapter(entity.chapterId) }
+                }
+            },
+            onDismiss = { deleteChapterRequest = null },
+        )
+    }
+
+    deleteTitleRequest?.let { group ->
+        ConfirmActionDialog(
+            title = "Удалить тайтл из офлайна?",
+            message = "Все скачанные главы «${group.titleName}» будут удалены с устройства.",
+            confirmLabel = "Удалить всё",
+            onConfirm = {
+                deleteTitleRequest = null
+                scope.launch { offlineRepository.deleteTitle(group.titleId) }
+            },
+            onDismiss = { deleteTitleRequest = null },
+        )
+    }
+
+    if (confirmClearAll) {
+        ConfirmActionDialog(
+            title = "Очистить офлайн-библиотеку?",
+            message = "Все скачанные главы (${groups.sumOf { it.downloadedCount }}) будут удалены с устройства.",
+            confirmLabel = "Удалить всё",
+            onConfirm = {
+                confirmClearAll = false
+                scope.launch { offlineRepository.clearAllOffline() }
+            },
+            onDismiss = { confirmClearAll = false },
+        )
+    }
+
+    if (showDownloadProgress && downloadState.items.isNotEmpty()) {
+        DownloadProgressSheet(
+            state = downloadState,
+            onCancel = downloadManager::cancel,
+            onRetryFailed = downloadManager::retryFailed,
+            onDismiss = {
+                showDownloadProgress = false
+                minimizedDownloadBatch = downloadBatchKey
+                if (downloadState.finished) downloadManager.clear()
+            },
+            onContinueInBackground = {
+                minimizedDownloadBatch = downloadBatchKey
+                showDownloadProgress = false
+            },
+        )
     }
 }
 
@@ -319,6 +488,96 @@ private fun buildGroups(
 }
 
 @Composable
+private fun OfflineStatusCard(
+    online: Boolean,
+    bytes: Long,
+    chapters: Int,
+    repairing: Boolean,
+    downloadState: BatchDownloadState,
+    onShowDownloads: () -> Unit,
+    onClearAll: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(18.dp),
+        color = TomiloSurface2.copy(alpha = 0.78f),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (online) Icons.Default.Wifi else Icons.Default.WifiOff,
+                    contentDescription = null,
+                    tint = if (online) MaterialTheme.colorScheme.primary else TomiloMuted,
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (online) "Сеть доступна" else "Офлайн-режим",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        if (online) "Локальные главы готовы, каталог можно обновить"
+                        else "Чтение скачанных глав работает без подключения",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "$chapters глав · ${formatBytes(bytes)} на устройстве",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            if (repairing) {
+                Spacer(Modifier.height(10.dp))
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text("Проверяем целостность файлов…", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            }
+            if (downloadState.items.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(onClick = onShowDownloads)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (downloadState.finished) "Последняя загрузка завершена" else "Идёт загрузка",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(downloadState.statusSummary, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("Открыть", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            if (chapters > 0) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Удалить все загрузки",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onClearAll)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun OfflineTitleBlock(
     group: OfflineTitleGroup,
     expanded: Boolean,
@@ -327,7 +586,7 @@ private fun OfflineTitleBlock(
     onOpenChapter: (OfflineChapterRow) -> Unit,
     onDeleteChapter: (OfflineChapterRow) -> Unit,
     onDeleteTitle: () -> Unit,
-    onOpenTitleOnline: () -> Unit,
+    onOpenTitleOnline: (() -> Unit)?,
 ) {
     val readCount = group.chapters.count { it.chapterId in readChapterIds }
     val dlCount = group.downloadedCount
@@ -398,14 +657,16 @@ private fun OfflineTitleBlock(
 
         AnimatedVisibility(visible = expanded) {
             Column(Modifier.padding(bottom = 6.dp)) {
-                Text(
-                    "Открыть тайтл онлайн →",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier
-                        .padding(start = 78.dp, end = 12.dp, bottom = 6.dp)
-                        .clickable(onClick = onOpenTitleOnline),
-                )
+                if (onOpenTitleOnline != null) {
+                    Text(
+                        "Открыть тайтл онлайн →",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelLarge,
+                        modifier = Modifier
+                            .padding(start = 78.dp, end = 12.dp, bottom = 6.dp)
+                            .clickable(onClick = onOpenTitleOnline),
+                    )
+                }
                 group.chapters.forEach { ch ->
                     val isRead = ch.chapterId in readChapterIds
                     Row(

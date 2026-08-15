@@ -67,7 +67,158 @@ data class UserDto(
 }
 
 @Serializable
+data class ShopDecorationDto(
+    @SerialName("_id") val underscoreId: String? = null,
+    val id: String? = null,
+    val name: String = "Украшение",
+    val description: String? = null,
+    val imageUrl: String? = null,
+    val type: String? = null,
+    val price: Int = 0,
+    val rarity: String = "common",
+    val isAvailable: Boolean? = true,
+    val isEquipped: Boolean? = false,
+    val stock: Int? = null,
+    val quantity: Int? = null,
+    val isSoldOut: Boolean? = null,
+    val originalPrice: Int? = null,
+    val ownersCount: Int? = null,
+    val purchaseCount: Int? = null,
+    val authorUsername: String? = null,
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun remaining(): Int? = stock ?: quantity
+    fun soldOut(): Boolean = isSoldOut == true || remaining()?.let { it <= 0 } == true
+}
+
+@Serializable
 data class RateTitleRequest(val rating: Int)
+
+@Serializable
+data class DailyQuestDto(
+    val id: String,
+    val type: String? = null,
+    val name: String,
+    val description: String? = null,
+    val target: Int = 0,
+    val progress: Int = 0,
+    val rewardExp: Int = 0,
+    val rewardCoins: Int = 0,
+    val completed: Boolean = false,
+    val claimedAt: String? = null,
+)
+
+@Serializable
+data class DailyQuestsDto(
+    val date: String? = null,
+    val serverNow: String? = null,
+    val resetAt: String? = null,
+    val quests: List<DailyQuestDto> = emptyList(),
+)
+
+@Serializable
+data class QuestClaimRequest(val questId: String)
+
+@Serializable
+data class QuestClaimResultDto(
+    val success: Boolean = false,
+    val claimedCount: Int = 0,
+    val expGained: Int = 0,
+    val coinsGained: Int = 0,
+    val balance: Int? = null,
+    val message: String? = null,
+)
+
+@Serializable
+data class DailyBonusResultDto(
+    val success: Boolean = false,
+    val message: String? = null,
+    val currentStreak: Int = 0,
+    val experienceGained: Int = 0,
+    val coinsGained: Int = 0,
+)
+
+@Serializable
+data class WheelSegmentDto(
+    val rewardType: String = "",
+    val label: String = "",
+    val weight: Double = 0.0,
+    val param: JsonElement? = null,
+    val icon: String? = null,
+    val rarity: String? = null,
+    val rewardMeta: WheelRewardMetaDto? = null,
+)
+
+@Serializable
+data class WheelRewardMetaDto(
+    val kind: String = "",
+    val valueText: String? = null,
+)
+
+@Serializable
+data class WheelDto(
+    val segments: List<WheelSegmentDto> = emptyList(),
+    val spinCostCoins: Int = 0,
+    val instantSpinCostCoins: Int? = null,
+    val canSpin: Boolean = false,
+    val canInstantSpin: Boolean = false,
+    val lastWheelSpinAt: String? = null,
+    val nextSpinAt: String? = null,
+    val balance: Int = 0,
+    val spinCooldownSeconds: Int? = null,
+)
+
+@Serializable
+data class WheelSpinRequest(val skipCooldown: Boolean? = null)
+
+@Serializable
+data class WheelItemGainDto(
+    val itemId: String = "",
+    val count: Int = 0,
+    val name: String? = null,
+    val icon: String? = null,
+)
+
+@Serializable
+data class WheelRewardSummaryDto(
+    val type: String = "",
+    val label: String = "",
+    val amount: Int? = null,
+    val icon: String? = null,
+)
+
+@Serializable
+data class WheelSpinResultDto(
+    val rewardType: String = "",
+    val label: String = "",
+    val expGained: Int? = null,
+    val coinsGained: Int? = null,
+    val itemsGained: List<WheelItemGainDto> = emptyList(),
+    val twistOfFate: Boolean = false,
+    val compensationCoins: Int? = null,
+    val balance: Int? = null,
+    val selectedSegmentIndex: Int? = null,
+    val nextSpinAt: String? = null,
+    val rewardSummary: List<WheelRewardSummaryDto> = emptyList(),
+)
+
+@Serializable
+data class WheelRecentWinDto(
+    val username: String = "",
+    val avatar: String? = null,
+    val rewardType: String = "",
+    val label: String = "",
+    val wonAt: String = "",
+    val displayTier: String = "feed",
+    val rarity: String? = null,
+    val icon: String? = null,
+)
+
+@Serializable
+data class WheelRecentWinsDto(
+    val highlight: WheelRecentWinDto? = null,
+    val recent: List<WheelRecentWinDto> = emptyList(),
+)
 
 /** GET users/profile/progress/:titleId */
 @Serializable
@@ -383,10 +534,20 @@ data class TitleDetailDto(
     val releaseYear: Int? = null,
     val totalChapters: Int? = null,
     val averageRating: Double? = null,
+    val totalRatings: Int? = null,
+    val views: Long? = null,
+    val dayViews: Long? = null,
+    val weekViews: Long? = null,
+    val monthViews: Long? = null,
     val genres: List<String>? = null,
     val tags: List<String>? = null,
     val altNames: List<String>? = null,
     val ageLimit: Int? = null,
+    val isAdult: Boolean? = null,
+    val isPublished: Boolean? = null,
+    val chaptersRemovedByCopyrightHolder: Boolean? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
 }

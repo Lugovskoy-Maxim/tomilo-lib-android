@@ -16,6 +16,7 @@ import okhttp3.OkHttpClient
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
+import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 
 class TomiloApp : Application(), ImageLoaderFactory {
     lateinit var container: AppContainer
@@ -38,6 +39,19 @@ class TomiloApp : Application(), ImageLoaderFactory {
         appScope.launch {
             container.authStore.tokenFlow.collectLatest { token ->
                 TokenBridge.setCached(token)
+            }
+        }
+        appScope.launch {
+            applicationContext.networkAvailabilityFlow().collectLatest { online ->
+                if (online && container.authRepository.isLoggedIn()) {
+                    NotificationsPollWorker.enqueueNow(this@TomiloApp)
+                    container.readingPrefs.pendingHistory().forEach { (titleId, chapterId) ->
+                        container.historyRepository.markRead(titleId, chapterId)
+                            .onSuccess {
+                                container.readingPrefs.markHistorySynced(titleId, chapterId)
+                            }
+                    }
+                }
             }
         }
         // Фоновый рефреш офлайн-каталогов (новые главы)

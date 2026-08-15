@@ -34,6 +34,7 @@ class DownloadManager(
 
     @Volatile
     private var pendingRequest: DownloadBatchRequest? = null
+    private var lastRequest: DownloadBatchRequest? = null
 
     fun isBusy(): Boolean {
         if (job?.isActive == true || pendingRequest != null) return true
@@ -65,6 +66,7 @@ class DownloadManager(
             chapters = refs,
         )
         pendingRequest = request
+        lastRequest = request
 
         val initial = refs.map {
             ChapterDownloadProgress(
@@ -185,6 +187,34 @@ class DownloadManager(
     fun clear() {
         if (isBusy()) return
         _state.value = BatchDownloadState()
+    }
+
+    fun retryFailed() {
+        if (isBusy()) return
+        val previous = lastRequest ?: return
+        val retryIds = _state.value.items
+            .filter { it.stage == DownloadStage.Failed || it.stage == DownloadStage.Cancelled }
+            .map { it.chapterId }
+            .toSet()
+        val retryRefs = previous.chapters.filter { it.chapterId in retryIds }
+        if (retryRefs.isEmpty()) return
+
+        pendingRequest = previous.copy(chapters = retryRefs)
+        val initial = retryRefs.map {
+            ChapterDownloadProgress(
+                chapterId = it.chapterId,
+                chapterLabel = it.chapterLabel,
+                stage = DownloadStage.Queued,
+            )
+        }
+        _state.value = BatchDownloadState(
+            titleName = previous.titleName,
+            items = initial,
+            activeIndex = 0,
+            finished = false,
+            runningInBackground = true,
+        )
+        DownloadForegroundService.start(appContext)
     }
 
     private fun updateItem(

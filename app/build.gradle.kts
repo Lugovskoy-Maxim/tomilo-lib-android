@@ -35,8 +35,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // RuStore / production consumer release
-        versionCode = 6
-        versionName = "0.6.0"
+        versionCode = 13
+        versionName = "1.1.1"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -64,13 +64,13 @@ android {
             buildConfigField("String", "STORE_CHANNEL", "\"rustore\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
             // Имя приложения в лаунчере для стора
-            resValue("string", "app_name", "Tomilo")
+            resValue("string", "app_name", "tomilo-lib")
         }
         create("play") {
             dimension = "store"
             buildConfigField("String", "STORE_CHANNEL", "\"play\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
-            resValue("string", "app_name", "Tomilo")
+            resValue("string", "app_name", "tomilo-lib")
         }
     }
 
@@ -119,7 +119,7 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
-    // Удобные имена артефактов: tomilo-rustore-0.6.0-release.apk
+    // Удобные имена артефактов: tomilo-rustore-1.1.1-release.apk
     applicationVariants.configureEach {
         val variant = this
         outputs.configureEach {
@@ -127,7 +127,8 @@ android {
             val ver = variant.versionName ?: "0"
             val flavor = variant.flavorName.ifBlank { "main" }
             val type = variant.buildType.name
-            output.outputFileName = "tomilo-$flavor-$ver-$type.apk"
+            val qualifiedVersion = if (ver.endsWith("-$type")) ver else "$ver-$type"
+            output.outputFileName = "tomilo-$flavor-$qualifiedVersion.apk"
         }
     }
 }

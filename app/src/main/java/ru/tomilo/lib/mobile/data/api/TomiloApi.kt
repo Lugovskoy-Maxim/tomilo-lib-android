@@ -26,6 +26,49 @@ interface TomiloApi {
     @GET("users/{id}")
     suspend fun publicUser(@Path("id") id: String): ApiResponse<PublicUserDto>
 
+    @POST("users/daily-bonus")
+    suspend fun claimDailyBonus(): ApiResponse<DailyBonusResultDto>
+
+    @GET("users/daily-quests")
+    suspend fun dailyQuests(): ApiResponse<DailyQuestsDto>
+
+    @POST("users/daily-quests/claim")
+    suspend fun claimDailyQuest(@Body body: QuestClaimRequest): ApiResponse<QuestClaimResultDto>
+
+    @POST("users/daily-quests/claim-all")
+    suspend fun claimAllDailyQuests(): ApiResponse<QuestClaimResultDto>
+
+    @GET("users/profile/wheel")
+    suspend fun wheel(): ApiResponse<WheelDto>
+
+    @POST("users/profile/wheel/spin")
+    suspend fun spinWheel(@Body body: WheelSpinRequest): ApiResponse<WheelSpinResultDto>
+
+    @GET("wheel/recent-wins")
+    suspend fun wheelRecentWins(): ApiResponse<WheelRecentWinsDto>
+
+    // ── Tomilo shop ─────────────────────────────────────────────
+    @GET("shop/decorations/{type}")
+    suspend fun shopDecorations(@Path("type") type: String): ApiResponse<List<ShopDecorationDto>>
+
+    @GET("shop/profile/decorations")
+    suspend fun ownedDecorations(): ApiResponse<List<ShopDecorationDto>>
+
+    @POST("shop/purchase/{type}/{id}")
+    suspend fun purchaseDecoration(
+        @Path("type") type: String,
+        @Path("id") id: String,
+    ): ApiResponse<JsonElement>
+
+    @PUT("shop/equip/{type}/{id}")
+    suspend fun equipDecoration(
+        @Path("type") type: String,
+        @Path("id") id: String,
+    ): ApiResponse<JsonElement>
+
+    @DELETE("shop/equip/{type}")
+    suspend fun unequipDecoration(@Path("type") type: String): ApiResponse<JsonElement>
+
     // ── Catalog ─────────────────────────────────────────────────
     @GET("titles")
     suspend fun catalogTitles(
@@ -54,6 +97,12 @@ interface TomiloApi {
     @GET("titles/popular")
     suspend fun popular(
         @Query("limit") limit: Int = 24,
+    ): ApiResponse<List<CatalogTitleDto>>
+
+    @GET("titles/random")
+    suspend fun randomTitles(
+        @Query("limit") limit: Int = 1,
+        @Query("includeAdult") includeAdult: Boolean? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
     @GET("titles/{id}")
@@ -145,6 +194,10 @@ interface TomiloApi {
     @GET("conversations/support")
     suspend fun supportConversation(): ApiResponse<JsonElement>
 
+    /** Admin-only: all support threads */
+    @GET("conversations/support/inbox")
+    suspend fun supportInbox(): ApiResponse<JsonElement>
+
     @POST("conversations")
     suspend fun createConversation(@Body body: CreateConversationRequest): ApiResponse<JsonElement>
 
@@ -164,6 +217,34 @@ interface TomiloApi {
     @POST("conversations/{id}/read")
     suspend fun markConversationRead(@Path("id") id: String): ApiResponse<JsonElement>
 
+    // ── Friends ─────────────────────────────────────────────────
+    @GET("friends")
+    suspend fun friends(): ApiResponse<List<FriendEntryDto>>
+
+    @GET("friends/requests")
+    suspend fun friendRequests(): ApiResponse<FriendRequestsDto>
+
+    @GET("friends/search")
+    suspend fun searchFriends(
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 20,
+    ): ApiResponse<List<FriendSearchResultDto>>
+
+    @GET("friends/status/{userId}")
+    suspend fun friendStatus(@Path("userId") userId: String): ApiResponse<FriendStatusDto>
+
+    @POST("friends/request")
+    suspend fun sendFriendRequest(@Body body: SendFriendRequestDto): ApiResponse<JsonElement>
+
+    @POST("friends/accept/{requestId}")
+    suspend fun acceptFriendRequest(@Path("requestId") requestId: String): ApiResponse<JsonElement>
+
+    @POST("friends/reject/{requestId}")
+    suspend fun rejectFriendRequest(@Path("requestId") requestId: String): ApiResponse<JsonElement>
+
+    @DELETE("friends/{userId}")
+    suspend fun removeFriend(@Path("userId") userId: String): ApiResponse<JsonElement>
+
     // ── Leaderboard ─────────────────────────────────────────────
     @GET("users/leaderboard")
     suspend fun leaderboard(
@@ -178,6 +259,8 @@ interface TomiloApi {
     suspend fun notifications(
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 30,
+        @Query("sort") sort: String = "createdAt",
+        @Query("order") order: String = "desc",
     ): ApiResponse<JsonElement>
 
     @GET("notifications/unread-count")

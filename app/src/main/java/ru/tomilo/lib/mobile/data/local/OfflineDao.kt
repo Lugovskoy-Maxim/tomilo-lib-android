@@ -20,6 +20,9 @@ interface OfflineDao {
     @Query("SELECT * FROM offline_chapters WHERE titleId = :titleId ORDER BY downloadedAt DESC")
     fun observeByTitle(titleId: String): Flow<List<OfflineChapterEntity>>
 
+    @Query("SELECT * FROM offline_chapters WHERE titleId = :titleId")
+    suspend fun chaptersForTitle(titleId: String): List<OfflineChapterEntity>
+
     @Query("SELECT * FROM offline_chapters WHERE chapterId = :chapterId LIMIT 1")
     suspend fun get(chapterId: String): OfflineChapterEntity?
 

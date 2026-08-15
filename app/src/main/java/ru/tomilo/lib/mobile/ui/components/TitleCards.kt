@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -34,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -41,7 +45,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
-private val CardRadius = 14.dp
+private val CardRadius = 18.dp
 private val CoverShape = RoundedCornerShape(CardRadius)
 
 @Composable
@@ -58,9 +62,9 @@ fun MetaChip(
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(container)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 7.dp, vertical = 3.dp),
     )
 }
 
@@ -92,9 +96,10 @@ fun TitlePosterCard(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
+                .shadow(8.dp, CoverShape, ambientColor = Color.Black.copy(alpha = 0.25f))
                 .clip(CoverShape)
                 .background(TomiloSurface2)
-                .border(1.dp, Color.White.copy(alpha = 0.06f), CoverShape),
+                .border(1.dp, Color.White.copy(alpha = 0.08f), CoverShape),
         ) {
             AsyncImage(
                 model = MediaUrl.resolve(cover),
@@ -106,11 +111,11 @@ fun TitlePosterCard(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(64.dp)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f)),
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)),
                         ),
                     ),
             )
@@ -132,9 +137,9 @@ fun TitlePosterCard(
                     Modifier
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(horizontal = 5.dp, vertical = 2.dp),
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
@@ -217,27 +222,35 @@ fun TitleSearchCard(
     /** Например: «Прочитано 12 / 48 гл. · 25%» */
     progressLine: String? = null,
     isAdult: Boolean = false,
+    /** Отдельное действие справа, например переход с чтения на страницу тайтла. */
+    secondaryActionIcon: ImageVector? = null,
+    secondaryActionDescription: String? = null,
+    onSecondaryAction: (() -> Unit)? = null,
 ) {
     Surface(
+        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        color = TomiloSurface2.copy(alpha = 0.65f),
-        shape = RoundedCornerShape(14.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        color = TomiloSurface2.copy(alpha = 0.78f),
+        shape = RoundedCornerShape(19.dp),
         tonalElevation = 0.dp,
+        shadowElevation = 2.dp,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            Color.White.copy(alpha = 0.075f),
+        ),
     ) {
         Row(
-            Modifier.padding(10.dp),
+            Modifier.padding(11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 Modifier
-                    .size(width = 64.dp, height = 90.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(width = 64.dp, height = 92.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(TomiloSurface2)
-                    .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(10.dp)),
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
             ) {
                 AsyncImage(
                     model = MediaUrl.resolve(cover),
@@ -329,6 +342,24 @@ fun TitleSearchCard(
                         )
                     }
                 }
+            }
+            Spacer(Modifier.width(6.dp))
+            if (onSecondaryAction != null) {
+                IconButton(onClick = onSecondaryAction) {
+                    Icon(
+                        secondaryActionIcon ?: Icons.Default.ChevronRight,
+                        contentDescription = secondaryActionDescription,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
+            } else {
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = TomiloMuted.copy(alpha = 0.72f),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
     }

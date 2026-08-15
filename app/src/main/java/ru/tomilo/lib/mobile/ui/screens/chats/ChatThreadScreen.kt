@@ -13,13 +13,17 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +33,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,21 +45,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
+import ru.tomilo.lib.mobile.TokenBridge
 import ru.tomilo.lib.mobile.data.api.DirectMessageDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +79,7 @@ fun ChatThreadScreen(
     val user by authRepository.userFlow.collectAsState(initial = null)
     val token by authRepository.tokenFlow.collectAsState(initial = null)
     val myId = user?.stableId().orEmpty()
+    val convId = conversationId.trim()
     var loading by remember { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }
     var messages by remember { mutableStateOf<List<DirectMessageDto>>(emptyList()) }
@@ -79,37 +89,41 @@ fun ChatThreadScreen(
     val scope = rememberCoroutineScope()
 
     suspend fun reload(silent: Boolean = false) {
-        if (conversationId.isBlank()) {
+        if (convId.isBlank()) {
             error = "Некорректный диалог"
             loading = false
             return
         }
-        if (token.isNullOrBlank()) {
+        // Always re-sync token before chat API calls
+        val liveToken = token ?: runCatching { authRepository.tokenFlow.first() }.getOrNull()
+        if (liveToken.isNullOrBlank()) {
             error = "Войдите в аккаунт"
             loading = false
             return
         }
+        TokenBridge.setCached(liveToken)
         if (!silent) loading = true
-        socialRepository.messages(conversationId)
+        socialRepository.messages(convId)
             .onSuccess {
                 messages = it
                 error = null
-                socialRepository.markConversationRead(conversationId)
+                socialRepository.markConversationRead(convId)
             }
             .onFailure {
-                if (messages.isEmpty()) error = it.message
-                else error = it.message // show above input
+                val msg = it.message ?: "Не удалось загрузить сообщения"
+                if (messages.isEmpty()) error = msg
+                else error = msg
             }
         loading = false
     }
 
-    LaunchedEffect(conversationId, token) {
+    LaunchedEffect(convId, token) {
         reload()
     }
 
     // Лёгкий poll, пока экран открыт
-    LaunchedEffect(conversationId, token) {
-        if (token.isNullOrBlank() || conversationId.isBlank()) return@LaunchedEffect
+    LaunchedEffect(convId, token) {
+        if (token.isNullOrBlank() || convId.isBlank()) return@LaunchedEffect
         while (isActive) {
             delay(8_000)
             reload(silent = true)
@@ -126,13 +140,18 @@ fun ChatThreadScreen(
         containerColor = TomiloBg,
         topBar = {
             TopAppBar(
-                title = { Text(title.ifBlank { "Чат" }) },
+                title = {
+                    Column {
+                        Text(title.ifBlank { "Чат" }, maxLines = 1)
+                        Text("Обновляется автоматически", color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
@@ -159,17 +178,12 @@ fun ChatThreadScreen(
                     }
                 }
                 messages.isEmpty() -> {
-                    Box(
-                        Modifier.weight(1f).fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "Нет сообщений — напишите первым.\n" +
-                                "Личные чаты доступны только между друзьями.",
-                            color = TomiloMuted,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
+                    EmptyState(
+                        title = "Начните разговор",
+                        message = "Напишите первое сообщение — оно появится здесь сразу после отправки.",
+                        icon = Icons.Outlined.Forum,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
                 else -> {
                     LazyColumn(
@@ -197,24 +211,33 @@ fun ChatThreadScreen(
                                 Box(
                                     Modifier
                                         .widthIn(max = 300.dp)
-                                        .clip(RoundedCornerShape(14.dp))
+                                        .clip(
+                                            if (mine) RoundedCornerShape(19.dp, 19.dp, 5.dp, 19.dp)
+                                            else RoundedCornerShape(19.dp, 19.dp, 19.dp, 5.dp),
+                                        )
                                         .background(
-                                            if (mine) TomiloPrimary.copy(alpha = 0.35f)
+                                            if (mine) TomiloPrimary.copy(alpha = 0.78f)
                                             else TomiloSurface2,
                                         )
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        .border(
+                                            1.dp,
+                                            if (mine) TomiloPrimary.copy(alpha = 0.9f) else TomiloBorder,
+                                            if (mine) RoundedCornerShape(19.dp, 19.dp, 5.dp, 19.dp)
+                                            else RoundedCornerShape(19.dp, 19.dp, 19.dp, 5.dp),
+                                        )
+                                        .padding(horizontal = 13.dp, vertical = 9.dp),
                                 ) {
                                     Column {
                                         Text(
                                             bodyText,
-                                            color = TomiloText,
+                                            color = if (mine) Color.White else TomiloText,
                                             style = MaterialTheme.typography.bodyMedium,
                                         )
                                         msg.createdAtLabel()?.let { label ->
                                             Text(
                                                 label,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = TomiloMuted,
+                                                color = if (mine) Color.White.copy(alpha = 0.68f) else TomiloMuted,
                                             )
                                         }
                                     }
@@ -249,6 +272,7 @@ fun ChatThreadScreen(
                     placeholder = { Text("Сообщение") },
                     maxLines = 4,
                     enabled = !sending && !token.isNullOrBlank(),
+                    shape = RoundedCornerShape(24.dp),
                 )
                 IconButton(
                     enabled = !sending && draft.isNotBlank() && !token.isNullOrBlank(),
@@ -259,10 +283,11 @@ fun ChatThreadScreen(
                             sending = true
                             error = null
                             // Оптимистично покажем своё сообщение
+                            TokenBridge.setCached(token)
                             val optimistic = DirectMessageDto(
                                 underscoreId = "local-${System.currentTimeMillis()}",
                                 id = "local-${System.currentTimeMillis()}",
-                                conversationId = conversationId,
+                                conversationId = convId,
                                 senderId = if (myId.isNotBlank()) JsonPrimitive(myId) else null,
                                 body = text,
                                 createdAt = JsonPrimitive(
@@ -271,7 +296,7 @@ fun ChatThreadScreen(
                             )
                             messages = messages + optimistic
                             draft = ""
-                            socialRepository.sendMessage(conversationId, text)
+                            socialRepository.sendMessage(convId, text)
                                 .onSuccess {
                                     // перезагрузка, чтобы заменить optimistic на серверные
                                     reload(silent = true)
@@ -288,7 +313,12 @@ fun ChatThreadScreen(
                         }
                     },
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить")
+                    Box(
+                        Modifier.size(44.dp).clip(CircleShape).background(
+                            if (draft.isNotBlank()) TomiloPrimary else TomiloSurface2,
+                        ),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = if (draft.isNotBlank()) Color.White else TomiloMuted) }
                 }
             }
             if (sending) {
@@ -298,12 +328,6 @@ fun ChatThreadScreen(
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                 )
-            }
-            TextButton(
-                onClick = { scope.launch { reload() } },
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text("Обновить")
             }
         }
     }

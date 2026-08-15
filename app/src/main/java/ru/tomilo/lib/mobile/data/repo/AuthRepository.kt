@@ -10,6 +10,14 @@ import ru.tomilo.lib.mobile.data.api.TomiloApi
 import ru.tomilo.lib.mobile.data.api.UserDto
 import ru.tomilo.lib.mobile.data.api.VkIdLoginRequest
 import ru.tomilo.lib.mobile.data.api.YandexTokenRequest
+import ru.tomilo.lib.mobile.data.api.DailyQuestsDto
+import ru.tomilo.lib.mobile.data.api.DailyBonusResultDto
+import ru.tomilo.lib.mobile.data.api.QuestClaimRequest
+import ru.tomilo.lib.mobile.data.api.QuestClaimResultDto
+import ru.tomilo.lib.mobile.data.api.WheelDto
+import ru.tomilo.lib.mobile.data.api.WheelRecentWinsDto
+import ru.tomilo.lib.mobile.data.api.WheelSpinRequest
+import ru.tomilo.lib.mobile.data.api.WheelSpinResultDto
 import ru.tomilo.lib.mobile.data.local.AuthStore
 
 class AuthRepository(
@@ -72,4 +80,54 @@ class AuthRepository(
     suspend fun isPremium(): Boolean = Premium.isActive(authStore.user()?.subscriptionExpiresAt)
 
     suspend fun isLoggedIn(): Boolean = !authStore.token().isNullOrBlank()
+
+    suspend fun dailyQuests(): Result<DailyQuestsDto> = runCatching {
+        val res = api.dailyQuests()
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось загрузить задания")
+        res.data ?: DailyQuestsDto()
+    }
+
+    suspend fun claimDailyBonus(): Result<DailyBonusResultDto> = runCatching {
+        val res = api.claimDailyBonus()
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Бонус уже получен")
+        val data = res.data ?: error(res.message ?: "Бонус не получен")
+        refreshProfile()
+        data
+    }
+
+    suspend fun claimQuest(questId: String): Result<QuestClaimResultDto> = runCatching {
+        val res = api.claimDailyQuest(QuestClaimRequest(questId))
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Награда недоступна")
+        val data = res.data ?: QuestClaimResultDto()
+        refreshProfile()
+        data
+    }
+
+    suspend fun claimAllQuests(): Result<QuestClaimResultDto> = runCatching {
+        val res = api.claimAllDailyQuests()
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Нет доступных наград")
+        val data = res.data ?: QuestClaimResultDto()
+        refreshProfile()
+        data
+    }
+
+    suspend fun wheel(): Result<WheelDto> = runCatching {
+        val res = api.wheel()
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось загрузить колесо")
+        res.data ?: error("Колесо временно недоступно")
+    }
+
+    suspend fun spinWheel(skipCooldown: Boolean = false): Result<WheelSpinResultDto> = runCatching {
+        val res = api.spinWheel(WheelSpinRequest(skipCooldown.takeIf { it }))
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось запустить колесо")
+        val result = res.data ?: error("Сервер не вернул награду")
+        refreshProfile()
+        result
+    }
+
+    suspend fun wheelRecentWins(): Result<WheelRecentWinsDto> = runCatching {
+        val res = api.wheelRecentWins()
+        if (!res.success) error(res.message ?: "Не удалось загрузить победителей")
+        res.data ?: WheelRecentWinsDto()
+    }
 }

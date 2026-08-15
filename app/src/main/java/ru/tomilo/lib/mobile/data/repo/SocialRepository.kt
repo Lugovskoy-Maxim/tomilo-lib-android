@@ -17,11 +17,40 @@ import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.NotificationDto
 import ru.tomilo.lib.mobile.data.api.PublicUserDto
 import ru.tomilo.lib.mobile.data.api.SendMessageRequest
+import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 import ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest
 
 class SocialRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
+
+    // ── Shop ───────────────────────────────────────────────────
+    suspend fun shopDecorations(type: String): Result<List<ShopDecorationDto>> = runCatching {
+        val res = api.shopDecorations(type)
+        if (!res.success) error(res.message ?: "Не удалось загрузить магазин")
+        res.data.orEmpty().filter { it.stableId().isNotBlank() && it.isAvailable != false }
+    }
+
+    suspend fun ownedDecorations(): Result<List<ShopDecorationDto>> = runCatching {
+        val res = api.ownedDecorations()
+        if (!res.success) error(res.message ?: "Не удалось загрузить инвентарь")
+        res.data.orEmpty()
+    }
+
+    suspend fun purchaseDecoration(type: String, id: String): Result<Unit> = runCatching {
+        val res = api.purchaseDecoration(type, id)
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Покупка не выполнена")
+    }
+
+    suspend fun equipDecoration(type: String, id: String): Result<Unit> = runCatching {
+        val res = api.equipDecoration(type, id)
+        if (!res.success) error(res.message ?: "Не удалось надеть украшение")
+    }
+
+    suspend fun unequipDecoration(type: String): Result<Unit> = runCatching {
+        val res = api.unequipDecoration(type)
+        if (!res.success) error(res.message ?: "Не удалось снять украшение")
+    }
 
     // ── Bookmarks ───────────────────────────────────────────────
     suspend fun bookmarks(category: String? = null): Result<List<BookmarkEntryDto>> = runCatching {
@@ -111,6 +140,12 @@ class SocialRepository(private val api: TomiloApi) {
         res.data ?: error("Пустой ответ")
     }
 
+    suspend fun likeComment(commentId: String): Result<Unit> = runCatching {
+        if (commentId.isBlank()) error("Комментарий не найден")
+        val res = api.likeComment(commentId)
+        if (!res.success) error(res.message ?: "Не удалось поставить лайк")
+    }
+
     // ── Chats ───────────────────────────────────────────────────
     private fun apiError(res: ru.tomilo.lib.mobile.data.api.ApiResponse<*>, fallback: String): String {
         val msg = res.message?.takeIf { it.isNotBlank() }
@@ -144,6 +179,13 @@ class SocialRepository(private val api: TomiloApi) {
         parseConversation(res.data) ?: error("Пустой диалог поддержки")
     }
 
+    /** Admin: inbox of all support tickets from users. */
+    suspend fun supportInbox(): Result<List<ConversationPreviewDto>> = runCatching {
+        val res = api.supportInbox()
+        if (!res.success) error(apiError(res, "Не удалось загрузить поддержку"))
+        parseConversationList(res.data)
+    }
+
     suspend fun openConversationWith(userId: String): Result<ConversationPreviewDto> = runCatching {
         if (userId.isBlank()) error("Не указан пользователь")
         val res = api.createConversation(CreateConversationRequest(userId))
@@ -152,18 +194,20 @@ class SocialRepository(private val api: TomiloApi) {
     }
 
     suspend fun messages(conversationId: String): Result<List<DirectMessageDto>> = runCatching {
-        if (conversationId.isBlank()) error("Пустой id диалога")
-        val res = api.messages(conversationId)
+        val id = conversationId.trim()
+        if (id.isBlank()) error("Пустой id диалога")
+        val res = api.messages(id)
         if (!res.success) error(apiError(res, "Ошибка сообщений"))
         parseMessages(res.data)
     }
 
     suspend fun sendMessage(conversationId: String, body: String): Result<DirectMessageDto> =
         runCatching {
-            if (conversationId.isBlank()) error("Пустой id диалога")
+            val id = conversationId.trim()
+            if (id.isBlank()) error("Пустой id диалога")
             val text = body.trim()
             if (text.isEmpty()) error("Пустое сообщение")
-            val res = api.sendMessage(conversationId, SendMessageRequest(body = text))
+            val res = api.sendMessage(id, SendMessageRequest(body = text))
             if (!res.success) error(apiError(res, "Не удалось отправить"))
             parseMessage(res.data) ?: error("Сервер не вернул сообщение")
         }
@@ -183,13 +227,61 @@ class SocialRepository(private val api: TomiloApi) {
         }
     }.getOrDefault(0)
 
+    suspend fun friends(): Result<List<ru.tomilo.lib.mobile.data.api.FriendEntryDto>> = runCatching {
+        val res = api.friends()
+        if (!res.success) error(apiError(res, "Не удалось загрузить друзей"))
+        res.data.orEmpty()
+    }
+
+    suspend fun friendRequests(): Result<ru.tomilo.lib.mobile.data.api.FriendRequestsDto> = runCatching {
+        val res = api.friendRequests()
+        if (!res.success) error(apiError(res, "Не удалось загрузить заявки"))
+        res.data ?: ru.tomilo.lib.mobile.data.api.FriendRequestsDto()
+    }
+
+    suspend fun searchFriends(query: String): Result<List<ru.tomilo.lib.mobile.data.api.FriendSearchResultDto>> = runCatching {
+        val q = query.trim()
+        if (q.length < 2) return@runCatching emptyList()
+        val res = api.searchFriends(q)
+        if (!res.success) error(apiError(res, "Не удалось найти пользователей"))
+        res.data.orEmpty()
+    }
+
+    suspend fun friendStatus(userId: String): Result<String> = runCatching {
+        val res = api.friendStatus(userId)
+        if (!res.success) error(apiError(res, "Не удалось проверить статус дружбы"))
+        res.data?.status ?: "none"
+    }
+
+    suspend fun sendFriendRequest(userId: String): Result<Unit> = runCatching {
+        val res = api.sendFriendRequest(ru.tomilo.lib.mobile.data.api.SendFriendRequestDto(userId))
+        if (!res.success) error(apiError(res, "Не удалось отправить заявку"))
+    }
+
+    suspend fun acceptFriendRequest(requestId: String): Result<Unit> = runCatching {
+        val res = api.acceptFriendRequest(requestId)
+        if (!res.success) error(apiError(res, "Не удалось принять заявку"))
+    }
+
+    suspend fun rejectFriendRequest(requestId: String): Result<Unit> = runCatching {
+        val res = api.rejectFriendRequest(requestId)
+        if (!res.success) error(apiError(res, "Не удалось отклонить заявку"))
+    }
+
+    suspend fun removeFriend(userId: String): Result<Unit> = runCatching {
+        val res = api.removeFriend(userId)
+        if (!res.success) error(apiError(res, "Не удалось удалить друга"))
+    }
+
     private fun jsonStr(el: JsonElement?): String? = when (el) {
         is kotlinx.serialization.json.JsonPrimitive ->
             el.content.takeIf { it.isNotBlank() && it != "null" }
         is JsonObject -> {
             (el["\$oid"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                ?: (el["\$date"] as? kotlinx.serialization.json.JsonPrimitive)?.content
                 ?: (el["_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
                 ?: (el["id"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                ?: jsonStr(el["\$date"])
         }
         else -> null
     }
@@ -206,9 +298,14 @@ class SocialRepository(private val api: TomiloApi) {
                     ?: data["docs"]
                 when (nested) {
                     is JsonArray -> nested
-                    is JsonObject -> (
-                        nested["conversations"] ?: nested["items"]
-                        ) as? JsonArray
+                    is JsonObject -> {
+                        val inner = nested["conversations"]
+                            ?: nested["items"]
+                            ?: nested["results"]
+                            ?: nested["docs"]
+                            ?: nested["data"]
+                        inner as? JsonArray
+                    }
                     else -> null
                 }
             }
@@ -225,9 +322,17 @@ class SocialRepository(private val api: TomiloApi) {
 
     private fun parseConversation(data: JsonElement?): ConversationPreviewDto? {
         if (data == null) return null
-        val obj = data as? JsonObject ?: return null
-        val id = jsonStr(obj["_id"]) ?: jsonStr(obj["id"]) ?: return null
+        val envelope = data as? JsonObject ?: return null
+        // Некоторые версии API оборачивают элемент inbox в { conversation, user }.
+        val obj = (envelope["conversation"] as? JsonObject) ?: envelope
+        val id = jsonStr(obj["_id"])
+            ?: jsonStr(obj["id"])
+            ?: jsonStr(obj["conversationId"])
+            ?: return null
         val participantEl = obj["participant"]
+            ?: envelope["participant"]
+            ?: envelope["user"]
+            ?: envelope["customer"]
         val participant = when (participantEl) {
             is JsonObject -> {
                 val isSupportFlag =
@@ -248,11 +353,11 @@ class SocialRepository(private val api: TomiloApi) {
             }
             else -> null
         }
-        val unread = when (val u = obj["unreadCount"]) {
+        val unread = when (val u = obj["unreadCount"] ?: envelope["unreadCount"]) {
             is kotlinx.serialization.json.JsonPrimitive -> u.content.toIntOrNull() ?: 0
             else -> 0
         }
-        val type = jsonStr(obj["type"])
+        val type = jsonStr(obj["type"] ?: envelope["type"])
             ?: if (participant?.isSupport == true || participant?.stableId() == "support") "support"
             else "direct"
         return ConversationPreviewDto(
@@ -260,9 +365,9 @@ class SocialRepository(private val api: TomiloApi) {
             id = id,
             type = type,
             participant = participant,
-            lastMessageAt = jsonStr(obj["lastMessageAt"]),
-            lastMessagePreview = jsonStr(obj["lastMessagePreview"]),
-            lastMessageSenderId = jsonStr(obj["lastMessageSenderId"]),
+            lastMessageAt = jsonStr(obj["lastMessageAt"] ?: envelope["lastMessageAt"]),
+            lastMessagePreview = jsonStr(obj["lastMessagePreview"] ?: envelope["lastMessagePreview"]),
+            lastMessageSenderId = jsonStr(obj["lastMessageSenderId"] ?: envelope["lastMessageSenderId"]),
             unreadCount = unread,
         )
     }
@@ -343,6 +448,12 @@ class SocialRepository(private val api: TomiloApi) {
 
     suspend fun markAllNotificationsRead() {
         runCatching { api.markAllNotificationsRead() }
+    }
+
+    suspend fun deleteNotification(id: String): Result<Unit> = runCatching {
+        if (id.isBlank()) error("Уведомление не найдено")
+        val res = api.deleteNotification(id)
+        if (!res.success) error(res.message ?: "Не удалось удалить уведомление")
     }
 
     private fun parseNotifications(data: JsonElement?): List<NotificationDto> {

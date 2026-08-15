@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -24,7 +25,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,8 +43,10 @@ import ru.tomilo.lib.mobile.data.api.AdminUserDto
 import ru.tomilo.lib.mobile.data.repo.AdminRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
+import ru.tomilo.lib.mobile.ui.components.PageIntro
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -124,11 +126,17 @@ fun AdminScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            PageIntro(
+                title = "Центр управления",
+                subtitle = "Модерация контента, пользователей и системных операций",
+                icon = Icons.Default.AdminPanelSettings,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             Row(
                 Modifier
                     .horizontalScroll(rememberScrollState())

@@ -2,11 +2,14 @@ package ru.tomilo.lib.mobile.data.repo
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import okhttp3.Request
+import ru.tomilo.lib.mobile.core.ImageIntegrity
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.TomiloApi
@@ -16,6 +19,14 @@ import ru.tomilo.lib.mobile.data.local.OfflineChapterMeta
 import ru.tomilo.lib.mobile.data.local.OfflineDao
 import ru.tomilo.lib.mobile.data.local.OfflineTitleEntity
 import java.io.File
+import java.util.Locale
+
+data class OfflineIntegrityReport(
+    val validChapters: Int,
+    val removedEntries: Int,
+    val orphanDirectories: Int,
+    val freedBytes: Long,
+)
 
 class OfflineRepository(
     private val context: Context,
@@ -31,7 +42,7 @@ class OfflineRepository(
     fun observeByTitle(titleId: String): Flow<List<OfflineChapterEntity>> = dao.observeByTitle(titleId)
     fun observeTitles(): Flow<List<OfflineTitleEntity>> = dao.observeTitles()
 
-    suspend fun isDownloaded(chapterId: String): Boolean = dao.isDownloaded(chapterId)
+    suspend fun isDownloaded(chapterId: String): Boolean = getLocalPages(chapterId)?.isNotEmpty() == true
 
     suspend fun getEntity(chapterId: String) = dao.get(chapterId)
 
@@ -134,10 +145,52 @@ class OfflineRepository(
         val entity = dao.get(chapterId) ?: return null
         val dir = File(entity.localDir)
         if (!dir.isDirectory) return null
-        return dir.listFiles()
+        val pages = dir.listFiles()
             ?.filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }
             ?.sortedBy { it.name }
+            ?.filter { ImageIntegrity.isValidFile(it) }
             ?.map { it.absolutePath }
+            .orEmpty()
+        if (pages.size != entity.pageCount || pages.isEmpty()) return null
+        return pages
+    }
+
+    suspend fun downloadedChapters(titleId: String): List<OfflineChapterEntity> =
+        withContext(Dispatchers.IO) {
+            dao.chaptersForTitle(titleId).filter { getLocalPages(it.chapterId)?.isNotEmpty() == true }
+        }
+
+    suspend fun verifyAndRepair(): OfflineIntegrityReport = withContext(Dispatchers.IO) {
+        val entities = dao.allChapters()
+        var valid = 0
+        var removed = 0
+        var orphans = 0
+        var freed = 0L
+
+        val knownDirs = entities.map { File(it.localDir).canonicalPath }.toSet()
+        entities.forEach { entity ->
+            val dir = File(entity.localDir)
+            if (getLocalPages(entity.chapterId) == null) {
+                freed += dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                dir.deleteRecursively()
+                dao.delete(entity.chapterId)
+                removed++
+            } else {
+                valid++
+            }
+        }
+
+        File(context.filesDir, "offline").walkTopDown()
+            .filter { it.isDirectory && it.parentFile?.parentFile?.name == "offline" }
+            .toList()
+            .forEach { dir ->
+                if (dir.canonicalPath !in knownDirs) {
+                    freed += dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                    if (dir.deleteRecursively()) orphans++
+                }
+            }
+
+        OfflineIntegrityReport(valid, removed, orphans, freed)
     }
 
     suspend fun offlineBytesTotal(): Long = withContext(Dispatchers.IO) {
@@ -189,7 +242,7 @@ class OfflineRepository(
                     syncTitleCatalog(titleId, titleName, titleSlug, titleCover)
                 }
 
-                if (dao.isDownloaded(chapterId)) {
+                if (getLocalPages(chapterId)?.isNotEmpty() == true) {
                     // уже есть — вернём кредит, если списывали
                     if (usedAdCredit) adRewardStore?.refundOfflineCredit()
                     onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
@@ -204,27 +257,29 @@ class OfflineRepository(
                 if (pages.isEmpty()) error("У главы нет страниц")
 
                 val root = File(context.filesDir, "offline/$titleId/$chapterId")
-                if (root.exists()) root.deleteRecursively()
                 root.mkdirs()
 
-                var bytes = 0L
+                var bytes = root.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
                 pages.forEachIndexed { index, path ->
-                    onStage(DownloadStage.DownloadingPages, index, pages.size, null)
                     val url = MediaUrl.resolve(path)
-                    val ext = path.substringAfterLast('.', "jpg").filter { it.isLetterOrDigit() }.take(5)
+                    val cleanPath = runCatching { java.net.URI(url).path }.getOrDefault(path)
+                    val ext = cleanPath.substringAfterLast('.', "jpg").filter { it.isLetterOrDigit() }.take(5)
                         .ifBlank { "jpg" }
-                    val out = File(root, String.format("%04d.%s", index + 1, ext))
-                    val req = Request.Builder().url(url).get().build()
-                    http.newCall(req).execute().use { response ->
-                        if (!response.isSuccessful) {
-                            error("Не удалось скачать страницу ${index + 1}")
-                        }
-                        val body = response.body ?: error("Пустой ответ страницы")
-                        body.byteStream().use { input ->
-                            out.outputStream().use { output -> input.copyTo(output) }
-                        }
-                        bytes += out.length()
+                    val out = File(root, String.format(Locale.ROOT, "%04d.%s", index + 1, ext))
+                    if (ImageIntegrity.isValidFile(out)) {
+                        onProgress(index + 1, pages.size)
+                        onStage(
+                            DownloadStage.DownloadingPages,
+                            index + 1,
+                            pages.size,
+                            "Продолжаем загрузку",
+                        )
+                        return@forEachIndexed
                     }
+                    out.delete()
+                    onStage(DownloadStage.DownloadingPages, index, pages.size, null)
+                    downloadPageWithRetry(url = url, dest = out, pageIndex = index)
+                    bytes += out.length()
                     onProgress(index + 1, pages.size)
                     onStage(DownloadStage.DownloadingPages, index + 1, pages.size, null)
                 }
@@ -244,6 +299,7 @@ class OfflineRepository(
                     bytesTotal = bytes,
                 )
                 dao.upsert(entity)
+                File(root, ".complete").writeText(pages.size.toString())
                 runCatching { syncTitleCatalog(titleId, titleName, titleSlug, titleCover) }
                 onStage(DownloadStage.Completed, pages.size, pages.size, null)
                 entity
@@ -252,6 +308,43 @@ class OfflineRepository(
                 throw e
             }
         }
+    }
+
+    private suspend fun downloadPageWithRetry(url: String, dest: File, pageIndex: Int) {
+        val part = File(dest.parentFile, dest.name + ".part")
+        var lastError: Throwable? = null
+        repeat(3) { attempt ->
+            part.delete()
+            dest.delete()
+            try {
+                val req = Request.Builder()
+                    .url(url)
+                    .header("Cache-Control", if (attempt == 0) "max-age=3600" else "no-cache")
+                    .get()
+                    .build()
+                http.newCall(req).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        error("Не удалось скачать страницу ${pageIndex + 1} (${response.code})")
+                    }
+                    val body = response.body ?: error("Пустой ответ страницы ${pageIndex + 1}")
+                    body.byteStream().use { input ->
+                        part.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+                if (!ImageIntegrity.isValidFile(part) || !part.renameTo(dest) || !ImageIntegrity.isValidFile(dest)) {
+                    part.delete()
+                    dest.delete()
+                    error("Страница ${pageIndex + 1} повреждена, повторяем")
+                }
+                return
+            } catch (e: Throwable) {
+                lastError = e
+                part.delete()
+                dest.delete()
+                if (attempt < 2) delay(400L * (attempt + 1))
+            }
+        }
+        throw lastError ?: IllegalStateException("Не удалось скачать страницу ${pageIndex + 1}")
     }
 
     suspend fun deleteChapter(chapterId: String) = withContext(Dispatchers.IO) {

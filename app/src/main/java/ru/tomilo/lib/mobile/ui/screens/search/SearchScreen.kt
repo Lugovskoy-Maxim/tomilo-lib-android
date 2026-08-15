@@ -7,14 +7,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,8 +29,13 @@ import kotlinx.coroutines.delay
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.EmptyState
+import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.PageIntro
+import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
@@ -36,6 +43,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 @Composable
 fun SearchScreen(
     catalogRepository: CatalogRepository,
+    onBack: () -> Unit,
     onOpenTitle: (id: String, slug: String?) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -65,7 +73,12 @@ fun SearchScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Поиск") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
@@ -83,23 +96,35 @@ fun SearchScreen(
                 singleLine = true,
                 placeholder = { Text("Название тайтла…") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Очистить")
+                        }
+                    }
+                },
             )
+            if (query.trim().length >= 2 && !loading && error == null) {
+                PageIntro(
+                    title = if (results.isEmpty()) "Ищем точное совпадение" else "Найдено: ${results.size}",
+                    subtitle = "Результаты обновляются автоматически по мере ввода",
+                    icon = Icons.Default.Search,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    trailing = { if (results.isNotEmpty()) StatusPill("${results.size}") },
+                )
+            }
             when {
                 loading -> LoadingBox()
-                error != null -> Text(
-                    error ?: "",
-                    color = TomiloMuted,
-                    modifier = Modifier.padding(16.dp),
+                error != null -> ErrorBox(error ?: "Ошибка поиска")
+                query.trim().length < 2 -> EmptyState(
+                    title = "Найдите свою историю",
+                    message = "Введите минимум два символа названия тайтла.",
+                    icon = Icons.Default.Search,
                 )
-                query.trim().length < 2 -> Text(
-                    "Введите минимум 2 символа",
-                    color = TomiloMuted,
-                    modifier = Modifier.padding(16.dp),
-                )
-                results.isEmpty() -> Text(
-                    "Ничего не найдено",
-                    color = TomiloMuted,
-                    modifier = Modifier.padding(16.dp),
+                results.isEmpty() -> EmptyState(
+                    title = "Ничего не найдено",
+                    message = "Попробуйте другое название или проверьте написание.",
+                    icon = Icons.Default.Search,
                 )
                 else -> LazyColumn(contentPadding = ScreenPadding) {
                     items(results, key = { it.id ?: it.displayTitle() }) { hit ->

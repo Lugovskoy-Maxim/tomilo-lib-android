@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +25,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,12 +41,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.ui.components.TomiloBrandHeader
 import ru.tomilo.lib.mobile.ui.components.TomiloLoginIllustration
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -48,6 +62,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 @Composable
 fun LoginScreen(
     authRepository: AuthRepository,
+    onBack: () -> Unit,
     onSuccess: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -55,7 +70,23 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showPassword by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val passwordFocus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    fun submit() {
+        if (loading || email.isBlank() || password.isBlank()) return
+        scope.launch {
+            loading = true
+            error = null
+            focusManager.clearFocus()
+            authRepository.login(email, password)
+                .onSuccess { onSuccess() }
+                .onFailure { error = it.message ?: "Ошибка входа" }
+            loading = false
+        }
+    }
 
     val oauthLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -96,7 +127,12 @@ fun LoginScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Вход") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                    }
+                },
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
@@ -123,7 +159,8 @@ fun LoginScreen(
                     },
                     enabled = !loading,
                     modifier = Modifier.weight(1f),
-                ) { Text("Яндекс") }
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 13.dp),
+                ) { Text("Яндекс", fontWeight = FontWeight.SemiBold) }
                 OutlinedButton(
                     onClick = {
                         oauthLauncher.launch(
@@ -132,7 +169,8 @@ fun LoginScreen(
                     },
                     enabled = !loading,
                     modifier = Modifier.weight(1f),
-                ) { Text("VK") }
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 13.dp),
+                ) { Text("VK", fontWeight = FontWeight.SemiBold) }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -145,7 +183,12 @@ fun LoginScreen(
                 label = { Text("Email") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next,
+                ),
+                keyboardActions = KeyboardActions(onNext = { passwordFocus.requestFocus() }),
+                shape = RoundedCornerShape(18.dp),
             )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
@@ -153,8 +196,26 @@ fun LoginScreen(
                 onValueChange = { password = it },
                 label = { Text("Пароль") },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (showPassword) {
+                    VisualTransformation.None
+                } else {
+                    PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    IconButton(onClick = { showPassword = !showPassword }) {
+                        Icon(
+                            if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showPassword) "Скрыть пароль" else "Показать пароль",
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().focusRequester(passwordFocus),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { submit() }),
+                shape = RoundedCornerShape(18.dp),
             )
             if (error != null) {
                 Spacer(Modifier.height(12.dp))
@@ -162,20 +223,11 @@ fun LoginScreen(
             }
             Spacer(Modifier.height(20.dp))
             Button(
-                onClick = {
-                    scope.launch {
-                        loading = true
-                        error = null
-                        authRepository.login(email, password)
-                            .onSuccess { onSuccess() }
-                            .onFailure { error = it.message ?: "Ошибка входа" }
-                        loading = false
-                    }
-                },
+                onClick = { submit() },
                 enabled = !loading && email.isNotBlank() && password.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
             ) {
-                Text(if (loading) "Входим…" else "Войти")
+                Text(if (loading) "Входим…" else "Войти", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(24.dp))
         }

@@ -1,17 +1,24 @@
 package ru.tomilo.lib.mobile.ui.screens.bookmarks
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,21 +26,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
+import ru.tomilo.lib.mobile.ui.components.SwipeActionContainer
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
-import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 
 private val CATEGORIES = listOf(
     null to "Все",
@@ -60,6 +72,8 @@ fun BookmarksScreen(
     var items by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
     var progressByTitle by remember { mutableStateOf<Map<String, ReadingProgressDto>>(emptyMap()) }
     var reload by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
 
     var authReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -102,10 +116,11 @@ fun BookmarksScreen(
 
     Scaffold(
         containerColor = TomiloBg,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = { Text("Закладки") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
@@ -119,31 +134,34 @@ fun BookmarksScreen(
             }
             return@Scaffold
         }
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            ScrollableTabRow(
-                selectedTabIndex = catIndex,
-                edgePadding = 12.dp,
-                containerColor = TomiloBg,
-                divider = {},
-            ) {
-                CATEGORIES.forEachIndexed { i, pair ->
-                    FilterChip(
-                        selected = catIndex == i,
-                        onClick = { catIndex = i },
-                        label = { Text(pair.second) },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
+        when {
+            loading -> Column(Modifier.padding(padding).fillMaxSize()) {
+                BookmarkCategorySelector(catIndex) { catIndex = it }
+                LoadingBox()
             }
-            when {
-                loading -> LoadingBox()
-                error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка") { reload += 1 }
-                items.isEmpty() -> Text(
-                    "Пусто",
-                    color = TomiloMuted,
-                    modifier = Modifier.padding(16.dp),
+            error != null && items.isEmpty() -> Column(Modifier.padding(padding).fillMaxSize()) {
+                BookmarkCategorySelector(catIndex) { catIndex = it }
+                ErrorBox(error ?: "Ошибка") { reload += 1 }
+            }
+            items.isEmpty() -> Column(Modifier.padding(padding).fillMaxSize()) {
+                BookmarkCategorySelector(catIndex) { catIndex = it }
+                EmptyState(
+                    title = "Здесь пока пусто",
+                    message = if (catIndex == 0) {
+                        "Добавляйте тайтлы в закладки, чтобы быстро к ним возвращаться."
+                    } else {
+                        "В категории «${CATEGORIES[catIndex].second}» пока нет тайтлов."
+                    },
+                    icon = Icons.Outlined.BookmarkBorder,
                 )
-                else -> LazyColumn(contentPadding = ScreenPadding) {
+            }
+            else -> LazyColumn(
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                contentPadding = ScreenPadding,
+            ) {
+                    item(key = "bookmark_filters") {
+                        BookmarkCategorySelector(catIndex) { catIndex = it }
+                    }
                     items(
                         items,
                         key = { bm ->
@@ -177,24 +195,65 @@ fun BookmarksScreen(
                             totalFromTitle != null -> "0 / $totalFromTitle гл."
                             else -> null
                         }
-                        TitleSearchCard(
-                            title = bm.displayName(),
-                            cover = bm.coverPath(),
-                            type = t?.type,
-                            rating = t?.averageRating,
-                            totalChapters = totalFromTitle,
-                            status = t?.status,
-                            subtitle = categoryLabel(bm.category),
-                            progressLine = progressLine,
-                            onClick = {
-                                if (titleId.isNotBlank()) {
-                                    onOpenTitle(titleId, t?.slug)
+                        SwipeActionContainer(
+                            actionLabel = "Убрать",
+                            actionIcon = Icons.Outlined.DeleteOutline,
+                            actionColor = TomiloDanger,
+                            enabled = titleId.isNotBlank(),
+                            onAction = {
+                                val snapshot = items
+                                items = items.filterNot { it === bm }
+                                progressByTitle = progressByTitle - titleId
+                                scope.launch {
+                                    socialRepository.removeBookmark(titleId)
+                                        .onSuccess { snackbar.showSnackbar("Удалено из закладок") }
+                                        .onFailure {
+                                            items = snapshot
+                                            snackbar.showSnackbar(it.message ?: "Не удалось удалить")
+                                        }
                                 }
                             },
-                        )
+                        ) {
+                            TitleSearchCard(
+                                title = bm.displayName(),
+                                cover = bm.coverPath(),
+                                type = t?.type,
+                                rating = t?.averageRating,
+                                totalChapters = totalFromTitle,
+                                status = t?.status,
+                                subtitle = categoryLabel(bm.category),
+                                progressLine = progressLine,
+                                onClick = {
+                                    if (titleId.isNotBlank()) {
+                                        onOpenTitle(titleId, t?.slug)
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
-            }
+        }
+    }
+}
+
+@Composable
+private fun BookmarkCategorySelector(
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        CATEGORIES.forEachIndexed { index, pair ->
+            FilterChip(
+                selected = selectedIndex == index,
+                onClick = { onSelect(index) },
+                label = { Text(pair.second) },
+                modifier = Modifier.padding(horizontal = 3.dp),
+            )
         }
     }
 }

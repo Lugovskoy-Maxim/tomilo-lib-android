@@ -45,7 +45,7 @@ cat <<'TXT'
 1. Откройте в браузере консоль RuStore:
    https://console.rustore.ru/
 
-2. Приложение Tomilo → «Подпись» / «Загрузка подписи приложения»
+2. Приложение tomilo-lib → «Подпись» / «Загрузка подписи приложения»
 
 3. Найдите команду, похожую на:
    java -jar pepk.jar --keystore ... --encryptionkey=XXXXX ...

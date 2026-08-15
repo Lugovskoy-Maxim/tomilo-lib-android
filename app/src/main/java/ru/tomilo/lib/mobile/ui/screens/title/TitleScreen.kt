@@ -1,6 +1,13 @@
 package ru.tomilo.lib.mobile.ui.screens.title
 
+import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,7 +31,10 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
@@ -35,6 +45,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -42,7 +53,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -55,6 +66,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
+import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
@@ -78,9 +93,11 @@ import ru.tomilo.lib.mobile.ui.components.CommentsSection
 import ru.tomilo.lib.mobile.ui.components.DownloadProgressSheet
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 
 private enum class ChapterSort(val label: String) {
     NumberAsc("№ ↑"),
@@ -122,6 +139,7 @@ fun TitleScreen(
     var selectMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     var showDownloadSheet by remember { mutableStateOf(false) }
+    var minimizedDownloadBatch by remember { mutableStateOf<String?>(null) }
     var sort by remember { mutableStateOf(ChapterSort.NumberAsc) }
     var myRating by remember { mutableIntStateOf(0) }
     var readChapterIds by remember { mutableStateOf(setOf<String>()) }
@@ -129,6 +147,8 @@ fun TitleScreen(
     /** Главы, ждущие просмотр рекламы перед скачиванием */
     var pendingAdChapters by remember { mutableStateOf<List<ChapterDto>?>(null) }
     var adBusy by remember { mutableStateOf(false) }
+    var showBookmarkCategories by remember { mutableStateOf(false) }
+    var titleDetailsExpanded by remember { mutableStateOf(false) }
 
     val sortedChapters = remember(chapters, sort) {
         when (sort) {
@@ -144,6 +164,9 @@ fun TitleScreen(
 
     val offlineAll by offlineRepository.observeAll().collectAsState(initial = emptyList())
     val downloadState by downloadManager.state.collectAsState()
+    val downloadBatchKey = remember(downloadState.items) {
+        downloadState.items.joinToString("|") { it.chapterId }
+    }
     val downloadedIds = remember(offlineAll, title?.stableId()) {
         val tid = title?.stableId().orEmpty()
         offlineAll.filter { tid.isNotBlank() && it.titleId == tid }.map { it.chapterId }.toSet()
@@ -161,6 +184,7 @@ fun TitleScreen(
             titleCover = t.coverImage,
             chapters = chaptersToDl,
         )
+        minimizedDownloadBatch = null
         showDownloadSheet = true
         selectMode = false
         selected = emptySet()
@@ -276,6 +300,16 @@ fun TitleScreen(
             }
     }
 
+    LaunchedEffect(title?.stableId(), user?.stableId()) {
+        val tid = title?.stableId().orEmpty()
+        if (tid.isBlank() || user == null) {
+            myRating = 0
+            return@LaunchedEffect
+        }
+        historyRepository.myTitleRating(tid)
+            .onSuccess { myRating = it ?: 0 }
+    }
+
     LaunchedEffect(title?.stableId(), user?.stableId(), chapters) {
         val tid = title?.stableId().orEmpty()
         if (tid.isBlank() || user == null) {
@@ -302,8 +336,12 @@ fun TitleScreen(
             }
     }
 
-    LaunchedEffect(downloadState.finished, downloadState.items) {
-        if (downloadState.items.isNotEmpty()) showDownloadSheet = true
+    LaunchedEffect(downloadBatchKey) {
+        if (downloadBatchKey.isNotBlank() && minimizedDownloadBatch != downloadBatchKey) {
+            showDownloadSheet = true
+        } else if (downloadBatchKey.isBlank()) {
+            minimizedDownloadBatch = null
+        }
     }
 
     Scaffold(
@@ -341,6 +379,21 @@ fun TitleScreen(
                             Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
                         }
                     } else {
+                        IconButton(
+                            onClick = {
+                                val t = title ?: return@IconButton
+                                val key = t.slug?.takeIf { it.isNotBlank() } ?: t.stableId()
+                                val url = "${BuildConfig.SITE_URL}/titles/$key"
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, t.name ?: "Тайтл в tomilo-lib")
+                                    putExtra(Intent.EXTRA_TEXT, "${t.name ?: "Смотрите в tomilo-lib"}\n$url")
+                                }
+                                context.startActivity(Intent.createChooser(send, "Поделиться тайтлом"))
+                            },
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "Поделиться")
+                        }
                         IconButton(onClick = { selectMode = true }) {
                             Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Выбор загрузки")
                         }
@@ -353,13 +406,8 @@ fun TitleScreen(
                                     return@IconButton
                                 }
                                 scope.launch {
-                                    if (bookmarked) {
-                                        socialRepository.removeBookmark(tid)
-                                            .onSuccess {
-                                                bookmarked = false
-                                                bookmarkCategory = null
-                                                snackbar.showSnackbar("Убрано из закладок")
-                                            }
+                                if (bookmarked) {
+                                        showBookmarkCategories = true
                                     } else {
                                         socialRepository.addBookmark(tid, "reading")
                                             .onSuccess {
@@ -379,7 +427,7 @@ fun TitleScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = TomiloBg),
+                colors = tomiloTopBarColors(),
             )
         },
         bottomBar = {
@@ -426,7 +474,12 @@ fun TitleScreen(
                     Modifier.padding(padding).fillMaxSize(),
                 ) {
                     item {
-                        Row(Modifier.padding(16.dp)) {
+                        Row(
+                            Modifier.padding(12.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp))
+                                .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), TomiloSurface2.copy(alpha = 0.78f))))
+                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f), RoundedCornerShape(24.dp))
+                                .padding(16.dp),
+                        ) {
                             AsyncImage(
                                 model = MediaUrl.resolve(t.coverImage),
                                 contentDescription = t.name,
@@ -434,16 +487,17 @@ fun TitleScreen(
                                 modifier = Modifier
                                     .width(110.dp)
                                     .aspectRatio(2f / 3f)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .shadow(12.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.35f))
+                                    .clip(RoundedCornerShape(16.dp))
                                     .background(TomiloSurface2),
                             )
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(t.name.orEmpty(), style = MaterialTheme.typography.titleLarge)
+                                Text(t.name.orEmpty(), style = MaterialTheme.typography.headlineSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                                 Spacer(Modifier.height(6.dp))
                                 val meta = listOfNotNull(
-                                    t.type,
-                                    t.status,
+                                    t.type?.let(::titleTypeLabel),
+                                    t.status?.let(::titleStatusLabel),
                                     t.releaseYear?.toString(),
                                     t.averageRating?.let { "★ %.1f".format(it) },
                                     t.totalChapters?.let { "$it гл." },
@@ -480,6 +534,7 @@ fun TitleScreen(
                                                 continueChapterId in downloadedIds,
                                             )
                                         },
+                                        modifier = Modifier.fillMaxWidth(),
                                     ) {
                                         Text(
                                             if (readChapterIds.isEmpty()) "Начать чтение"
@@ -489,16 +544,14 @@ fun TitleScreen(
                                 }
                             }
                         }
-                        if (!t.description.isNullOrBlank()) {
-                            Text(
-                                t.description!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TomiloMuted,
-                                maxLines = 5,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                            )
-                        }
+                        TitleDetailsCard(
+                            title = t,
+                            chaptersCount = chapters.size,
+                            readCount = readChapterIds.size,
+                            offlineCount = downloadedIds.size,
+                            expanded = titleDetailsExpanded,
+                            onToggle = { titleDetailsExpanded = !titleDetailsExpanded },
+                        )
                         // Rating
                         Text(
                             "Оценка",
@@ -535,9 +588,21 @@ fun TitleScreen(
                             }
                         }
                         Text(
-                            "Главы · сортировка",
+                            "Главы",
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).fillMaxWidth(),
+                        )
+                        Text(
+                            buildString {
+                                append("${chapters.size} глав")
+                                if (readChapterIds.isNotEmpty()) append(" · ${readChapterIds.size} прочитано")
+                                if (downloadedIds.isNotEmpty()) append(" · ${downloadedIds.size} офлайн")
+                                chapters.maxByOrNull { it.releaseDate.orEmpty() }
+                                    ?.releaseDate?.let { append(" · новая ${chapterDateLabel(it)}") }
+                            },
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp),
                         )
                         Row(
                             Modifier
@@ -572,7 +637,17 @@ fun TitleScreen(
                         ) || isOffline || isPremium
                         Row(
                             Modifier
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
                                 .fillMaxWidth()
+                                .clip(RoundedCornerShape(17.dp))
+                                .background(
+                                    when {
+                                        isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.13f)
+                                        isRead -> MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+                                        else -> TomiloSurface2.copy(alpha = 0.58f)
+                                    },
+                                )
+                                .border(1.dp, if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.28f) else TomiloBorder.copy(alpha = 0.52f), RoundedCornerShape(17.dp))
                                 .clickable {
                                     if (selectMode) {
                                         if (isOffline) return@clickable
@@ -583,7 +658,7 @@ fun TitleScreen(
                                         onOpenChapter(t.stableId(), id, isOffline)
                                     }
                                 }
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             if (selectMode) {
@@ -600,10 +675,16 @@ fun TitleScreen(
                                 Text(
                                     buildString {
                                         append("Глава ${chapter.numberLabel()}")
+                                        chapter.name
+                                            ?.takeIf {
+                                                it.isNotBlank() &&
+                                                    !it.equals("Глава ${chapter.numberLabel()}", ignoreCase = true)
+                                            }
+                                            ?.let { append(" · $it") }
                                         if (isRead) append("  ✓")
-                                        if (paidLocked) append("  🔒")
+                                        if (paidLocked) append("  · закрыта")
                                         else if (chapter.isPaid == true && (isPremium || canOpenPaid)) {
-                                            append("  ★")
+                                            append("  · Premium")
                                         }
                                     },
                                     color = when {
@@ -612,26 +693,40 @@ fun TitleScreen(
                                         else -> MaterialTheme.colorScheme.onBackground
                                     },
                                 )
-                                val subHint = when {
+                                val accessHint = when {
                                     paidLocked -> ChapterAccess.lockHint(
                                         chapter.isPaid,
                                         chapter.freeAt,
                                         chapter.unlockPrice,
                                         isPremiumUser = false,
                                     )
-                                    !chapter.name.isNullOrBlank() &&
-                                        chapter.name != "Глава ${chapter.numberLabel()}" -> chapter.name
-                                    isRead -> "Прочитано"
-                                    chapter.isPaid == true && isPremium -> "Premium · доступна"
                                     else -> null
                                 }
-                                if (!subHint.isNullOrBlank()) {
+                                val facts = listOfNotNull(
+                                    chapter.releaseDate?.let(::chapterDateLabel),
+                                    chapter.views?.toString()?.trim('"')
+                                        ?.toLongOrNull()?.let(::chapterViewsLabel),
+                                    (chapter.pagesCount ?: chapter.pages?.size)
+                                        ?.takeIf { it > 0 }?.let { "$it стр." },
+                                    chapter.status?.takeIf { it.isNotBlank() }
+                                        ?.let(::chapterStatusLabel),
+                                    if (isOffline) "офлайн" else null,
+                                    if (isRead) "прочитано" else null,
+                                ).distinct().joinToString(" · ")
+                                if (facts.isNotBlank()) {
                                     Text(
-                                        subHint,
-                                        color = if (paidLocked) MaterialTheme.colorScheme.primary
-                                        else if (isRead) MaterialTheme.colorScheme.primary
-                                        else TomiloMuted,
+                                        facts,
+                                        color = if (isRead) MaterialTheme.colorScheme.primary else TomiloMuted,
                                         style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                                if (!accessHint.isNullOrBlank()) {
+                                    Text(
+                                        accessHint,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.labelSmall,
                                         maxLines = 2,
                                     )
                                 }
@@ -685,12 +780,15 @@ fun TitleScreen(
         DownloadProgressSheet(
             state = downloadState,
             onCancel = { downloadManager.cancel() },
+            onRetryFailed = { downloadManager.retryFailed() },
             onDismiss = {
                 showDownloadSheet = false
+                minimizedDownloadBatch = downloadBatchKey
                 if (downloadState.finished) downloadManager.clear()
             },
             onContinueInBackground = {
                 // закрываем sheet — сервис + уведомление продолжают качать
+                minimizedDownloadBatch = downloadBatchKey
                 showDownloadSheet = false
             },
         )
@@ -727,4 +825,294 @@ fun TitleScreen(
             },
         )
     }
+
+
+    if (showBookmarkCategories) {
+        AlertDialog(
+            onDismissRequest = { showBookmarkCategories = false },
+            title = { Text("Закладка") },
+            text = {
+                Column {
+                    listOf(
+                        "reading" to "Читаю",
+                        "planned" to "В планах",
+                        "completed" to "Прочитано",
+                        "favorites" to "Избранное",
+                        "dropped" to "Брошено",
+                    ).forEach { (value, label) ->
+                        FilterChip(
+                            selected = bookmarkCategory == value,
+                            onClick = {
+                                val tid = title?.stableId().orEmpty()
+                                scope.launch {
+                                    socialRepository.updateBookmarkCategory(tid, value)
+                                        .onSuccess {
+                                            bookmarkCategory = value
+                                            showBookmarkCategories = false
+                                            snackbar.showSnackbar("Категория: $label")
+                                        }
+                                        .onFailure { snackbar.showSnackbar(it.message ?: "Ошибка") }
+                                }
+                            },
+                            label = { Text(label) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        val tid = title?.stableId().orEmpty()
+                        scope.launch {
+                            socialRepository.removeBookmark(tid)
+                                .onSuccess {
+                                    bookmarked = false
+                                    bookmarkCategory = null
+                                    showBookmarkCategories = false
+                                    snackbar.showSnackbar("Убрано из закладок")
+                                }
+                                .onFailure { snackbar.showSnackbar(it.message ?: "Ошибка") }
+                        }
+                    },
+                ) { Text("Удалить") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun TitleDetailsCard(
+    title: TitleDetailDto,
+    chaptersCount: Int,
+    readCount: Int,
+    offlineCount: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val details = listOfNotNull(
+        title.author?.takeIf { it.isNotBlank() }?.let { "Автор" to it },
+        title.artist?.takeIf { it.isNotBlank() }?.let { "Художник" to it },
+        title.type?.takeIf { it.isNotBlank() }?.let { "Тип" to titleTypeLabel(it) },
+        title.status?.takeIf { it.isNotBlank() }?.let { "Статус" to titleStatusLabel(it) },
+        title.releaseYear?.let { "Год выпуска" to it.toString() },
+        title.ageLimit?.let { "Возраст" to "$it+" },
+        title.averageRating?.let { "Рейтинг" to "★ %.1f из 10".format(it) },
+        title.totalRatings?.takeIf { it > 0 }?.let { "Оценки" to "$it пользовательских" },
+        title.views?.let { "Просмотры" to titleViewsLabel(it) },
+        listOfNotNull(
+            title.dayViews?.let { "сегодня ${compactNumber(it)}" },
+            title.weekViews?.let { "за неделю ${compactNumber(it)}" },
+            title.monthViews?.let { "за месяц ${compactNumber(it)}" },
+        ).takeIf { it.isNotEmpty() }?.let { "Активность" to it.joinToString(" · ") },
+        (title.totalChapters ?: chaptersCount.takeIf { it > 0 })
+            ?.let { "Главы" to "$it опубликовано" },
+        title.updatedAt?.let { "Обновлено" to titleDateLabel(it) },
+        title.isPublished?.let { "Публикация" to if (it) "Опубликован" else "Скрыт" },
+        title.altNames?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
+            ?.let { "Другие названия" to it.joinToString(" · ") },
+        title.chaptersRemovedByCopyrightHolder?.takeIf { it }
+            ?.let { "Доступность" to "Часть глав удалена по требованию правообладателя" },
+    )
+    val hasExtendedContent = details.isNotEmpty() ||
+        !title.genres.isNullOrEmpty() ||
+        !title.tags.isNullOrEmpty() ||
+        readCount > 0 || offlineCount > 0
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        color = TomiloSurface2.copy(alpha = 0.72f),
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder.copy(alpha = 0.62f)),
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "О тайтле",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (hasExtendedContent) {
+                    TextButton(onClick = onToggle) {
+                        Text(if (expanded) "Скрыть" else "Подробнее")
+                        Icon(
+                            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                        )
+                    }
+                }
+            }
+
+            if (!title.description.isNullOrBlank()) {
+                Text(
+                    title.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = if (expanded) Int.MAX_VALUE else 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                Text(
+                    "Описание пока не добавлено",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TomiloMuted,
+                )
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column {
+                    if (details.isNotEmpty()) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 14.dp),
+                            color = TomiloBorder.copy(alpha = 0.55f),
+                        )
+                        details.forEachIndexed { index, (label, value) ->
+                            TitleDetailRow(label, value)
+                            if (index != details.lastIndex) Spacer(Modifier.height(10.dp))
+                        }
+                    }
+
+                    title.genres?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }?.let { genres ->
+                        Spacer(Modifier.height(14.dp))
+                        Text("Жанры", style = MaterialTheme.typography.labelLarge, color = TomiloMuted)
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(top = 6.dp),
+                        ) {
+                            genres.forEach { genre ->
+                                DetailChip(genre)
+                                Spacer(Modifier.width(6.dp))
+                            }
+                        }
+                    }
+
+                    title.tags?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }?.let { tags ->
+                        Spacer(Modifier.height(12.dp))
+                        Text("Теги", style = MaterialTheme.typography.labelLarge, color = TomiloMuted)
+                        Text(
+                            tags.joinToString("  ·  "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(top = 5.dp),
+                        )
+                    }
+
+                    if (readCount > 0 || offlineCount > 0) {
+                        Spacer(Modifier.height(14.dp))
+                        HorizontalDivider(color = TomiloBorder.copy(alpha = 0.55f))
+                        Text(
+                            listOfNotNull(
+                                readCount.takeIf { it > 0 }?.let { "$it прочитано" },
+                                offlineCount.takeIf { it > 0 }?.let { "$it сохранено офлайн" },
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TitleDetailRow(label: String, value: String) {
+    if (value.length > 52) {
+        Column(Modifier.fillMaxWidth()) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
+            Spacer(Modifier.height(3.dp))
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+    } else {
+        Row(Modifier.fillMaxWidth()) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = TomiloMuted,
+                modifier = Modifier.width(112.dp),
+            )
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailChip(label: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
+        shape = RoundedCornerShape(10.dp),
+    ) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+        )
+    }
+}
+
+private fun titleTypeLabel(type: String): String = when (type.lowercase()) {
+    "manga" -> "Манга"
+    "manhwa" -> "Манхва"
+    "manhua" -> "Маньхуа"
+    "comics" -> "Комикс"
+    "novel", "ranobe", "light_novel" -> "Ранобэ"
+    else -> type
+}
+
+private fun titleStatusLabel(status: String): String = when (status.lowercase()) {
+    "ongoing", "publishing" -> "Онгоинг"
+    "completed", "finished" -> "Завершён"
+    "hiatus", "paused" -> "Приостановлен"
+    "cancelled", "canceled" -> "Отменён"
+    else -> status
+}
+
+private fun titleViewsLabel(views: Long): String = "${compactNumber(views)} всего"
+
+private fun compactNumber(value: Long): String = when {
+    value >= 1_000_000 -> "%.1f млн".format(value / 1_000_000.0)
+    value >= 1_000 -> "%.1f тыс.".format(value / 1_000.0)
+    else -> value.toString()
+}
+
+private fun titleDateLabel(raw: String): String = chapterDateLabel(raw)
+
+private fun chapterDateLabel(raw: String): String {
+    val date = raw.take(10)
+    val parts = date.split('-')
+    return if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else date
+}
+
+private fun chapterViewsLabel(views: Long): String = when {
+    views >= 1_000_000 -> "%.1f млн просм.".format(views / 1_000_000.0)
+    views >= 1_000 -> "%.1f тыс. просм.".format(views / 1_000.0)
+    else -> "$views просм."
+}
+
+private fun chapterStatusLabel(status: String): String = when (status.lowercase()) {
+    "published", "active" -> "опубликована"
+    "draft" -> "черновик"
+    "hidden" -> "скрыта"
+    else -> status
 }
