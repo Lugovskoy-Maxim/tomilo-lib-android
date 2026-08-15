@@ -1,22 +1,31 @@
 package ru.tomilo.lib.mobile.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,40 +41,62 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import kotlin.math.roundToInt
+
+class SwipeRevealCoordinator {
+    var openKey by mutableStateOf<String?>(null)
+        private set
+
+    fun open(key: String) {
+        openKey = key
+    }
+
+    fun close(key: String? = null) {
+        if (key == null || openKey == key) openKey = null
+    }
+}
+
+@Composable
+fun rememberSwipeRevealCoordinator(): SwipeRevealCoordinator = remember { SwipeRevealCoordinator() }
 
 /**
- * Telegram-like action revealed by swiping a row to the left.
- * The callback owns the data mutation, while the container owns gesture feedback.
+ * Свайп как в Telegram: короткое движение влево фиксирует кнопку.
+ * Карточка непрозрачная, отпускать и держать не нужно.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SwipeActionContainer(
     actionLabel: String,
@@ -74,50 +105,100 @@ fun SwipeActionContainer(
     modifier: Modifier = Modifier,
     actionColor: Color,
     enabled: Boolean = true,
+    revealKey: String? = null,
+    coordinator: SwipeRevealCoordinator? = null,
     content: @Composable () -> Unit,
 ) {
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart && enabled) {
-                onAction()
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val actionWidth = 84.dp
+    val actionPx = with(density) { actionWidth.toPx() }
+    val offset = remember { Animatable(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val revealed = offset.value <= -actionPx * 0.5f
+
+    LaunchedEffect(coordinator?.openKey, revealKey) {
+        if (revealKey != null && coordinator != null && coordinator.openKey != revealKey && offset.value != 0f) {
+            offset.animateTo(0f, spring(stiffness = Spring.StiffnessMedium))
+        }
+    }
+
+    fun snap(open: Boolean) {
+        scope.launch {
+            offset.animateTo(
+                if (open) -actionPx else 0f,
+                spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+            )
+            if (revealKey != null && coordinator != null) {
+                if (open) coordinator.open(revealKey) else coordinator.close(revealKey)
             }
-            // Data-owning screens remove the row themselves. Returning false also
-            // lets non-destructive actions (bookmark, archive) spring back cleanly.
-            false
-        },
-        positionalThreshold = { distance -> distance * 0.28f },
-    )
-    SwipeToDismissBox(
-        state = state,
-        modifier = modifier.fillMaxWidth(),
-        enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = enabled,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(19.dp))
-                    .background(actionColor),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(actionIcon, contentDescription = null, tint = Color.White)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        actionLabel,
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
+        }
+    }
+
+    val dragState = rememberDraggableState { delta ->
+        if (!enabled) return@rememberDraggableState
+        scope.launch {
+            offset.snapTo((offset.value + delta).coerceIn(-actionPx, 0f))
+        }
+    }
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .height(IntrinsicSize.Min)
+            .clipToBounds(),
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(actionWidth)
+                .padding(vertical = 6.dp, horizontal = 6.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(actionColor)
+                .clickable(enabled = enabled && revealed) {
+                    onAction()
+                    snap(false)
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(actionIcon, contentDescription = actionLabel, tint = Color.White)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    actionLabel,
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
-        },
-        content = { content() },
-    )
+        }
+        Box(
+            Modifier
+                .offset { IntOffset(offset.value.roundToInt(), 0) }
+                .draggable(
+                    state = dragState,
+                    orientation = Orientation.Horizontal,
+                    enabled = enabled,
+                    onDragStarted = { dragging = true },
+                    onDragStopped = { velocity ->
+                        dragging = false
+                        val shouldOpen = offset.value < -actionPx * 0.28f || velocity < -700f
+                        snap(shouldOpen)
+                    },
+                ),
+        ) {
+            content()
+            if (dragging || offset.value < -4f) {
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clickable { snap(false) },
+                )
+            }
+        }
+    }
 }
 
 @Composable

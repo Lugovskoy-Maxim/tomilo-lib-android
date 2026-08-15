@@ -1,6 +1,7 @@
 package ru.tomilo.lib.mobile.ui.screens.search
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.ListCardsSkeleton
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
@@ -114,7 +115,7 @@ fun SearchScreen(
                 )
             }
             when {
-                loading -> LoadingBox()
+                loading -> ListCardsSkeleton()
                 error != null -> ErrorBox(error ?: "Ошибка поиска")
                 query.trim().length < 2 -> EmptyState(
                     title = "Найдите свою историю",
@@ -126,7 +127,9 @@ fun SearchScreen(
                     message = "Попробуйте другое название или проверьте написание.",
                     icon = Icons.Default.Search,
                 )
-                else -> LazyColumn(contentPadding = ScreenPadding) {
+                else -> LazyColumn(
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 100.dp),
+                ) {
                     items(results, key = { it.id ?: it.displayTitle() }) { hit ->
                         TitleSearchCard(
                             title = hit.displayTitle(),

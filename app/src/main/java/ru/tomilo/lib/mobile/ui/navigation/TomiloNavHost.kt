@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +54,7 @@ import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
 import ru.tomilo.lib.mobile.ui.screens.premium.PremiumScreen
 import ru.tomilo.lib.mobile.ui.screens.profile.ProfileScreen
+import ru.tomilo.lib.mobile.ui.screens.library.LibraryScreen
 import ru.tomilo.lib.mobile.ui.screens.reader.ReaderScreen
 import ru.tomilo.lib.mobile.ui.screens.quests.QuestsScreen
 import ru.tomilo.lib.mobile.ui.screens.search.SearchScreen
@@ -71,6 +74,7 @@ object Routes {
     const val Catalog = "catalog"
     const val Search = "search"
     const val Bookmarks = "bookmarks"
+    const val Library = "library"
     const val Chats = "chats"
     const val Profile = "profile"
     const val Offline = "offline"
@@ -112,25 +116,24 @@ fun TomiloNavHost(container: AppContainer) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // Order mirrors site mobile footer: side tabs + center logo home
     val tabs = listOf(
+        TomiloTabItem(
+            route = Routes.Home,
+            label = "Лента",
+            icon = Icons.Outlined.AutoStories,
+            selectedIcon = Icons.Filled.AutoStories,
+        ),
         TomiloTabItem(
             route = Routes.Catalog,
             label = "Каталог",
-            icon = Icons.Outlined.GridView,
-            selectedIcon = Icons.Filled.GridView,
+            icon = Icons.Outlined.Explore,
+            selectedIcon = Icons.Filled.Explore,
         ),
         TomiloTabItem(
-            route = Routes.Bookmarks,
-            label = "Закладки",
-            icon = Icons.Outlined.BookmarkBorder,
-            selectedIcon = Icons.Filled.Bookmark,
-        ),
-        TomiloTabItem(
-            route = Routes.Home,
-            label = "Главная",
-            icon = Icons.Filled.GridView, // unused — isMain logo
-            isMain = true,
+            route = Routes.Library,
+            label = "Полка",
+            icon = Icons.AutoMirrored.Outlined.MenuBook,
+            selectedIcon = Icons.AutoMirrored.Filled.MenuBook,
         ),
         TomiloTabItem(
             route = Routes.Chats,
@@ -140,7 +143,7 @@ fun TomiloNavHost(container: AppContainer) {
         ),
         TomiloTabItem(
             route = Routes.Profile,
-            label = "Профиль",
+            label = "Я",
             icon = Icons.Outlined.Person,
             selectedIcon = Icons.Filled.Person,
         ),
@@ -276,6 +279,21 @@ fun TomiloNavHost(container: AppContainer) {
                     },
                 )
             }
+            composable(Routes.Library) {
+                LibraryScreen(
+                    authRepository = container.authRepository,
+                    socialRepository = container.socialRepository,
+                    historyRepository = container.historyRepository,
+                    offlineRepository = container.offlineRepository,
+                    onLogin = { goLogin() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
+                    onContinue = { titleId, chapterId, offline ->
+                        navController.navigate(Routes.reader(chapterId, offline = offline, titleId = titleId))
+                    },
+                )
+            }
             composable(Routes.Bookmarks) {
                 BookmarksScreen(
                     authRepository = container.authRepository,
@@ -369,6 +387,7 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Premium) {
                 PremiumScreen(
                     authRepository = container.authRepository,
+                    paymentsRepository = container.paymentsRepository,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
                 )

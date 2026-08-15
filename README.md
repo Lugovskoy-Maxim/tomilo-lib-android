@@ -69,7 +69,7 @@ APK: `app/build/outputs/apk/rustore/debug/`
 ./scripts/build-rustore.sh
 ```
 
-Артефакты: `dist/rustore/tomilo-rustore-v1.1.1-13-….apk` и `.aab`
+Артефакты: `dist/rustore/tomilo-rustore-v1.1.2-14-….apk` и `.aab`
 
 Карточка магазина (текст, возраст, чеклист): [`store/rustore/listing.md`](store/rustore/listing.md)
 
@@ -93,8 +93,8 @@ AAB: `app/build/outputs/bundle/playRelease/…aab`
 
 ```bash
 # versionName в app/build.gradle.kts должен совпадать с тегом без «v»
-git tag v1.1.1
-git push origin v1.1.1
+git tag v1.1.2
+git push origin v1.1.2
 ```
 
 Либо Actions → **Release** → Run workflow. Подробности: [`.github/RELEASE.md`](.github/RELEASE.md).
@@ -125,8 +125,8 @@ ApplicationId: `ru.tomilo.lib.mobile`
 
 ## Версия
 
-Текущий релиз: **1.1.1** (`versionCode 13`). Изменения релиза описаны в
-[`store/rustore/whats-new-1.1.1-2026-08-15.md`](store/rustore/whats-new-1.1.1-2026-08-15.md).
+Текущий релиз: **1.1.2** (`versionCode 14`). Изменения релиза описаны в
+[`store/rustore/whats-new-1.1.2-2026-08-15.md`](store/rustore/whats-new-1.1.2-2026-08-15.md).
 
 ## Лицензия
 

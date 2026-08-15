@@ -1,5 +1,7 @@
 package ru.tomilo.lib.mobile.ui.screens.profile
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,11 +13,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import coil.compose.AsyncImage
 import ru.tomilo.lib.mobile.core.MediaUrl
 import androidx.compose.material3.Button
@@ -169,44 +173,64 @@ fun ProfileScreen(
                     onToggle = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
                 )
             } else {
-                Row(
+                val premium = Premium.isActive(user!!.subscriptionExpiresAt)
+                Column(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Brush.linearGradient(listOf(TomiloPrimary.copy(alpha = 0.18f), TomiloSurface)))
-                        .border(1.dp, TomiloPrimary.copy(alpha = 0.22f), RoundedCornerShape(20.dp))
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Brush.linearGradient(listOf(TomiloPrimary.copy(alpha = 0.20f), TomiloSurface)))
+                        .border(1.dp, TomiloPrimary.copy(alpha = 0.22f), RoundedCornerShape(24.dp))
+                        .clickable { onOpenMyPublicProfile(user!!.stableId()) }
+                        .padding(18.dp),
                 ) {
-                    AsyncImage(
-                        model = MediaUrl.resolve(user!!.avatar),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(TomiloPrimary.copy(alpha = 0.14f)),
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            user!!.username ?: "Пользователь",
-                            style = MaterialTheme.typography.headlineMedium,
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(
+                            model = MediaUrl.resolve(user!!.avatar),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(76.dp)
+                                .clip(CircleShape)
+                                .border(
+                                    2.dp,
+                                    if (premium) TomiloPremium else TomiloPrimary.copy(alpha = 0.45f),
+                                    CircleShape,
+                                )
+                                .background(TomiloPrimary.copy(alpha = 0.14f)),
                         )
-                        Spacer(Modifier.height(2.dp))
-                        Text(user!!.email.orEmpty(), color = TomiloMuted)
-                        user!!.level?.let {
-                            Spacer(Modifier.height(4.dp))
-                            Text("Уровень $it", color = TomiloMuted)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                user!!.username ?: "Пользователь",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            if (premium) {
+                                Text("Premium", color = TomiloPremium, style = MaterialTheme.typography.labelLarge)
+                            }
+                            user!!.email?.takeIf { it.isNotBlank() }?.let {
+                                Text(it, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text(
+                                "Уровень ${user!!.level ?: 0}" +
+                                    (user!!.experience?.let { " · $it XP" } ?: ""),
+                                color = TomiloMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
-                        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 8.dp)) {
-                            user!!.balance?.let { Text("$it мон.", color = TomiloPremium, style = MaterialTheme.typography.labelMedium) }
-                            user!!.currentStreak?.let { Text("$it дн. серия", color = TomiloPrimary, style = MaterialTheme.typography.labelMedium) }
-                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        ProfileStatChip("Главы", "${user!!.chaptersRead ?: 0}", Modifier.weight(1f))
+                        ProfileStatChip("Тайтлы", "${user!!.titlesReadCount ?: 0}", Modifier.weight(1f))
+                        ProfileStatChip("Серия", "${user!!.currentStreak ?: 0}", Modifier.weight(1f))
+                        ProfileStatChip("Монеты", "${user!!.balance ?: 0}", Modifier.weight(1f))
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                val premium = Premium.isActive(user!!.subscriptionExpiresAt)
                 ActionRow(
                     icon = Icons.Default.Star,
                     title = if (premium) "Premium активен" else "Tomilo Premium",
@@ -215,60 +239,15 @@ fun ProfileScreen(
                     iconTint = TomiloPremium,
                     onClick = onOpenPremium,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 AdultToggleRow(
                     contentSettings = contentSettings,
                     onToggle = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
                 )
                 Spacer(Modifier.height(22.dp))
-                Text("Библиотека", style = MaterialTheme.typography.titleLarge)
+                Text("Чтение", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(10.dp))
-                Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
-                    ActionRow(
-                        icon = Icons.Default.Person,
-                        title = "Публичный профиль",
-                        subtitle = "Статистика и достижения",
-                        onClick = { onOpenMyPublicProfile(user!!.stableId()) },
-                    )
-                    ActionRow(
-                        icon = Icons.Default.Casino,
-                        title = "Колесо судьбы",
-                        subtitle = "Призы, монеты, опыт и редкие предметы",
-                        iconTint = TomiloPremium,
-                        onClick = onOpenWheel,
-                    )
-                    ActionRow(
-                        icon = Icons.Default.ShoppingBag,
-                        title = "Магазин декораций",
-                        subtitle = "Аватары, рамки и фоны · ${user!!.balance ?: 0} монет",
-                        iconTint = TomiloPremium,
-                        onClick = onOpenShop,
-                    )
-                    ActionRow(
-                        icon = Icons.Default.TaskAlt,
-                        title = "Задания и награды",
-                        subtitle = "Ежедневный бонус, опыт и монеты",
-                        onClick = onOpenQuests,
-                    )
-                    ActionRow(
-                        icon = Icons.Default.Group,
-                        title = "Друзья",
-                        subtitle = "Заявки, поиск людей и личные диалоги",
-                        onClick = onOpenFriends,
-                    )
-                    ActionRow(
-                        icon = Icons.Default.NotificationsNone,
-                        title = "Уведомления",
-                        subtitle = "Ответы, обновления и системные сообщения",
-                        badge = notifUnread.takeIf { it > 0 }?.toString(),
-                        onClick = onOpenNotifications,
-                    )
-                    ActionRow(
-                        icon = Icons.Default.Update,
-                        title = "Все обновления",
-                        subtitle = "Архив новых глав и тайтлов",
-                        onClick = onOpenUpdates,
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionRow(
                         icon = Icons.Default.History,
                         title = "История чтения",
@@ -277,14 +256,58 @@ fun ProfileScreen(
                     )
                     ActionRow(
                         icon = Icons.Default.DownloadForOffline,
-                        title = "Офлайн-библиотека",
-                        subtitle = "${formatBytes(offlineBytes)} сохранено на устройстве",
+                        title = "Офлайн",
+                        subtitle = "${formatBytes(offlineBytes)} на устройстве",
                         onClick = onOpenOffline,
+                    )
+                    ActionRow(
+                        icon = Icons.Default.NotificationsNone,
+                        title = "Уведомления",
+                        subtitle = "Новые главы и ответы",
+                        badge = notifUnread.takeIf { it > 0 }?.toString(),
+                        onClick = onOpenNotifications,
+                    )
+                    ActionRow(
+                        icon = Icons.Default.Update,
+                        title = "Обновления",
+                        subtitle = "Свежие главы по каталогу",
+                        onClick = onOpenUpdates,
+                    )
+                }
+                Spacer(Modifier.height(22.dp))
+                Text("Сообщество", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionRow(
+                        icon = Icons.Default.Group,
+                        title = "Друзья",
+                        subtitle = "Заявки, поиск людей и профили",
+                        onClick = onOpenFriends,
+                    )
+                    ActionRow(
+                        icon = Icons.Default.TaskAlt,
+                        title = "Задания",
+                        subtitle = "Ежедневный бонус, опыт и монеты",
+                        onClick = onOpenQuests,
+                    )
+                    ActionRow(
+                        icon = Icons.Default.Casino,
+                        title = "Колесо судьбы",
+                        subtitle = "Призы, монеты и редкие предметы",
+                        iconTint = TomiloPremium,
+                        onClick = onOpenWheel,
+                    )
+                    ActionRow(
+                        icon = Icons.Default.ShoppingBag,
+                        title = "Магазин",
+                        subtitle = "Аватары и рамки · ${user!!.balance ?: 0} монет",
+                        iconTint = TomiloPremium,
+                        onClick = onOpenShop,
                     )
                     ActionRow(
                         icon = Icons.Default.Leaderboard,
                         title = "Лидеры",
-                        subtitle = "Рейтинг читателей Tomilo",
+                        subtitle = "Рейтинг читателей",
                         onClick = onOpenLeaders,
                     )
                 }
@@ -357,6 +380,20 @@ fun ProfileScreen(
             },
             onDismiss = { confirmLogout = false },
         )
+    }
+}
+
+@Composable
+private fun ProfileStatChip(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(TomiloBg.copy(alpha = 0.45f))
+            .padding(vertical = 8.dp, horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(label, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
     }
 }
 

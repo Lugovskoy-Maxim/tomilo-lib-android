@@ -243,13 +243,21 @@ fun UserProfileScreen(
                         }
                     }
                     Spacer(Modifier.height(16.dp))
-                    Stat("Глав прочитано", u.chaptersRead)
-                    Stat("Комментарии", u.commentsCount)
-                    Stat("Лайки", u.likesReceivedCount)
-                    Stat("Стрик", u.currentStreak)
-                    Stat("Тайтлов", u.titlesReadCount)
-                    Stat("Завершено", u.completedTitlesCount)
-                    Stat("Время чтения, мин", u.readingTimeMinutes)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        PublicStatCard("Главы", "${u.chaptersRead ?: 0}", Modifier.weight(1f))
+                        PublicStatCard("Тайтлы", "${u.titlesReadCount ?: 0}", Modifier.weight(1f))
+                        PublicStatCard("Серия", "${u.currentStreak ?: 0}", Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                        PublicStatCard("Комменты", "${u.commentsCount ?: 0}", Modifier.weight(1f))
+                        PublicStatCard("Лайки", "${u.likesReceivedCount ?: 0}", Modifier.weight(1f))
+                        PublicStatCard("Завершено", "${u.completedTitlesCount ?: 0}", Modifier.weight(1f))
+                    }
+                    u.readingTimeMinutes?.takeIf { it > 0 }?.let {
+                        Spacer(Modifier.height(8.dp))
+                        RowStat("Время чтения", "$it мин")
+                    }
 
                     if (me == null) {
                         Spacer(Modifier.height(20.dp))
@@ -264,9 +272,19 @@ fun UserProfileScreen(
 }
 
 @Composable
-private fun Stat(label: String, value: Int?) {
-    if (value == null) return
-    RowStat(label, value.toString())
+private fun PublicStatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(TomiloSurface2)
+            .border(1.dp, TomiloBorder.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+    }
 }
 
 @Composable

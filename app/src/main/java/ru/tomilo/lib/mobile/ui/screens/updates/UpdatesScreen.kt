@@ -37,7 +37,7 @@ import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.ListCardsSkeleton
 import ru.tomilo.lib.mobile.ui.components.LoadingMoreBar
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
@@ -128,7 +128,7 @@ fun UpdatesScreen(
         },
     ) { padding ->
         when {
-            loading && items.isEmpty() -> LoadingBox(Modifier.padding(padding), "Загружаем обновления…")
+            loading && items.isEmpty() -> ListCardsSkeleton(Modifier.padding(padding))
             error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка", Modifier.padding(padding)) { reload += 1 }
             items.isEmpty() -> EmptyState(
                 title = "Обновлений пока нет",
@@ -139,7 +139,7 @@ fun UpdatesScreen(
             else -> LazyColumn(
                 state = listState,
                 modifier = Modifier.padding(padding).fillMaxSize(),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 100.dp),
+                contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 100.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 item {

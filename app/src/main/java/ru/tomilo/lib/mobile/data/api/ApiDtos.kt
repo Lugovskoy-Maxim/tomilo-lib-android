@@ -627,3 +627,67 @@ data class SearchHitDto(
 ) {
     fun displayTitle(): String = title ?: name.orEmpty()
 }
+
+@Serializable
+data class CreateRobokassaPaymentRequest(val planId: String)
+
+@Serializable
+data class RobokassaPaymentFormDto(
+    val paymentId: String = "",
+    val invId: String = "",
+    val planId: String = "",
+    val chargedAmount: Double = 0.0,
+    val isTestPayment: Boolean = false,
+    val gatewayTestMode: Boolean = false,
+    val paymentUrl: String = "",
+    val fields: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class RobokassaPaymentStatusDto(
+    val invId: String = "",
+    val planId: String = "",
+    val amount: Double = 0.0,
+    val durationDays: Int = 0,
+    val status: String = "pending",
+    val paidAt: String? = null,
+    val subscriptionExpiresAt: String? = null,
+)
+
+@Serializable
+data class PremiumPaymentReceiptDto(
+    val sellerName: String? = null,
+    val sellerInn: String? = null,
+    val number: String? = null,
+    val itemName: String? = null,
+    val email: String? = null,
+)
+
+@Serializable
+data class PremiumPaymentHistoryItemDto(
+    val id: String = "",
+    val type: String = "robokassa",
+    val status: String = "pending",
+    val amount: Double = 0.0,
+    val currency: String = "RUB",
+    val description: String = "",
+    val durationDays: Int = 0,
+    val invId: String? = null,
+    val createdAt: String? = null,
+    val paidAt: String? = null,
+    val subscriptionExpiresAt: String? = null,
+    val isTestPayment: Boolean = false,
+    val gatewayTestMode: Boolean = false,
+    val receipt: PremiumPaymentReceiptDto? = null,
+)
+
+@Serializable
+data class CoinPremiumPurchaseRequest(val purchaseId: String)
+
+@Serializable
+data class CoinPremiumPurchaseResultDto(
+    val balance: Int = 0,
+    val subscriptionExpiresAt: String? = null,
+    val durationDays: Int = 30,
+    val priceCoins: Int = 30_000,
+)

@@ -34,10 +34,11 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.EmptyState
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.ListCardsSkeleton
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.components.SwipeActionContainer
+import ru.tomilo.lib.mobile.ui.components.rememberSwipeRevealCoordinator
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
@@ -60,6 +61,7 @@ fun HistoryScreen(
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val reveal = rememberSwipeRevealCoordinator()
 
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(40)
@@ -97,7 +99,7 @@ fun HistoryScreen(
         },
     ) { padding ->
         if (!authReady || (loading && user == null)) {
-            LoadingBox(Modifier.padding(padding))
+            ListCardsSkeleton(Modifier.padding(padding))
             return@Scaffold
         }
         if (user == null) {
@@ -107,7 +109,7 @@ fun HistoryScreen(
             return@Scaffold
         }
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
+            loading -> ListCardsSkeleton(Modifier.padding(padding))
             error != null && items.isEmpty() -> Column(Modifier.padding(padding)) {
                 ErrorBox(error ?: "Ошибка") { reload += 1 }
             }
@@ -135,6 +137,8 @@ fun HistoryScreen(
                         actionIcon = Icons.Outlined.DeleteOutline,
                         actionColor = TomiloDanger,
                         enabled = tid.isNotBlank(),
+                        revealKey = tid,
+                        coordinator = reveal,
                         onAction = {
                             val snapshot = items
                             items = items.filterNot { it === h }

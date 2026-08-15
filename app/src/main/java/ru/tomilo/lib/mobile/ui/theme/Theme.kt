@@ -64,7 +64,7 @@ private val TomiloShapes = Shapes(
 
 @Composable
 fun TomiloTheme(
-    darkTheme: Boolean = true, // default dark — matches site reading focus
+    darkTheme: Boolean = true, // Ink: тёмная читалка по умолчанию
     content: @Composable () -> Unit,
 ) {
     val colors = if (darkTheme || isSystemInDarkTheme()) DarkColors else LightColors

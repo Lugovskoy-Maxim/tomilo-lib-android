@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
@@ -50,6 +52,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -96,8 +100,15 @@ import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
+
+private enum class TitlePageTab(val label: String) {
+    About("Описание"),
+    Chapters("Главы"),
+    Comments("Комментарии"),
+}
 
 private enum class ChapterSort(val label: String) {
     NumberAsc("№ ↑"),
@@ -148,7 +159,8 @@ fun TitleScreen(
     var pendingAdChapters by remember { mutableStateOf<List<ChapterDto>?>(null) }
     var adBusy by remember { mutableStateOf(false) }
     var showBookmarkCategories by remember { mutableStateOf(false) }
-    var titleDetailsExpanded by remember { mutableStateOf(false) }
+    var titleDetailsExpanded by remember { mutableStateOf(true) }
+    var pageTab by remember { mutableStateOf(TitlePageTab.Chapters) }
 
     val sortedChapters = remember(chapters, sort) {
         when (sort) {
@@ -525,7 +537,7 @@ fun TitleScreen(
                                     )
                                 }
                                 if (continueChapterId != null) {
-                                    Spacer(Modifier.height(8.dp))
+                                    Spacer(Modifier.height(12.dp))
                                     Button(
                                         onClick = {
                                             onOpenChapter(
@@ -534,59 +546,83 @@ fun TitleScreen(
                                                 continueChapterId in downloadedIds,
                                             )
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp),
+                                        shape = RoundedCornerShape(14.dp),
                                     ) {
                                         Text(
-                                            if (readChapterIds.isEmpty()) "Начать чтение"
-                                            else "Продолжить",
+                                            if (readChapterIds.isEmpty()) "Читать"
+                                            else "Продолжить чтение",
+                                            style = MaterialTheme.typography.titleMedium,
                                         )
                                     }
                                 }
                             }
                         }
-                        TitleDetailsCard(
-                            title = t,
-                            chaptersCount = chapters.size,
-                            readCount = readChapterIds.size,
-                            offlineCount = downloadedIds.size,
-                            expanded = titleDetailsExpanded,
-                            onToggle = { titleDetailsExpanded = !titleDetailsExpanded },
-                        )
-                        // Rating
-                        Text(
-                            "Оценка",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                        Row(
-                            Modifier
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 12.dp),
+                        TabRow(
+                            selectedTabIndex = pageTab.ordinal,
+                            containerColor = Color.Transparent,
+                            modifier = Modifier.padding(top = 4.dp),
                         ) {
-                            (1..10).forEach { star ->
-                                FilterChip(
-                                    selected = myRating == star,
-                                    onClick = {
-                                        if (user == null) {
-                                            onLogin()
-                                            return@FilterChip
-                                        }
-                                        scope.launch {
-                                            historyRepository.rateTitle(t.stableId(), star)
-                                                .onSuccess {
-                                                    myRating = star
-                                                    snackbar.showSnackbar("Оценка: $star/10")
-                                                }
-                                                .onFailure {
-                                                    snackbar.showSnackbar(it.message ?: "Ошибка")
-                                                }
-                                        }
-                                    },
-                                    label = { Text("$star") },
-                                    modifier = Modifier.padding(horizontal = 2.dp),
+                            TitlePageTab.entries.forEach { tab ->
+                                Tab(
+                                    selected = pageTab == tab,
+                                    onClick = { pageTab = tab },
+                                    text = { Text(tab.label) },
                                 )
                             }
                         }
+                    }
+                    if (pageTab == TitlePageTab.About) {
+                        item(key = "about") {
+                            TitleDetailsCard(
+                                title = t,
+                                chaptersCount = chapters.size,
+                                readCount = readChapterIds.size,
+                                offlineCount = downloadedIds.size,
+                                expanded = titleDetailsExpanded,
+                                onToggle = { titleDetailsExpanded = !titleDetailsExpanded },
+                            )
+                            TitleRatingBlock(
+                                average = t.averageRating,
+                                total = t.totalRatings,
+                                myRating = myRating,
+                                onRate = { star ->
+                                    if (user == null) {
+                                        onLogin()
+                                        return@TitleRatingBlock
+                                    }
+                                    scope.launch {
+                                        historyRepository.rateTitle(t.stableId(), star)
+                                            .onSuccess {
+                                                myRating = star
+                                                snackbar.showSnackbar("Оценка: $star/10")
+                                            }
+                                            .onFailure {
+                                                snackbar.showSnackbar(it.message ?: "Ошибка")
+                                            }
+                                    }
+                                },
+                            )
+                            Spacer(Modifier.height(80.dp))
+                        }
+                    }
+                    if (pageTab == TitlePageTab.Comments) {
+                        item(key = "comments") {
+                            CommentsSection(
+                                entityType = "title",
+                                entityId = t.stableId(),
+                                socialRepository = socialRepository,
+                                isLoggedIn = user != null,
+                                onLoginRequired = onLogin,
+                                onOpenUser = onOpenUser,
+                            )
+                            Spacer(Modifier.height(80.dp))
+                        }
+                    }
+                    if (pageTab == TitlePageTab.Chapters) {
+                    item(key = "chapters-head") {
                         Text(
                             "Главы",
                             style = MaterialTheme.typography.titleMedium,
@@ -760,18 +796,8 @@ fun TitleScreen(
                             }
                         }
                     }
-                    item {
-                        CommentsSection(
-                            entityType = "title",
-                            entityId = t.stableId(),
-                            socialRepository = socialRepository,
-                            isLoggedIn = user != null,
-                            onLoginRequired = onLogin,
-                            onOpenUser = onOpenUser,
-                        )
-                        Spacer(Modifier.height(100.dp))
                     }
-                }
+                    }
             }
         }
     }
@@ -879,6 +905,69 @@ fun TitleScreen(
                 ) { Text("Удалить") }
             },
         )
+    }
+}
+
+@Composable
+private fun TitleRatingBlock(
+    average: Double?,
+    total: Int?,
+    myRating: Int,
+    onRate: (Int) -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        color = TomiloSurface2,
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder.copy(alpha = 0.62f)),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Оценка", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (total != null && total > 0) "$total оценок" else "Пока нет оценок",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text(
+                    if (average != null && average > 0) String.format("%.1f", average) else "—",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = TomiloPremium,
+                )
+                Text(
+                    " / 10",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 2.dp, top = 6.dp),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                (1..10).forEach { star ->
+                    Icon(
+                        imageVector = if (star <= myRating) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = "$star",
+                        tint = if (star <= myRating) TomiloPremium else TomiloMuted,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clickable { onRate(star) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                if (myRating > 0) "Ваша оценка: $myRating из 10" else "Нажмите звезду, чтобы оценить",
+                color = if (myRating > 0) TomiloPremium else TomiloMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 

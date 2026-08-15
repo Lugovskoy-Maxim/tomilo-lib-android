@@ -5,7 +5,11 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import ru.tomilo.lib.mobile.core.ReaderDirection
+import ru.tomilo.lib.mobile.core.ReaderLayout
+import ru.tomilo.lib.mobile.core.ReaderMode
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -104,6 +108,48 @@ class ReadingPrefs(private val context: Context) {
     suspend fun markHistorySynced(titleId: String, chapterId: String) {
         context.readingDataStore.edit { prefs ->
             prefs[pendingHistoryKey] = prefs[pendingHistoryKey].orEmpty() - "$titleId|$chapterId"
+        }
+    }
+
+    suspend fun layoutFor(titleId: String, titleType: String?): ReaderLayout {
+        val stored = titleId.takeIf { it.isNotBlank() }?.let { id ->
+            context.readingDataStore.data.first()[stringPreferencesKey("layout_$id")]
+        }
+        return when (stored) {
+            "webtoon" -> ReaderLayout.WEBTOON
+            "pager" -> ReaderLayout.PAGER
+            else -> ReaderMode.inferLayout(titleType)
+        }
+    }
+
+    suspend fun setLayoutFor(titleId: String, layout: ReaderLayout) {
+        if (titleId.isBlank()) return
+        context.readingDataStore.edit {
+            it[stringPreferencesKey("layout_$titleId")] = when (layout) {
+                ReaderLayout.WEBTOON -> "webtoon"
+                ReaderLayout.PAGER -> "pager"
+            }
+        }
+    }
+
+    suspend fun directionFor(titleId: String, titleType: String?): ReaderDirection {
+        val stored = titleId.takeIf { it.isNotBlank() }?.let { id ->
+            context.readingDataStore.data.first()[stringPreferencesKey("direction_$id")]
+        }
+        return when (stored) {
+            "ltr" -> ReaderDirection.LTR
+            "rtl" -> ReaderDirection.RTL
+            else -> ReaderMode.inferDirection(titleType)
+        }
+    }
+
+    suspend fun setDirectionFor(titleId: String, direction: ReaderDirection) {
+        if (titleId.isBlank()) return
+        context.readingDataStore.edit {
+            it[stringPreferencesKey("direction_$titleId")] = when (direction) {
+                ReaderDirection.LTR -> "ltr"
+                ReaderDirection.RTL -> "rtl"
+            }
         }
     }
 }

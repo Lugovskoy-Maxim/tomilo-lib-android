@@ -378,4 +378,26 @@ interface TomiloApi {
 
     @GET("admin/comments/stats")
     suspend fun adminCommentsStats(): ApiResponse<JsonElement>
+
+    // ── Payments / Robokassa ────────────────────────────────────
+    @POST("payments/robokassa")
+    suspend fun createRobokassaPayment(
+        @Body body: CreateRobokassaPaymentRequest,
+    ): ApiResponse<RobokassaPaymentFormDto>
+
+    @POST("payments/robokassa/admin/test")
+    suspend fun createAdminRobokassaTestPayment(): ApiResponse<RobokassaPaymentFormDto>
+
+    @GET("payments/robokassa/status/{invId}")
+    suspend fun robokassaPaymentStatus(
+        @Path("invId") invId: String,
+    ): ApiResponse<RobokassaPaymentStatusDto>
+
+    @GET("payments/history")
+    suspend fun paymentHistory(): ApiResponse<List<PremiumPaymentHistoryItemDto>>
+
+    @POST("payments/premium/coins")
+    suspend fun purchasePremiumWithCoins(
+        @Body body: CoinPremiumPurchaseRequest,
+    ): ApiResponse<CoinPremiumPurchaseResultDto>
 }

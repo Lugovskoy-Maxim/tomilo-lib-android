@@ -6,13 +6,17 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -22,9 +26,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.Button
@@ -39,8 +44,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,6 +70,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
@@ -72,9 +78,8 @@ import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.EmptyState
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.CatalogGridSkeleton
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
-import ru.tomilo.lib.mobile.ui.components.PageIntro
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -87,6 +92,7 @@ private val SORTS = listOf(
     SortOption("createdAt", "desc", "Новые"),
     SortOption("views", "desc", "Просмотры"),
     SortOption("weekViews", "desc", "За неделю"),
+    SortOption("averageRating", "desc", "Рейтинг"),
     SortOption("name", "asc", "А–Я"),
 )
 
@@ -94,10 +100,15 @@ private val STATUS_LABELS = mapOf(
     "ongoing" to "Онгоинг",
     "completed" to "Завершён",
     "pause" to "Пауза",
+    "hiatus" to "Пауза",
     "cancelled" to "Отменён",
+    "announced" to "Анонс",
 )
 
-@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
+private val DEFAULT_TYPES = listOf("manga", "manhwa", "manhua", "comic")
+private val DEFAULT_AGES = listOf(0, 12, 16, 18)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, FlowPreview::class)
 @Composable
 fun CatalogScreen(
     catalogRepository: CatalogRepository,
@@ -114,6 +125,9 @@ fun CatalogScreen(
     var selectedTypes by remember { mutableStateOf(setOf<String>()) }
     var selectedStatus by remember { mutableStateOf<String?>(null) }
     var selectedGenres by remember { mutableStateOf(setOf<String>()) }
+    var selectedYears by remember { mutableStateOf(setOf<Int>()) }
+    var selectedAges by remember { mutableStateOf(setOf<Int>()) }
+    var genreQuery by remember { mutableStateOf("") }
     // Глобальная настройка 18+; локальный чип синхронизирован
     var includeAdult by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
@@ -158,6 +172,8 @@ fun CatalogScreen(
             status = selectedStatus,
             sortBy = sort.sortBy,
             sortOrder = sort.sortOrder,
+            releaseYears = selectedYears.takeIf { it.isNotEmpty() }?.sortedDescending()?.joinToString(","),
+            ageLimits = selectedAges.takeIf { it.isNotEmpty() }?.sorted()?.joinToString(","),
             includeAdult = includeAdult,
         )
     }
@@ -168,6 +184,8 @@ fun CatalogScreen(
         selectedTypes,
         selectedStatus,
         selectedGenres,
+        selectedYears,
+        selectedAges,
         includeAdult,
         reload,
     ) {
@@ -233,8 +251,19 @@ fun CatalogScreen(
             }
     }
 
-    val activeFilters = selectedTypes.size + selectedGenres.size +
-        (if (selectedStatus != null) 1 else 0) + (if (includeAdult) 1 else 0)
+    val activeFilters = selectedTypes.size + selectedGenres.size + selectedYears.size +
+        selectedAges.size + (if (selectedStatus != null) 1 else 0) + (if (includeAdult) 1 else 0)
+
+    fun clearFilters() {
+        selectedTypes = emptySet()
+        selectedGenres = emptySet()
+        selectedYears = emptySet()
+        selectedAges = emptySet()
+        selectedStatus = null
+        genreQuery = ""
+        includeAdult = false
+        scope.launch { contentPrefs.setShowAdult(false) }
+    }
 
     Scaffold(
         containerColor = TomiloBg,
@@ -260,13 +289,6 @@ fun CatalogScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
-            PageIntro(
-                title = "Исследуйте библиотеку",
-                subtitle = "Манга, манхва, маньхуа и комиксы в одном каталоге",
-                icon = Icons.Default.AutoAwesome,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                trailing = { if (!loading) StatusPill(if (total > 999) "999+" else "$total") },
-            )
             OutlinedTextField(
                 value = searchInput,
                 onValueChange = { searchInput = it },
@@ -277,12 +299,36 @@ fun CatalogScreen(
                 shape = RoundedCornerShape(20.dp),
                 placeholder = { Text("Название, автор…") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchInput.isNotEmpty()) {
+                        IconButton(onClick = { searchInput = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Очистить")
+                        }
+                    }
+                },
             )
 
             Row(
                 Modifier
                     .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 12.dp),
+            ) {
+                DEFAULT_TYPES.forEach { type ->
+                    FilterChip(
+                        selected = type in selectedTypes,
+                        onClick = {
+                            selectedTypes = if (type in selectedTypes) selectedTypes - type else selectedTypes + type
+                        },
+                        label = { Text(ReaderMode.typeLabel(type)) },
+                        modifier = Modifier.padding(horizontal = 3.dp),
+                    )
+                }
+            }
+
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
             ) {
                 SORTS.forEachIndexed { i, s ->
                     FilterChip(
@@ -302,9 +348,79 @@ fun CatalogScreen(
                 if (activeFilters > 0) StatusPill("$activeFilters фильтр.")
             }
 
+            if (activeFilters > 0) {
+                Row(
+                    Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    selectedTypes.forEach { type ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedTypes = selectedTypes - type },
+                            label = { Text(ReaderMode.typeLabel(type)) },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    selectedStatus?.let { st ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedStatus = null },
+                            label = { Text(STATUS_LABELS[st] ?: st) },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    selectedGenres.forEach { genre ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedGenres = selectedGenres - genre },
+                            label = { Text(genre) },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    selectedYears.forEach { year ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedYears = selectedYears - year },
+                            label = { Text("$year") },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    selectedAges.forEach { age ->
+                        FilterChip(
+                            selected = true,
+                            onClick = { selectedAges = selectedAges - age },
+                            label = { Text(if (age == 0) "0+" else "$age+") },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    if (includeAdult) {
+                        FilterChip(
+                            selected = true,
+                            onClick = {
+                                includeAdult = false
+                                scope.launch { contentPrefs.setShowAdult(false) }
+                            },
+                            label = { Text("18+") },
+                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                            modifier = Modifier.padding(end = 4.dp),
+                        )
+                    }
+                    TextButton(onClick = { clearFilters() }) { Text("Сбросить") }
+                }
+            }
+
             when {
-                loading && items.isEmpty() -> LoadingBox(
-                    message = "Загружаем каталог…",
+                loading && items.isEmpty() -> CatalogGridSkeleton(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                 )
                 error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка") { reload += 1 }
                 items.isEmpty() -> EmptyState(
@@ -316,10 +432,7 @@ fun CatalogScreen(
                         {
                             searchInput = ""
                             sortIndex = 0
-                            selectedTypes = emptySet()
-                            selectedStatus = null
-                            selectedGenres = emptySet()
-                            includeAdult = false
+                            clearFilters()
                         }
                     } else null,
                 )
@@ -384,117 +497,177 @@ fun CatalogScreen(
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = TomiloBg,
         ) {
+            val typeOptions = options.types.ifEmpty { DEFAULT_TYPES }
+            val statusOptions = options.status.ifEmpty { STATUS_LABELS.keys.toList() }
+            val yearOptions = options.releaseYears.ifEmpty {
+                (2026 downTo 2005).toList()
+            }.sortedDescending()
+            val ageOptions = options.ageLimits.ifEmpty { DEFAULT_AGES }.sorted()
+            val visibleGenres = options.genres.filter {
+                genreQuery.isBlank() || it.contains(genreQuery, ignoreCase = true)
+            }
+
             Column(
                 Modifier
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 28.dp),
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.92f)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp),
             ) {
-                Text("Фильтры", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
-
-                Text("Тип", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                FlowChips(
-                    options = options.types.ifEmpty { listOf("manga", "manhwa", "manhua", "comic") },
-                    selected = selectedTypes,
-                    label = { it },
-                    onToggle = { t ->
-                        selectedTypes = if (t in selectedTypes) selectedTypes - t else selectedTypes + t
-                    },
-                )
-
-                Spacer(Modifier.height(12.dp))
-                Text("Статус", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    FilterChip(
-                        selected = selectedStatus == null,
-                        onClick = { selectedStatus = null },
-                        label = { Text("Любой") },
-                        modifier = Modifier.padding(end = 4.dp),
-                    )
-                    (options.status.ifEmpty { STATUS_LABELS.keys.toList() }).forEach { st ->
-                        FilterChip(
-                            selected = selectedStatus == st,
-                            onClick = {
-                                selectedStatus = if (selectedStatus == st) null else st
-                            },
-                            label = { Text(STATUS_LABELS[st] ?: st) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Фильтры", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    if (activeFilters > 0) {
+                        TextButton(onClick = { clearFilters() }) { Text("Сбросить всё") }
                     }
                 }
-
-                if (options.genres.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    Text("Жанры", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(6.dp))
-                    FlowChips(
-                        options = options.genres.take(40),
-                        selected = selectedGenres,
-                        label = { it },
-                        onToggle = { g ->
-                            selectedGenres =
-                                if (g in selectedGenres) selectedGenres - g else selectedGenres + g
-                        },
-                    )
-                }
-
+                Text(
+                    if (activeFilters > 0) "Выбрано: $activeFilters" else "Тип, статус, жанр, год и возраст",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Spacer(Modifier.height(12.dp))
-                if (canShowAdult) {
-                    FilterChip(
-                        selected = includeAdult,
-                        onClick = {
-                            val next = !includeAdult
-                            includeAdult = next
-                            scope.launch { contentPrefs.setShowAdult(next) }
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Text("Тип", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    WrapChips(
+                        options = typeOptions,
+                        selected = selectedTypes,
+                        label = { ReaderMode.typeLabel(it) },
+                        onToggle = { t ->
+                            selectedTypes = if (t in selectedTypes) selectedTypes - t else selectedTypes + t
                         },
-                        label = { Text(if (includeAdult) "18+ вкл" else "18+ выкл") },
                     )
-                } else {
-                    Text(
-                        "Контент 18+ недоступен (возраст не подтверждён)",
-                        color = TomiloMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
 
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            selectedTypes = emptySet()
-                            selectedGenres = emptySet()
-                            selectedStatus = null
-                            includeAdult = false
-                            scope.launch { contentPrefs.setShowAdult(false) }
+                    Spacer(Modifier.height(16.dp))
+                    Text("Статус", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    WrapChips(
+                        options = listOf("__any") + statusOptions,
+                        selected = if (selectedStatus == null) setOf("__any") else setOf(selectedStatus!!),
+                        label = { if (it == "__any") "Любой" else STATUS_LABELS[it] ?: it },
+                        onToggle = { st ->
+                            selectedStatus = if (st == "__any" || selectedStatus == st) null else st
                         },
+                    )
+
+                    if (options.genres.isNotEmpty()) {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "Жанры" + if (selectedGenres.isNotEmpty()) " · ${selectedGenres.size}" else "",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = genreQuery,
+                            onValueChange = { genreQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            placeholder = { Text("Найти жанр") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        if (visibleGenres.isEmpty()) {
+                            Text("Нет такого жанра", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            WrapChips(
+                                options = visibleGenres,
+                                selected = selectedGenres,
+                                label = { it },
+                                onToggle = { g ->
+                                    selectedGenres = if (g in selectedGenres) selectedGenres - g else selectedGenres + g
+                                },
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Text("Год выпуска", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    WrapChips(
+                        options = yearOptions.map { it.toString() },
+                        selected = selectedYears.map { it.toString() }.toSet(),
+                        label = { it },
+                        onToggle = { raw ->
+                            val year = raw.toIntOrNull() ?: return@WrapChips
+                            selectedYears = if (year in selectedYears) selectedYears - year else selectedYears + year
+                        },
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+                    Text("Возраст", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    WrapChips(
+                        options = ageOptions.map { it.toString() },
+                        selected = selectedAges.map { it.toString() }.toSet(),
+                        label = { age -> if (age == "0") "0+" else "$age+" },
+                        onToggle = { raw ->
+                            val age = raw.toIntOrNull() ?: return@WrapChips
+                            selectedAges = if (age in selectedAges) selectedAges - age else selectedAges + age
+                        },
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+                    Text("Контент 18+", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                    if (canShowAdult) {
+                        FilterChip(
+                            selected = includeAdult,
+                            onClick = {
+                                val next = !includeAdult
+                                includeAdult = next
+                                scope.launch { contentPrefs.setShowAdult(next) }
+                            },
+                            label = { Text(if (includeAdult) "Показывать 18+" else "Скрывать 18+") },
+                        )
+                    } else {
+                        Text(
+                            "Недоступно: возраст не подтверждён",
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Spacer(Modifier.height(20.dp))
+                }
+                Row(
+                    Modifier.padding(top = 10.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = { clearFilters() },
                         modifier = Modifier.weight(1f),
                     ) { Text("Сбросить") }
                     Button(
                         onClick = { showFilters = false },
                         modifier = Modifier.weight(1f),
-                    ) { Text("Готово") }
+                    ) { Text(if (activeFilters > 0) "Показать · $activeFilters" else "Готово") }
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FlowChips(
+private fun WrapChips(
     options: List<String>,
     selected: Set<String>,
     label: (String) -> String,
     onToggle: (String) -> Unit,
 ) {
-    Row(Modifier.horizontalScroll(rememberScrollState())) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         options.forEach { opt ->
             FilterChip(
                 selected = opt in selected,
                 onClick = { onToggle(opt) },
                 label = { Text(label(opt)) },
-                modifier = Modifier.padding(end = 4.dp),
             )
         }
     }

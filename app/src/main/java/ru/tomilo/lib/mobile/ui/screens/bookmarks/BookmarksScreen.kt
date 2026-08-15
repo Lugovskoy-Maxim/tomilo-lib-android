@@ -39,10 +39,11 @@ import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.EmptyState
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.ListCardsSkeleton
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.components.SwipeActionContainer
+import ru.tomilo.lib.mobile.ui.components.rememberSwipeRevealCoordinator
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
@@ -74,6 +75,7 @@ fun BookmarksScreen(
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val reveal = rememberSwipeRevealCoordinator()
 
     var authReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -125,7 +127,7 @@ fun BookmarksScreen(
         },
     ) { padding ->
         if (!authReady || (loading && user == null)) {
-            LoadingBox(Modifier.padding(padding))
+            ListCardsSkeleton(Modifier.padding(padding))
             return@Scaffold
         }
         if (user == null) {
@@ -137,7 +139,7 @@ fun BookmarksScreen(
         when {
             loading -> Column(Modifier.padding(padding).fillMaxSize()) {
                 BookmarkCategorySelector(catIndex) { catIndex = it }
-                LoadingBox()
+                ListCardsSkeleton()
             }
             error != null && items.isEmpty() -> Column(Modifier.padding(padding).fillMaxSize()) {
                 BookmarkCategorySelector(catIndex) { catIndex = it }
@@ -200,6 +202,8 @@ fun BookmarksScreen(
                             actionIcon = Icons.Outlined.DeleteOutline,
                             actionColor = TomiloDanger,
                             enabled = titleId.isNotBlank(),
+                            revealKey = titleId,
+                            coordinator = reveal,
                             onAction = {
                                 val snapshot = items
                                 items = items.filterNot { it === bm }

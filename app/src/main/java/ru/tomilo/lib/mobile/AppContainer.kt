@@ -21,6 +21,7 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
+import ru.tomilo.lib.mobile.data.repo.PaymentsRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.push.NotificationOpen
 
@@ -52,6 +53,7 @@ class AppContainer(context: Context) {
     val authRepository = AuthRepository(tomiloApi, authStore)
     val catalogRepository = CatalogRepository(tomiloApi)
     val socialRepository = SocialRepository(tomiloApi)
+    val paymentsRepository = PaymentsRepository(tomiloApi)
     val historyRepository = HistoryRepository(tomiloApi)
     val adminRepository = AdminRepository(tomiloApi)
     private val offlineDb = OfflineDatabase.create(appContext)

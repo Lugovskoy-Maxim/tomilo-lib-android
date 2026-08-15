@@ -36,6 +36,12 @@
             android:theme="@style/Theme.Tomilo"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".ui.screens.premium.RobokassaCheckoutActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Tomilo"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".data.download.DownloadForegroundService"
             android:exported="false"

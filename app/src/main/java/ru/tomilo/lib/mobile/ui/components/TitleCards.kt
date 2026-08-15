@@ -88,9 +88,7 @@ fun TitlePosterCard(
 ) {
     val base = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
     Column(
-        modifier = base
-            .clip(RoundedCornerShape(CardRadius))
-            .clickable(onClick = onClick),
+        modifier = base.clickable(onClick = onClick),
     ) {
         Box(
             Modifier
@@ -184,21 +182,21 @@ fun TitlePosterCard(
             fontWeight = FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            lineHeight = 16.sp,
-            modifier = Modifier.padding(horizontal = 2.dp),
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 4.dp),
         )
         val footer = listOfNotNull(
             year?.toString(),
             if (chapterBadge == null) totalChapters?.let { "$it гл." } else null,
         ).joinToString(" · ")
         if (footer.isNotBlank()) {
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(3.dp))
             Text(
                 footer,
                 style = MaterialTheme.typography.labelSmall,
                 color = TomiloMuted,
                 maxLines = 1,
-                modifier = Modifier.padding(horizontal = 2.dp),
+                modifier = Modifier.padding(horizontal = 4.dp).padding(bottom = 2.dp),
             )
         }
     }
@@ -231,8 +229,8 @@ fun TitleSearchCard(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        color = TomiloSurface2.copy(alpha = 0.78f),
+            .padding(vertical = 5.dp),
+        color = TomiloSurface2,
         shape = RoundedCornerShape(19.dp),
         tonalElevation = 0.dp,
         shadowElevation = 2.dp,
