@@ -2,6 +2,7 @@
 .gradle/
 /local.properties
 /keystore.properties
+/secrets.properties
 /.idea/
 .DS_Store
 /build/
@@ -11,8 +12,12 @@
 .cxx/
 *.apk
 *.aab
+*.apk.idsig
 *.keystore
 *.jks
+*.p12
+*.pem
+mapping.txt
 /keystores/
 /dist/
 !keystore.properties.example

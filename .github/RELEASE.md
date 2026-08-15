@@ -2,6 +2,8 @@
 
 Подписанный APK публикуется в [Releases](https://github.com/Lugovskoy-Maxim/tomilo-lib-android/releases).
 
+В релиз попадают только APK и его SHA-256. R8 mapping, keystore и пароли в репозиторий и в Releases не публикуются.
+
 ## Как выпустить версию
 
 1. Поднимите `versionName` и `versionCode` в `app/build.gradle.kts`.
@@ -14,23 +16,12 @@ git tag v1.1.1
 git push origin v1.1.1
 ```
 
-Либо в GitHub Actions запустите workflow **Release** вручную (`workflow_dispatch`). Он соберёт APK и создаст тег `v{versionName}`, если его ещё нет.
+Либо Actions → **Release** → Run workflow.
 
-## Секреты репозитория
+## Подпись (не коммитить)
 
-Нужны для подписи тем же upload-ключом, что RuStore / Play:
+Release-сборка берёт keystore и пароли только из GitHub Actions secrets. Локальные `keystore.properties` и `*.jks` должны оставаться в `.gitignore`.
 
-| Secret            | Значение                                      |
-|-------------------|-----------------------------------------------|
-| `KEYSTORE_BASE64` | `base64` без переносов от `tomilo-upload.jks` |
-| `STORE_PASSWORD`  | пароль хранилища                              |
-| `KEY_ALIAS`       | `tomilo-upload`                               |
-| `KEY_PASSWORD`    | пароль ключа                                  |
+Нужные секреты репозитория: `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
 
-Keystore в git не коммитится. CI debug-сборку подписывать не нужно.
-
-## Артефакты релиза
-
-- `tomilo-lib-{version}.apk` — установка с GitHub
-- `tomilo-lib-{version}.sha256` — контрольная сумма
-- `mapping-{version}.txt` — mapping R8 для разбора крэшей
+Mapping после локальной release-сборки лежит в `app/build/outputs/mapping/` (каталог в git не попадает). Его нельзя выкладывать в публичный релиз — по нему снимается обфускация.
