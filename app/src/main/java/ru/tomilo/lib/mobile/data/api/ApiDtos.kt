@@ -392,6 +392,8 @@ data class AdminUserDto(
     val banned: Boolean? = null,
     val createdAt: String? = null,
     val subscriptionExpiresAt: String? = null,
+    val balance: Int? = null,
+    val bio: String? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     fun banned(): Boolean = isBanned == true || banned == true
@@ -451,6 +453,7 @@ data class AdminTitleDto(
     val isPublished: Boolean? = null,
     val totalChapters: Int? = null,
     val type: String? = null,
+    val status: String? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     fun displayName(): String = name ?: title ?: slug ?: "Тайтл"

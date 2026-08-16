@@ -1,9 +1,11 @@
 package ru.tomilo.lib.mobile.data.api
 
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -378,6 +380,92 @@ interface TomiloApi {
 
     @GET("admin/comments/stats")
     suspend fun adminCommentsStats(): ApiResponse<JsonElement>
+
+    @GET("admin/settings")
+    suspend fun adminSettings(): ApiResponse<AdminSiteSettingsDto>
+
+    @PATCH("admin/settings")
+    suspend fun adminUpdateSettings(
+        @Body body: AdminSiteSettingsUpdate,
+    ): ApiResponse<AdminSiteSettingsDto>
+
+    @GET("admin/health")
+    suspend fun adminHealth(): ApiResponse<JsonElement>
+
+    @GET("reports")
+    suspend fun adminReports(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 30,
+        @Query("isResolved") isResolved: String? = null,
+        @Query("reportType") reportType: String? = null,
+        @Query("entityType") entityType: String? = null,
+    ): ApiResponse<AdminReportsPageDto>
+
+    @PUT("reports/{id}/status")
+    suspend fun adminUpdateReportStatus(
+        @Path("id") id: String,
+        @Body body: AdminReportStatusRequest,
+    ): ApiResponse<JsonElement>
+
+    @DELETE("reports/{id}")
+    suspend fun adminDeleteReport(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @GET("users/admin/{id}")
+    suspend fun adminUserDetails(@Path("id") id: String): ApiResponse<AdminUserDto>
+
+    @PUT("users/admin/{id}")
+    suspend fun adminUpdateUser(
+        @Path("id") id: String,
+        @Body body: JsonObject,
+    ): ApiResponse<AdminUserDto>
+
+    @PATCH("users/admin/{id}/balance")
+    suspend fun adminUpdateUserBalance(
+        @Path("id") id: String,
+        @Body body: AdminBalanceRequest,
+    ): ApiResponse<JsonElement>
+
+    @PUT("titles/{id}")
+    suspend fun adminUpdateTitle(
+        @Path("id") id: String,
+        @Body body: AdminTitleUpdateRequest,
+    ): ApiResponse<JsonElement>
+
+    @DELETE("titles/{id}")
+    suspend fun adminDeleteTitle(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @GET("auto-parsing")
+    suspend fun autoParsingJobsRaw(): JsonElement
+
+    @POST("auto-parsing")
+    suspend fun createAutoParsingJob(
+        @Body body: AutoParseCreateRequest,
+    ): JsonElement
+
+    @PATCH("auto-parsing/{id}")
+    suspend fun updateAutoParsingJob(
+        @Path("id") id: String,
+        @Body body: AutoParseUpdateRequest,
+    ): JsonElement
+
+    @DELETE("auto-parsing/{id}")
+    suspend fun deleteAutoParsingJob(@Path("id") id: String): JsonElement
+
+    @POST("auto-parsing/{id}/check")
+    suspend fun checkAutoParsingJob(@Path("id") id: String): JsonElement
+
+    @POST("manga-parser/search-sources")
+    suspend fun searchMangaSources(
+        @Body body: SearchSourcesRequest,
+    ): JsonElement
+
+    @POST("manga-parser/parse-title")
+    suspend fun parseMangaTitle(
+        @Body body: ParseTitleRequest,
+    ): JsonElement
+
+    @GET("manga-parser/supported-sites")
+    suspend fun mangaParserSites(): JsonElement
 
     // ── Payments / Robokassa ────────────────────────────────────
     @POST("payments/robokassa")

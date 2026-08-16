@@ -438,6 +438,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
+                    onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                 )
             }
             composable(Routes.Offline) {
