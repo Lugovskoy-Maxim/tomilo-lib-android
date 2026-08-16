@@ -484,6 +484,17 @@ data class CatalogTitleDto(
     fun displayTitle(): String = title ?: name.orEmpty()
     fun coverPath(): String? = cover ?: coverImage
     fun displayRating(): Double? = rating ?: averageRating
+    fun chapterBadge(): String? {
+        val raw = chapter?.trim()?.takeIf { it.isNotBlank() }
+        val number = chapterNumber?.toString()?.trim()?.trim('"')?.takeIf { it.isNotBlank() && it != "null" }
+        return when {
+            raw != null && raw.startsWith("Гл", ignoreCase = true) -> raw
+            raw != null -> raw
+            number != null -> "Гл. $number"
+            totalChapters != null -> "$totalChapters гл."
+            else -> null
+        }
+    }
 }
 
 @Serializable

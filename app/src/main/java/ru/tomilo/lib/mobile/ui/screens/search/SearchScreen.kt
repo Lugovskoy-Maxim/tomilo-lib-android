@@ -1,7 +1,9 @@
 package ru.tomilo.lib.mobile.ui.screens.search
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,25 +11,32 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
+import ru.tomilo.lib.mobile.data.local.SearchHistoryPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.ListCardsSkeleton
 import ru.tomilo.lib.mobile.ui.components.EmptyState
@@ -44,6 +53,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 @Composable
 fun SearchScreen(
     catalogRepository: CatalogRepository,
+    searchHistoryPrefs: SearchHistoryPrefs,
     onBack: () -> Unit,
     onOpenTitle: (id: String, slug: String?) -> Unit,
 ) {
@@ -51,6 +61,8 @@ fun SearchScreen(
     var loading by remember { mutableStateOf(false) }
     var results by remember { mutableStateOf<List<SearchHitDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    val recent by searchHistoryPrefs.queriesFlow.collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(query) {
         val q = query.trim()
@@ -65,7 +77,10 @@ fun SearchScreen(
         error = null
         val res = catalogRepository.search(q)
         loading = false
-        res.onSuccess { results = it }
+        res.onSuccess {
+            results = it
+            searchHistoryPrefs.remember(q)
+        }
             .onFailure { error = it.message ?: "Ошибка поиска" }
     }
 
@@ -117,6 +132,34 @@ fun SearchScreen(
             when {
                 loading -> ListCardsSkeleton()
                 error != null -> ErrorBox(error ?: "Ошибка поиска")
+                query.trim().length < 2 && recent.isNotEmpty() -> Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Недавние", color = TomiloMuted, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { scope.launch { searchHistoryPrefs.clear() } }) {
+                            Text("Очистить")
+                        }
+                    }
+                    recent.forEach { item ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { query = item }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.History, contentDescription = null, tint = TomiloMuted)
+                            Text(item, modifier = Modifier.padding(start = 12.dp).weight(1f))
+                            IconButton(onClick = { scope.launch { searchHistoryPrefs.remove(item) } }) {
+                                Icon(Icons.Default.Close, contentDescription = "Удалить")
+                            }
+                        }
+                    }
+                }
                 query.trim().length < 2 -> EmptyState(
                     title = "Найдите свою историю",
                     message = "Введите минимум два символа названия тайтла.",

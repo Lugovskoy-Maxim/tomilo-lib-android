@@ -1,6 +1,8 @@
 package ru.tomilo.lib.mobile.ui.screens.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,8 +19,13 @@ import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -55,8 +62,12 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 
-private enum class ShelfTab(val label: String) {
-    Reading("Читаю"),
+private enum class ShelfTab(val label: String, val bookmarkCategory: String? = null) {
+    Reading("Читаю", "reading"),
+    Planned("Планы", "planned"),
+    Completed("Прочитано", "completed"),
+    Favorites("Избранное", "favorites"),
+    Dropped("Брошено", "dropped"),
     History("История"),
     Offline("Офлайн"),
 }
@@ -80,29 +91,53 @@ fun LibraryScreen(
     var history by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
     val offline by offlineRepository.observeAll().collectAsState(initial = emptyList())
     var reload by remember { mutableIntStateOf(0) }
+    var query by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val reveal = rememberSwipeRevealCoordinator()
 
     LaunchedEffect(user?.stableId(), reload, tab) {
-        if (user == null) return@LaunchedEffect
+        if (user == null) {
+            loading = false
+            error = null
+            bookmarks = emptyList()
+            history = emptyList()
+            return@LaunchedEffect
+        }
         loading = true
         error = null
         when (tab) {
-            ShelfTab.Reading -> socialRepository.bookmarks("reading")
-                .onSuccess { bookmarks = it }
-                .onFailure { error = it.message }
             ShelfTab.History -> historyRepository.history()
                 .onSuccess { history = it }
                 .onFailure { error = it.message }
             ShelfTab.Offline -> Unit
+            else -> socialRepository.bookmarks(tab.bookmarkCategory)
+                .onSuccess { bookmarks = it }
+                .onFailure { error = it.message }
         }
         loading = false
     }
 
-    val offlineGroups = remember(offline) {
+    val needle = query.trim()
+    val filteredBookmarks = remember(bookmarks, needle) {
+        if (needle.isBlank()) bookmarks
+        else bookmarks.filter { it.displayName().contains(needle, ignoreCase = true) }
+    }
+    val filteredHistory = remember(history, needle) {
+        if (needle.isBlank()) history
+        else history.filter {
+            it.displayTitle().contains(needle, ignoreCase = true) ||
+                it.chapterLabel().contains(needle, ignoreCase = true)
+        }
+    }
+    val offlineGroups = remember(offline, needle) {
         offline.groupBy { it.titleId.ifBlank { it.titleName } }
             .toList()
+            .filter { (_, chapters) ->
+                needle.isBlank() || chapters.any { ch ->
+                    ch.titleName.contains(needle, ignoreCase = true)
+                }
+            }
             .sortedByDescending { it.second.maxOfOrNull { ch -> ch.downloadedAt } ?: 0L }
     }
 
@@ -118,21 +153,34 @@ fun LibraryScreen(
                 .padding(padding)
                 .fillMaxSize(),
         ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                singleLine = true,
+                placeholder = { Text("Поиск на полке") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Очистить")
+                        }
+                    }
+                },
+            )
             Row(
                 Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(TomiloSurface)
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 ShelfTab.entries.forEach { item ->
                     FilterChip(
                         selected = tab == item,
                         onClick = { tab = item },
                         label = { Text(item.label) },
-                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -145,13 +193,17 @@ fun LibraryScreen(
             when {
                 loading && tab != ShelfTab.Offline -> ListCardsSkeleton()
                 error != null && tab != ShelfTab.Offline -> ErrorBox(error ?: "Ошибка") { reload += 1 }
-                tab == ShelfTab.Reading && bookmarks.isEmpty() -> EmptyState(
-                    title = "Пока пусто",
-                    message = "Добавьте тайтл в «Читаю» — он появится здесь одной кнопкой.",
+                tab.bookmarkCategory != null && filteredBookmarks.isEmpty() -> EmptyState(
+                    title = if (needle.isBlank()) "Пока пусто" else "Нет совпадений",
+                    message = if (needle.isBlank()) {
+                        "Добавьте тайтл в «${tab.label}» со страницы тайтла."
+                    } else {
+                        "На полке нет «$needle» в категории «${tab.label}»."
+                    },
                     icon = Icons.Outlined.BookmarkBorder,
                     modifier = Modifier.padding(ScreenPadding),
                 )
-                tab == ShelfTab.History && history.isEmpty() -> EmptyState(
+                tab == ShelfTab.History && filteredHistory.isEmpty() -> EmptyState(
                     title = "История пуста",
                     message = "Откройте главу — продолжение чтения появится на полке и на ленте.",
                     icon = Icons.Outlined.History,
@@ -168,14 +220,15 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(bottom = 110.dp),
                 ) {
                     when (tab) {
-                        ShelfTab.Reading -> items(bookmarks, key = { it.resolvedTitleId() }) { item ->
+                        ShelfTab.History, ShelfTab.Offline -> Unit
+                        else -> items(filteredBookmarks, key = { it.resolvedTitleId() + tab.name }) { item ->
                             val titleId = item.resolvedTitleId()
                             SwipeActionContainer(
                                 actionLabel = "Убрать",
                                 actionIcon = Icons.Outlined.DeleteOutline,
                                 actionColor = TomiloDanger,
                                 enabled = titleId.isNotBlank(),
-                                revealKey = "bm-$titleId",
+                                revealKey = "bm-$titleId-${tab.name}",
                                 coordinator = reveal,
                                 onAction = {
                                     val snapshot = bookmarks
@@ -193,15 +246,17 @@ fun LibraryScreen(
                                 TitleSearchCard(
                                     title = item.displayName(),
                                     cover = item.coverPath(),
-                                    subtitle = "Читаю",
+                                    subtitle = tab.label,
                                     onClick = {
                                         onOpenTitle(titleId, item.resolvedTitle()?.slug)
                                     },
                                 )
                             }
                         }
+                    }
+                    when (tab) {
                         ShelfTab.History -> items(
-                            history,
+                            filteredHistory,
                             key = { it.titleKey() + (it.chapterKey()) },
                         ) { item ->
                             val chapterId = item.chapterKey()
@@ -271,6 +326,7 @@ fun LibraryScreen(
                                 )
                             }
                         }
+                        else -> Unit
                     }
                 }
             }

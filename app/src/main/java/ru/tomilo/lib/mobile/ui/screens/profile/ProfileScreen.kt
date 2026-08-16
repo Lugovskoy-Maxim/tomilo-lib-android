@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
@@ -366,6 +367,8 @@ fun ProfileScreen(
                     onClick = { confirmLogout = true },
                 )
             }
+            Spacer(Modifier.height(20.dp))
+            AppVersionLabel()
         }
     }
 
@@ -381,6 +384,21 @@ fun ProfileScreen(
             onDismiss = { confirmLogout = false },
         )
     }
+}
+
+@Composable
+private fun AppVersionLabel() {
+    val channel = when (BuildConfig.STORE_CHANNEL) {
+        "play" -> "Google Play"
+        else -> "RuStore"
+    }
+    val debug = if (BuildConfig.DEBUG) " debug" else ""
+    Text(
+        "TOMILO LIB ${BuildConfig.VERSION_NAME} ($channel · ${BuildConfig.VERSION_CODE})$debug",
+        color = TomiloMuted,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

@@ -474,6 +474,36 @@ fun TitleScreen(
                         )
                     }
                 }
+            } else if (continueChapterId != null && title != null) {
+                val readId = continueChapterId!!
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(TomiloSurface2)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = {
+                            onOpenChapter(
+                                title!!.stableId(),
+                                readId,
+                                readId in downloadedIds,
+                            )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Text(
+                            if (readChapterIds.isEmpty()) "Читать"
+                            else "Продолжить",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                }
             }
         },
     ) { padding ->
@@ -795,6 +825,9 @@ fun TitleScreen(
                                 )
                             }
                         }
+                    }
+                    item(key = "chapters-end") {
+                        Spacer(Modifier.height(88.dp))
                     }
                     }
                     }

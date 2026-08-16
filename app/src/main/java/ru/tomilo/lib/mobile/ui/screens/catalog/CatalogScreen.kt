@@ -113,6 +113,7 @@ private val DEFAULT_AGES = listOf(0, 12, 16, 18)
 fun CatalogScreen(
     catalogRepository: CatalogRepository,
     contentPrefs: ContentPrefs,
+    initialGenre: String? = null,
     onOpenTitle: (id: String, slug: String?) -> Unit,
 ) {
     val contentSettings by contentPrefs.settingsFlow.collectAsState(
@@ -124,7 +125,7 @@ fun CatalogScreen(
     var sortIndex by remember { mutableIntStateOf(0) }
     var selectedTypes by remember { mutableStateOf(setOf<String>()) }
     var selectedStatus by remember { mutableStateOf<String?>(null) }
-    var selectedGenres by remember { mutableStateOf(setOf<String>()) }
+    var selectedGenres by remember { mutableStateOf(initialGenre?.takeIf { it.isNotBlank() }?.let { setOf(it) } ?: emptySet()) }
     var selectedYears by remember { mutableStateOf(setOf<Int>()) }
     var selectedAges by remember { mutableStateOf(setOf<Int>()) }
     var genreQuery by remember { mutableStateOf("") }
@@ -152,6 +153,13 @@ fun CatalogScreen(
     LaunchedEffect(Unit) {
         catalogRepository.filterOptions()
             .onSuccess { options = it }
+    }
+
+    LaunchedEffect(initialGenre) {
+        val genre = initialGenre?.trim().orEmpty()
+        if (genre.isNotBlank() && genre !in selectedGenres) {
+            selectedGenres = setOf(genre)
+        }
     }
 
     LaunchedEffect(searchInput) {
@@ -307,6 +315,25 @@ fun CatalogScreen(
                     }
                 },
             )
+
+            if (options.genres.isNotEmpty()) {
+                Row(
+                    Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 12.dp, end = 12.dp, top = 6.dp),
+                ) {
+                    options.genres.take(16).forEach { genre ->
+                        FilterChip(
+                            selected = genre in selectedGenres,
+                            onClick = {
+                                selectedGenres = if (genre in selectedGenres) selectedGenres - genre else selectedGenres + genre
+                            },
+                            label = { Text(genre) },
+                            modifier = Modifier.padding(horizontal = 3.dp),
+                        )
+                    }
+                }
+            }
 
             Row(
                 Modifier

@@ -21,7 +21,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.CardGiftcard
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,6 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,12 +65,15 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
+import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +85,7 @@ fun HomeScreen(
     socialRepository: SocialRepository,
     onOpenTitle: (id: String, slug: String?) -> Unit,
     onOpenCatalog: () -> Unit = {},
+    onOpenGenre: (String) -> Unit = {},
     onOpenSearch: () -> Unit = {},
     onOpenUpdates: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
@@ -92,7 +102,9 @@ fun HomeScreen(
     var updates by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var continueItems by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
+    var genres by remember { mutableStateOf<List<String>>(emptyList()) }
     var reloadToken by remember { mutableStateOf(0) }
+    var refreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(user?.stableId(), reloadToken) {
         continueItems = if (user == null) {
@@ -116,7 +128,11 @@ fun HomeScreen(
         fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
         updates = u.getOrDefault(emptyList()).filterAdult()
         popular = p.getOrDefault(emptyList()).filterAdult()
+        if (genres.isEmpty()) {
+            genres = catalogRepository.filterOptions().getOrNull()?.genres.orEmpty().take(16)
+        }
         loading = false
+        refreshing = false
     }
 
     val greeting = remember(user) {
@@ -154,13 +170,45 @@ fun HomeScreen(
             error != null && updates.isEmpty() -> Column(Modifier.padding(padding)) {
                 ErrorBox(error ?: "Ошибка") { reloadToken += 1 }
             }
-            else -> Column(
+            else -> PullToRefreshBox(
+                isRefreshing = refreshing,
+                onRefresh = {
+                    refreshing = true
+                    reloadToken += 1
+                },
+                modifier = Modifier.padding(padding).fillMaxSize(),
+            ) {
+            Column(
                 Modifier
-                    .padding(padding)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 110.dp),
             ) {
+                HomeSearchBar(onClick = onOpenSearch)
+                ShortcutRow(
+                    onUpdates = onOpenUpdates,
+                    onQuests = onOpenQuests,
+                    onOffline = onOpenOffline,
+                    onFriends = onOpenFriends,
+                )
+                if (genres.isNotEmpty()) {
+                    SectionHead("Жанры", action = "Каталог", onAction = onOpenCatalog)
+                    Row(
+                        Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        genres.forEach { genre ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { onOpenGenre(genre) },
+                                label = { Text(genre) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 if (continueItems.isNotEmpty()) {
                     SectionHead("Продолжить", action = "История", onAction = onOpenHistory)
                     Row(
@@ -183,11 +231,20 @@ fun HomeScreen(
                     Spacer(Modifier.height(22.dp))
                 }
 
-                SectionHead("Новые главы", action = "Каталог", onAction = onOpenUpdates.ifBlankAction(onOpenCatalog))
-                PosterRow(
-                    items = updates.take(12),
-                    onOpen = { onOpenTitle(it.stableId(), it.slug) },
-                )
+                SectionHead("Новые главы", action = "Все", onAction = onOpenUpdates.ifBlankAction(onOpenCatalog))
+                Column(Modifier.padding(horizontal = 12.dp)) {
+                    updates.take(8).forEach { item ->
+                        TitleSearchCard(
+                            title = item.displayTitle(),
+                            cover = item.coverPath(),
+                            type = ReaderMode.typeLabel(item.type),
+                            rating = item.displayRating(),
+                            subtitle = item.chapterBadge() ?: item.totalChapters?.let { "$it гл." },
+                            isAdult = item.isAdult == true,
+                            onClick = { onOpenTitle(item.stableId(), item.slug) },
+                        )
+                    }
+                }
                 Spacer(Modifier.height(22.dp))
 
                 SectionHead("Сейчас читают", onAction = onOpenCatalog)
@@ -196,11 +253,60 @@ fun HomeScreen(
                     onOpen = { onOpenTitle(it.stableId(), it.slug) },
                 )
             }
+            }
         }
     }
 }
 
 private fun (() -> Unit).ifBlankAction(fallback: () -> Unit): () -> Unit = this
+
+@Composable
+private fun HomeSearchBar(onClick: () -> Unit) {
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(TomiloSurface2)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = TomiloMuted)
+        Spacer(Modifier.width(10.dp))
+        Text("Быстрый поиск", color = TomiloMuted, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+@Composable
+private fun ShortcutRow(
+    onUpdates: () -> Unit,
+    onQuests: () -> Unit,
+    onOffline: () -> Unit,
+    onFriends: () -> Unit,
+) {
+    Row(
+        Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        ShortcutChip("Обновления", Icons.Outlined.Update, onUpdates)
+        ShortcutChip("Задания", Icons.Outlined.CardGiftcard, onQuests)
+        ShortcutChip("Офлайн", Icons.Outlined.CloudOff, onOffline)
+        ShortcutChip("Друзья", Icons.Outlined.People, onFriends)
+    }
+}
+
+@Composable
+private fun ShortcutChip(label: String, icon: ImageVector, onClick: () -> Unit) {
+    FilterChip(
+        selected = false,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
+    )
+}
 
 @Composable
 private fun SectionHead(title: String, action: String = "Все", onAction: () -> Unit = {}) {
@@ -280,7 +386,15 @@ private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit) {
             style = MaterialTheme.typography.titleMedium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp),
         )
+        item.chaptersCount?.takeIf { it > 0 }?.let { count ->
+            Text(
+                "Прочитано $count гл.",
+                color = TomiloMuted,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 12.dp),
+            )
+        } ?: Spacer(Modifier.height(12.dp))
     }
 }

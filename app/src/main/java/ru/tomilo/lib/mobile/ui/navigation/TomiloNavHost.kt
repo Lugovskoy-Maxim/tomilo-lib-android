@@ -96,6 +96,8 @@ object Routes {
     const val ChatThread = "chat/{id}/{title}"
     const val User = "user/{id}"
 
+    fun catalog(genre: String? = null) =
+        if (genre.isNullOrBlank()) "catalog" else "catalog?genre=${enc(genre)}"
     fun title(key: String) = "title/${enc(key)}"
     fun reader(chapterId: String, offline: Boolean = false, titleId: String? = null) =
         "reader/${enc(chapterId)}?offline=$offline&titleId=${enc(titleId.orEmpty())}"
@@ -111,7 +113,8 @@ object Routes {
 fun TomiloNavHost(container: AppContainer) {
     val navController = rememberNavController()
     val backStack by navController.currentBackStackEntryAsState()
-    val current = backStack?.destination?.route.orEmpty()
+    val currentRaw = backStack?.destination?.route.orEmpty()
+    val current = if (currentRaw.startsWith(Routes.Catalog)) Routes.Catalog else currentRaw
     val contentSettings by container.contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -248,7 +251,12 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
-                    onOpenCatalog = { navigateTab(Routes.Catalog) },
+                    onOpenCatalog = { navigateTab(Routes.catalog()) },
+                    onOpenGenre = { genre ->
+                        navController.navigate(Routes.catalog(genre)) {
+                            launchSingleTop = true
+                        }
+                    },
                     onOpenSearch = { navController.navigate(Routes.Search) },
                     onOpenUpdates = { navController.navigate(Routes.Updates) },
                     onOpenHistory = { navController.navigate(Routes.History) },
@@ -264,20 +272,36 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Search) {
                 SearchScreen(
                     catalogRepository = container.catalogRepository,
+                    searchHistoryPrefs = container.searchHistoryPrefs,
                     onBack = { navController.popBackStack() },
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
                 )
             }
-            composable(Routes.Catalog) {
+            composable(
+                "catalog?genre={genre}",
+                arguments = listOf(
+                    navArgument("genre") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                        nullable = true
+                    },
+                ),
+            ) { entry ->
+                val genre = entry.arguments?.getString("genre")
+                    ?.let { raw -> raw.takeIf { it.isNotBlank() }?.let(Routes::dec) }
+                    ?.takeIf { it.isNotBlank() }
+                androidx.compose.runtime.key(genre.orEmpty()) {
                 CatalogScreen(
                     catalogRepository = container.catalogRepository,
                     contentPrefs = container.contentPrefs,
+                    initialGenre = genre,
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
                     },
                 )
+                }
             }
             composable(Routes.Library) {
                 LibraryScreen(
