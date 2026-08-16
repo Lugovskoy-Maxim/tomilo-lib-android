@@ -1,31 +1,21 @@
 # TOMILO LIB
 
-Android-приложение [tomilo-lib.ru](https://tomilo-lib.ru): каталог, читалка, полка, офлайн (Premium).
+Читай мангу и манхву с [tomilo-lib.ru](https://tomilo-lib.ru) — лента, каталог, полка и офлайн.
 
-Стек: Kotlin, Jetpack Compose, Material 3.
+<p align="center">
+  <img src="docs/screenshots/home.jpg" width="220" alt="Лента: продолжить чтение и новые главы" />
+  <img src="docs/screenshots/reader.jpg" width="220" alt="Читалка" />
+  <img src="docs/screenshots/offline.jpg" width="220" alt="Офлайн-библиотека" />
+  <img src="docs/screenshots/leaders.jpg" width="220" alt="Таблица лидеров" />
+</p>
 
-## Сборка
+**Лента** — продолжить с последней главы, свежие обновления, поиск и жанры.  
+**Читалка** — вертикаль, страницы, RTL, яркость, автоскролл.  
+**Офлайн** — главы на устройстве, место, проверка файлов. Premium или реклама.  
+**Сообщество** — полка по статусам, чаты, друзья, задания, лидеры.
 
-JDK 17+, Android SDK 35.
+Один аккаунт с сайтом: email, Яндекс или VK.
 
-```bash
-./gradlew :app:assembleRustoreDebug
-```
+[Скачать APK](https://github.com/Lugovskoy-Maxim/tomilo-lib-android/releases) · [tomilo-lib.ru](https://tomilo-lib.ru)
 
-Релиз в GitHub: тег `v*` = `versionName`. Сейчас **1.2.1**.
-
-```bash
-git tag v1.2.1
-git push origin v1.2.1
-```
-
-Подробности: [`.github/RELEASE.md`](.github/RELEASE.md).  
-RuStore / Play: `./scripts/build-rustore.sh` и `./scripts/build-release.sh`.
-
-## Лицензия
-
-Проприетарное ПО. © Луговской Максим Юрьевич.  
-Исходники без письменного разрешения копировать нельзя.  
-APK из [Releases](https://github.com/Lugovskoy-Maxim/tomilo-lib-android/releases), RuStore и Play ставить можно.
-
-Полный текст: [`LICENSE`](LICENSE) · lugovskou.myu@yandex.ru
+Сборка: [`BUILD.md`](BUILD.md)

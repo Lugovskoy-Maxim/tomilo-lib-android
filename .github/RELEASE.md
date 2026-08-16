@@ -1,5 +1,7 @@
 # GitHub Releases
 
+Локальная сборка: [`BUILD.md`](../BUILD.md).
+
 Подписанный APK публикуется в [Releases](https://github.com/Lugovskoy-Maxim/tomilo-lib-android/releases).
 
 В релиз попадают только APK и его SHA-256. R8 mapping, keystore и пароли в репозиторий и в Releases не публикуются.
