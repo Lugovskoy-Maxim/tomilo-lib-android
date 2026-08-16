@@ -203,7 +203,7 @@ fun HomeScreen(
                             FilterChip(
                                 selected = false,
                                 onClick = { onOpenGenre(genre) },
-                                label = { Text(genre) },
+                                label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
                             )
                         }
                     }

@@ -328,7 +328,7 @@ fun CatalogScreen(
                             onClick = {
                                 selectedGenres = if (genre in selectedGenres) selectedGenres - genre else selectedGenres + genre
                             },
-                            label = { Text(genre) },
+                            label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
                             modifier = Modifier.padding(horizontal = 3.dp),
                         )
                     }
@@ -395,7 +395,7 @@ fun CatalogScreen(
                         FilterChip(
                             selected = true,
                             onClick = { selectedStatus = null },
-                            label = { Text(STATUS_LABELS[st] ?: st) },
+                            label = { Text(STATUS_LABELS[st] ?: ru.tomilo.lib.mobile.core.GenreLabels.status(st)) },
                             trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
                             modifier = Modifier.padding(end = 4.dp),
                         )
@@ -404,7 +404,7 @@ fun CatalogScreen(
                         FilterChip(
                             selected = true,
                             onClick = { selectedGenres = selectedGenres - genre },
-                            label = { Text(genre) },
+                            label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
                             trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
                             modifier = Modifier.padding(end = 4.dp),
                         )
@@ -531,7 +531,10 @@ fun CatalogScreen(
             }.sortedDescending()
             val ageOptions = options.ageLimits.ifEmpty { DEFAULT_AGES }.sorted()
             val visibleGenres = options.genres.filter {
-                genreQuery.isBlank() || it.contains(genreQuery, ignoreCase = true)
+                val ru = ru.tomilo.lib.mobile.core.GenreLabels.ru(it)
+                genreQuery.isBlank() ||
+                    it.contains(genreQuery, ignoreCase = true) ||
+                    ru.contains(genreQuery, ignoreCase = true)
             }
 
             Column(
@@ -575,7 +578,10 @@ fun CatalogScreen(
                     WrapChips(
                         options = listOf("__any") + statusOptions,
                         selected = if (selectedStatus == null) setOf("__any") else setOf(selectedStatus!!),
-                        label = { if (it == "__any") "Любой" else STATUS_LABELS[it] ?: it },
+                        label = {
+                            if (it == "__any") "Любой"
+                            else STATUS_LABELS[it] ?: ru.tomilo.lib.mobile.core.GenreLabels.status(it)
+                        },
                         onToggle = { st ->
                             selectedStatus = if (st == "__any" || selectedStatus == st) null else st
                         },
@@ -604,7 +610,7 @@ fun CatalogScreen(
                             WrapChips(
                                 options = visibleGenres,
                                 selected = selectedGenres,
-                                label = { it },
+                                label = { ru.tomilo.lib.mobile.core.GenreLabels.ru(it) },
                                 onToggle = { g ->
                                     selectedGenres = if (g in selectedGenres) selectedGenres - g else selectedGenres + g
                                 },

@@ -397,21 +397,9 @@ fun TitleListRow(
     )
 }
 
-private fun typeLabel(raw: String): String = when (raw.lowercase()) {
-    "manga", "манга" -> "Манга"
-    "manhwa" -> "Манхва"
-    "manhua" -> "Маньхуа"
-    "comic" -> "Комикс"
-    else -> raw.replaceFirstChar { it.uppercase() }
-}
+private fun typeLabel(raw: String): String = ru.tomilo.lib.mobile.core.GenreLabels.type(raw)
 
-private fun statusLabel(raw: String): String = when (raw.lowercase()) {
-    "ongoing" -> "Онгоинг"
-    "completed" -> "Завершён"
-    "pause" -> "Пауза"
-    "cancelled" -> "Отменён"
-    else -> raw
-}
+private fun statusLabel(raw: String): String = ru.tomilo.lib.mobile.core.GenreLabels.status(raw)
 
 private fun statusColor(raw: String): Color = when (raw.lowercase()) {
     "ongoing" -> Color(0xFF3D9A6A)

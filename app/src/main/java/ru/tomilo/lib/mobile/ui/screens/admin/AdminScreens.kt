@@ -793,7 +793,8 @@ private fun TitlesPane(
                         cover = t.coverPath(),
                         type = t.type,
                         totalChapters = t.totalChapters,
-                        subtitle = if (t.isPublished == false) "черновик" else t.status,
+                        subtitle = if (t.isPublished == false) "Черновик"
+                        else t.status?.let { ru.tomilo.lib.mobile.core.GenreLabels.status(it) },
                         onClick = { onOpen(t.stableId(), t.slug) },
                     )
                     Row(

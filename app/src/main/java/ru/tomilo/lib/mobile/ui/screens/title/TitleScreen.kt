@@ -1019,7 +1019,7 @@ private fun TitleDetailsCard(
         title.type?.takeIf { it.isNotBlank() }?.let { "Тип" to titleTypeLabel(it) },
         title.status?.takeIf { it.isNotBlank() }?.let { "Статус" to titleStatusLabel(it) },
         title.releaseYear?.let { "Год выпуска" to it.toString() },
-        title.ageLimit?.let { "Возраст" to "$it+" },
+        title.ageLimit?.let { "Возраст" to ru.tomilo.lib.mobile.core.GenreLabels.age(it) },
         title.averageRating?.let { "Рейтинг" to "★ %.1f из 10".format(it) },
         title.totalRatings?.takeIf { it > 0 }?.let { "Оценки" to "$it пользовательских" },
         title.views?.let { "Просмотры" to titleViewsLabel(it) },
@@ -1102,7 +1102,10 @@ private fun TitleDetailsCard(
                         }
                     }
 
-                    title.genres?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }?.let { genres ->
+                    title.genres?.mapNotNull { ru.tomilo.lib.mobile.core.GenreLabels.ruOrHide(it) }
+                        ?.distinct()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { genres ->
                         Spacer(Modifier.height(14.dp))
                         Text("Жанры", style = MaterialTheme.typography.labelLarge, color = TomiloMuted)
                         Row(
@@ -1118,7 +1121,10 @@ private fun TitleDetailsCard(
                         }
                     }
 
-                    title.tags?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }?.let { tags ->
+                    title.tags?.mapNotNull { ru.tomilo.lib.mobile.core.GenreLabels.ruOrHide(it) }
+                        ?.distinct()
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.let { tags ->
                         Spacer(Modifier.height(12.dp))
                         Text("Теги", style = MaterialTheme.typography.labelLarge, color = TomiloMuted)
                         Text(
@@ -1193,22 +1199,9 @@ private fun DetailChip(label: String) {
     }
 }
 
-private fun titleTypeLabel(type: String): String = when (type.lowercase()) {
-    "manga" -> "Манга"
-    "manhwa" -> "Манхва"
-    "manhua" -> "Маньхуа"
-    "comics" -> "Комикс"
-    "novel", "ranobe", "light_novel" -> "Ранобэ"
-    else -> type
-}
+private fun titleTypeLabel(type: String): String = ru.tomilo.lib.mobile.core.GenreLabels.type(type)
 
-private fun titleStatusLabel(status: String): String = when (status.lowercase()) {
-    "ongoing", "publishing" -> "Онгоинг"
-    "completed", "finished" -> "Завершён"
-    "hiatus", "paused" -> "Приостановлен"
-    "cancelled", "canceled" -> "Отменён"
-    else -> status
-}
+private fun titleStatusLabel(status: String): String = ru.tomilo.lib.mobile.core.GenreLabels.status(status)
 
 private fun titleViewsLabel(views: Long): String = "${compactNumber(views)} всего"
 
@@ -1232,9 +1225,5 @@ private fun chapterViewsLabel(views: Long): String = when {
     else -> "$views просм."
 }
 
-private fun chapterStatusLabel(status: String): String = when (status.lowercase()) {
-    "published", "active" -> "опубликована"
-    "draft" -> "черновик"
-    "hidden" -> "скрыта"
-    else -> status
-}
+private fun chapterStatusLabel(status: String): String =
+    ru.tomilo.lib.mobile.core.GenreLabels.status(status).lowercase()

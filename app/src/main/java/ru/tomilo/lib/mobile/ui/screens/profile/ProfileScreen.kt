@@ -486,7 +486,7 @@ private fun GithubUpdateBlock(updater: AppUpdateManager) {
             icon = Icons.Default.SystemUpdateAlt,
             title = title,
             subtitle = subtitle,
-            badge = if (ui is UpdateUi.Available) "NEW" else null,
+            badge = if (ui is UpdateUi.Available) "Новое" else null,
             onClick = {
                 when (val state = ui) {
                     UpdateUi.Idle, UpdateUi.Current, is UpdateUi.Error -> check()

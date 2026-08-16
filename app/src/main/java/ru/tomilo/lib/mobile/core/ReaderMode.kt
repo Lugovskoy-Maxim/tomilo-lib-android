@@ -27,18 +27,7 @@ object ReaderMode {
         return if (t.contains("manga")) ReaderDirection.RTL else ReaderDirection.LTR
     }
 
-    fun typeLabel(type: String?): String {
-        val t = type?.lowercase().orEmpty()
-        return when {
-            t.contains("manhwa") -> "Манхва"
-            t.contains("manhua") -> "Маньхуа"
-            t.contains("manga") -> "Манга"
-            t.contains("comic") || t.contains("комикс") -> "Комикс"
-            t.contains("novel") -> "Новелла"
-            type.isNullOrBlank() -> "Тайтл"
-            else -> type.replaceFirstChar { it.uppercase() }
-        }
-    }
+    fun typeLabel(type: String?): String = GenreLabels.type(type)
 
     fun layoutLabel(layout: ReaderLayout): String = when (layout) {
         ReaderLayout.WEBTOON -> "Лента"
