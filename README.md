@@ -125,8 +125,8 @@ ApplicationId: `ru.tomilo.lib.mobile`
 
 ## Версия
 
-Текущий релиз: **1.2.0** (`versionCode 15`). Изменения релиза описаны в
-[`store/rustore/whats-new-1.2.0-2026-08-16.md`](store/rustore/whats-new-1.2.0-2026-08-16.md).
+Текущий релиз: **1.2.1** (`versionCode 16`). Изменения релиза описаны в
+[`store/rustore/whats-new-1.2.1-2026-08-16.md`](store/rustore/whats-new-1.2.1-2026-08-16.md).
 
 ## Лицензия
 

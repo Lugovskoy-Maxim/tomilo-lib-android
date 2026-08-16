@@ -22,8 +22,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import coil.compose.AsyncImage
 import ru.tomilo.lib.mobile.core.MediaUrl
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,6 +75,8 @@ import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.data.update.AppRelease
+import ru.tomilo.lib.mobile.data.update.AppUpdateManager
 import ru.tomilo.lib.mobile.ui.components.TomiloRingLogo
 import ru.tomilo.lib.mobile.ui.components.TomiloWordmark
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
@@ -90,6 +96,7 @@ fun ProfileScreen(
     authRepository: AuthRepository,
     socialRepository: SocialRepository,
     offlineRepository: OfflineRepository,
+    appUpdateManager: AppUpdateManager,
     contentPrefs: ContentPrefs,
     onLogin: () -> Unit,
     onOpenOffline: () -> Unit,
@@ -368,6 +375,8 @@ fun ProfileScreen(
                 )
             }
             Spacer(Modifier.height(20.dp))
+            GithubUpdateBlock(appUpdateManager)
+            Spacer(Modifier.height(12.dp))
             AppVersionLabel()
         }
     }
@@ -384,6 +393,124 @@ fun ProfileScreen(
             onDismiss = { confirmLogout = false },
         )
     }
+}
+
+private sealed interface UpdateUi {
+    data object Idle : UpdateUi
+    data object Checking : UpdateUi
+    data object Current : UpdateUi
+    data class Available(val release: AppRelease) : UpdateUi
+    data class Downloading(val release: AppRelease, val progress: Float) : UpdateUi
+    data class Ready(val release: AppRelease, val file: java.io.File) : UpdateUi
+    data class Error(val message: String) : UpdateUi
+}
+
+@Composable
+private fun GithubUpdateBlock(updater: AppUpdateManager) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var ui by remember { mutableStateOf<UpdateUi>(UpdateUi.Idle) }
+    var pendingInstall by remember { mutableStateOf<java.io.File?>(null) }
+
+    val installPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        val apk = pendingInstall
+        pendingInstall = null
+        if (apk != null && updater.hasInstallPermission()) {
+            runCatching { context.startActivity(updater.installIntent(apk)) }
+        }
+    }
+
+    fun install(file: java.io.File) {
+        if (!updater.hasInstallPermission()) {
+            pendingInstall = file
+            installPermission.launch(updater.installSettingsIntent())
+            return
+        }
+        runCatching { context.startActivity(updater.installIntent(file)) }
+            .onFailure { ui = UpdateUi.Error(it.message ?: "Не удалось открыть установщик") }
+    }
+
+    fun check() {
+        ui = UpdateUi.Checking
+        scope.launch {
+            updater.fetchLatest()
+                .onSuccess { release ->
+                    ui = if (updater.isNewer(release)) UpdateUi.Available(release)
+                    else UpdateUi.Current
+                }
+                .onFailure { ui = UpdateUi.Error(it.message ?: "Не удалось проверить") }
+        }
+    }
+
+    fun download(release: AppRelease) {
+        if (!updater.canInstallInPlace()) {
+            runCatching { context.startActivity(updater.openReleaseIntent(release.htmlUrl)) }
+            return
+        }
+        ui = UpdateUi.Downloading(release, 0f)
+        scope.launch {
+            updater.download(release) { progress ->
+                ui = UpdateUi.Downloading(release, progress)
+            }.onSuccess { file ->
+                ui = UpdateUi.Ready(release, file)
+                install(file)
+            }.onFailure {
+                ui = UpdateUi.Error(it.message ?: "Не удалось скачать")
+            }
+        }
+    }
+
+    val title = when (val state = ui) {
+        UpdateUi.Idle -> "Обновление с GitHub"
+        UpdateUi.Checking -> "Проверяем GitHub…"
+        UpdateUi.Current -> "Версия актуальна"
+        is UpdateUi.Available -> "Доступна ${state.release.versionName}"
+        is UpdateUi.Downloading -> "Скачиваем ${state.release.versionName}"
+        is UpdateUi.Ready -> "Готово к установке"
+        is UpdateUi.Error -> "Не удалось проверить"
+    }
+    val subtitle = when (val state = ui) {
+        UpdateUi.Idle -> "APK из Releases, тот же ключ подписи"
+        UpdateUi.Checking -> "Смотрим latest release"
+        UpdateUi.Current -> "Установлена ${BuildConfig.VERSION_NAME}"
+        is UpdateUi.Available -> formatApkSize(state.release.apkSize)
+        is UpdateUi.Downloading -> "${(state.progress * 100).toInt()}%"
+        is UpdateUi.Ready -> "Нажмите, чтобы установить ${state.release.versionName}"
+        is UpdateUi.Error -> state.message
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        ActionRow(
+            icon = Icons.Default.SystemUpdateAlt,
+            title = title,
+            subtitle = subtitle,
+            badge = if (ui is UpdateUi.Available) "NEW" else null,
+            onClick = {
+                when (val state = ui) {
+                    UpdateUi.Idle, UpdateUi.Current, is UpdateUi.Error -> check()
+                    UpdateUi.Checking, is UpdateUi.Downloading -> Unit
+                    is UpdateUi.Available -> download(state.release)
+                    is UpdateUi.Ready -> install(state.file)
+                }
+            },
+        )
+        if (ui is UpdateUi.Downloading) {
+            LinearProgressIndicator(
+                progress = { (ui as UpdateUi.Downloading).progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+private fun formatApkSize(bytes: Long): String {
+    if (bytes <= 0) return "Новый APK с GitHub"
+    val mb = bytes / (1024.0 * 1024.0)
+    return "APK %.1f МБ · GitHub Releases".format(mb)
 }
 
 @Composable

@@ -35,12 +35,13 @@ android {
         minSdk = 26
         targetSdk = 35
         // RuStore / production consumer release
-        versionCode = 15
-        versionName = "1.2.0"
+        versionCode = 16
+        versionName = "1.2.1"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
+        buildConfigField("String", "GITHUB_REPO", "\"Lugovskoy-Maxim/tomilo-lib-android\"")
         // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
         buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
         // Interstitial между главами (~1/10 мин), блок РСЯ «Межстраничная»

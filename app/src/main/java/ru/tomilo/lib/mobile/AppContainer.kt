@@ -17,6 +17,7 @@ import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.OfflineDatabase
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.local.SearchHistoryPrefs
+import ru.tomilo.lib.mobile.data.update.AppUpdateManager
 import ru.tomilo.lib.mobile.data.repo.AdminRepository
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
@@ -34,6 +35,7 @@ class AppContainer(context: Context) {
     val readingPrefs = ReadingPrefs(appContext)
     val contentPrefs = ContentPrefs(appContext)
     val searchHistoryPrefs = SearchHistoryPrefs(appContext)
+    val appUpdateManager = AppUpdateManager(appContext)
     val adRewardStore = AdRewardStore(appContext)
     val adFrequencyStore = AdFrequencyStore(appContext)
     val rewardedAdManager = RewardedAdManager(appContext)

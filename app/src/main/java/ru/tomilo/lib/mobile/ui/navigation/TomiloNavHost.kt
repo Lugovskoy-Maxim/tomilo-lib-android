@@ -345,6 +345,7 @@ fun TomiloNavHost(container: AppContainer) {
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
                     offlineRepository = container.offlineRepository,
+                    appUpdateManager = container.appUpdateManager,
                     contentPrefs = container.contentPrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
