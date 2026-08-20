@@ -69,6 +69,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -141,7 +142,6 @@ fun ReaderScreen(
     authRepository: AuthRepository,
     chapterTransitionAds: ChapterTransitionAds,
     onBack: () -> Unit,
-    onOpenChapter: (chapterId: String) -> Unit,
     onOpenTitle: (titleId: String) -> Unit = {},
     onOpenUser: (userId: String) -> Unit = {},
     onOpenPremium: () -> Unit = {},
@@ -228,7 +228,12 @@ fun ReaderScreen(
     val hasNext = nextChapterId != null
     val atTitleEnd = !hasNext && chapters.isNotEmpty()
     val canOpenTitle = !effectiveTitleId.isNullOrBlank()
-    val currentPage = if (layout == ReaderLayout.PAGER) pagerState.currentPage else listState.firstVisibleItemIndex
+    val currentPage by remember(layout, pagerState, listState) {
+        derivedStateOf {
+            if (layout == ReaderLayout.PAGER) pagerState.currentPage
+            else listState.firstVisibleItemIndex
+        }
+    }
 
     DisposableEffect(settings.keepScreenOn) {
         val window = activity?.window
@@ -330,6 +335,7 @@ fun ReaderScreen(
                 title = chapter.name?.ifBlank { "Глава ${chapter.numberLabel()}" }
                     ?: "Глава ${chapter.numberLabel()}"
                 offline = false
+                chapter.titleKey().takeIf { it.isNotBlank() }?.let { effectiveTitleId = it }
                 if (chapter.isWithdrawn()) {
                     error = "Глава скрыта или удалена"
                     return
@@ -344,12 +350,13 @@ fun ReaderScreen(
                 when {
                     resolved.isNotEmpty() -> {
                         pages = resolved
-                        if (!titleId.isNullOrBlank()) {
+                        val resolvedTitleId = chapter.titleKey().ifBlank { effectiveTitleId.orEmpty() }
+                        if (resolvedTitleId.isNotBlank()) {
                             val loggedIn = authRepository.isLoggedIn()
-                            readingPrefs.markLocalRead(titleId, id, queueSync = loggedIn)
+                            readingPrefs.markLocalRead(resolvedTitleId, id, queueSync = loggedIn)
                             if (loggedIn) {
-                                historyRepository.markRead(titleId, id)
-                                    .onSuccess { readingPrefs.markHistorySynced(titleId, id) }
+                                historyRepository.markRead(resolvedTitleId, id)
+                                    .onSuccess { readingPrefs.markHistorySynced(resolvedTitleId, id) }
                             }
                         }
                     }
@@ -439,11 +446,12 @@ fun ReaderScreen(
         }
     }
 
-    fun leaveReader() {
+    /** Явный переход к родительскому тайтлу не зависит от того, откуда открыли читалку. */
+    fun openParentTitle() {
         val id = currentChapterId
         val (index, offset) = currentPosition()
         scope.launch { readingPrefs.saveReadingPosition(id, index, offset) }
-        onBack()
+        effectiveTitleId?.takeIf { it.isNotBlank() }?.let(onOpenTitle) ?: onBack()
     }
 
     suspend fun stepPage(forward: Boolean) {
@@ -583,7 +591,7 @@ fun ReaderScreen(
     BackHandler {
         if (showChapters) showChapters = false
         else if (!chromeVisible) chromeVisible = true
-        else leaveReader()
+        else openParentTitle()
     }
 
     var readProgress by remember { mutableFloatStateOf(0f) }
@@ -681,7 +689,7 @@ fun ReaderScreen(
                 pageRetryNonce = pageRetryNonce,
                 hasNext = hasNext || chapters.isEmpty(),
                 showTitleButton = atTitleEnd && canOpenTitle,
-                onOpenTitle = { effectiveTitleId?.let(onOpenTitle) },
+                onOpenTitle = { openParentTitle() },
                 onRetry = { index, page ->
                     failedPages = failedPages - index
                     loadedPages = loadedPages - index
@@ -746,8 +754,8 @@ fun ReaderScreen(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = { leaveReader() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Назад", tint = Color.White)
+                    IconButton(onClick = { openParentTitle() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "К странице тайтла", tint = Color.White)
                     }
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -771,7 +779,7 @@ fun ReaderScreen(
                         )
                     }
                     IconButton(
-                        onClick = { effectiveTitleId?.takeIf { it.isNotBlank() }?.let(onOpenTitle) },
+                        onClick = { openParentTitle() },
                         enabled = !effectiveTitleId.isNullOrBlank(),
                     ) {
                         Icon(Icons.Outlined.Info, "Тайтл", tint = Color.White)
@@ -870,7 +878,7 @@ fun ReaderScreen(
                 }
                 if (atTitleEnd && canOpenTitle) {
                     Button(
-                        onClick = { effectiveTitleId?.let(onOpenTitle) },
+                        onClick = { openParentTitle() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp),

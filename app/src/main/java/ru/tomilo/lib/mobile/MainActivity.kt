@@ -18,12 +18,16 @@ import ru.tomilo.lib.mobile.push.NotificationOpen
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.ui.navigation.TomiloNavHost
 import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
+import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 
 class MainActivity : ComponentActivity() {
     private val requestNotifications = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
-        if (granted) NotificationsPollWorker.enqueueNow(this)
+        if (granted) {
+            NotificationsPollWorker.enqueueNow(this)
+            AppUpdateCheckWorker.enqueueNow(this)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +54,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         NotificationsPollWorker.enqueueNow(this)
+        AppUpdateCheckWorker.enqueueNow(this)
     }
 
     private fun handleNotificationIntent(intent: Intent?) {

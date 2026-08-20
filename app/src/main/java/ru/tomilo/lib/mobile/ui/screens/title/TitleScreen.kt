@@ -24,7 +24,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
@@ -103,6 +104,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
+import java.util.Locale
 
 private enum class TitlePageTab(val label: String) {
     About("Описание"),
@@ -130,7 +132,7 @@ fun TitleScreen(
     downloadManager: DownloadManager,
     rewardedAdManager: RewardedAdManager,
     adRewardStore: AdRewardStore,
-    onBack: () -> Unit,
+    onOpenHome: () -> Unit,
     onLogin: () -> Unit,
     onOpenChapter: (titleId: String, chapterId: String, offline: Boolean) -> Unit,
     onOpenUser: (userId: String) -> Unit,
@@ -161,6 +163,15 @@ fun TitleScreen(
     var showBookmarkCategories by remember { mutableStateOf(false) }
     var titleDetailsExpanded by remember { mutableStateOf(true) }
     var pageTab by remember { mutableStateOf(TitlePageTab.Chapters) }
+
+    BackHandler {
+        if (selectMode) {
+            selectMode = false
+            selected = emptySet()
+        } else {
+            onOpenHome()
+        }
+    }
 
     val sortedChapters = remember(chapters, sort) {
         when (sort) {
@@ -374,11 +385,11 @@ fun TitleScreen(
                         if (selectMode) {
                             selectMode = false
                             selected = emptySet()
-                        } else onBack()
+                        } else onOpenHome()
                     }) {
                         Icon(
-                            if (selectMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Назад",
+                            if (selectMode) Icons.Default.Close else Icons.Default.Home,
+                            contentDescription = if (selectMode) "Закрыть выбор" else "На главную",
                         )
                     }
                 },
@@ -967,7 +978,7 @@ private fun TitleRatingBlock(
                     )
                 }
                 Text(
-                    if (average != null && average > 0) String.format("%.1f", average) else "—",
+                    if (average != null && average > 0) String.format(Locale.ROOT, "%.1f", average) else "—",
                     style = MaterialTheme.typography.headlineMedium,
                     color = TomiloPremium,
                 )

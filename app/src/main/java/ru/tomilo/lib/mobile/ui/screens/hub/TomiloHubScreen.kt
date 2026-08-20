@@ -53,7 +53,7 @@ private val contentLinks = listOf(
     HubLink("Новости", "Обновления проекта и анонсы", "/news", Icons.Default.Newspaper, Color(0xFF62B8FF)),
     HubLink("Гайды", "Полезные материалы для читателей", "/guides", Icons.AutoMirrored.Filled.MenuBook, Color(0xFF57C7B8)),
     HubLink("Магазин Tomilo", "Украшения профиля и игровые предметы", "/tomilo-shop", Icons.Default.ShoppingBag, TomiloPremium),
-    HubLink("Игры", "Игровые режимы и награды", "/games", Icons.Default.SportsEsports, Color(0xFF9B8CFF)),
+    HubLink("Игры", "Активные режимы публичной беты", "/games", Icons.Default.SportsEsports, Color(0xFF9B8CFF)),
     HubLink("Благодарности", "Участники развития библиотеки", "/thanks", Icons.Default.VolunteerActivism, Color(0xFFF06E9C)),
 )
 
@@ -67,13 +67,13 @@ private val helpLinks = listOf(
 @Composable
 fun TomiloHubScreen(
     onBack: () -> Unit,
-    onOpenWheel: () -> Unit = {},
     onOpenShop: () -> Unit = {},
+    onOpenGames: () -> Unit = {},
 ) {
     val context = LocalContext.current
     fun open(path: String) {
         if (path == "/games") {
-            onOpenWheel()
+            onOpenGames()
             return
         }
         if (path == "/tomilo-shop") {

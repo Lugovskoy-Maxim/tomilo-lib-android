@@ -147,10 +147,10 @@ jobs:
           ASSETS=(dist/github/tomilo-lib-${VER}.apk dist/github/tomilo-lib-${VER}.sha256)
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${ASSETS[@]}" --clobber
-            gh release edit "$TAG" --title "TOMILO LIB ${VER}" --notes-file dist/github/RELEASE_NOTES.md
+            gh release edit "$TAG" --title "tomilo-lib ${VER}" --notes-file dist/github/RELEASE_NOTES.md
           else
             gh release create "$TAG" "${ASSETS[@]}" \
-              --title "TOMILO LIB ${VER}" \
+              --title "tomilo-lib ${VER}" \
               --notes-file dist/github/RELEASE_NOTES.md \
               --target "${{ github.sha }}"
           fi

@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.SystemUpdateAlt
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -63,6 +64,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.annotation.ExperimentalCoilApi
@@ -111,6 +113,7 @@ fun ProfileScreen(
     onOpenHub: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenShop: () -> Unit,
+    onOpenGames: () -> Unit,
     onOpenMyPublicProfile: (userId: String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
@@ -286,6 +289,13 @@ fun ProfileScreen(
                 Text("Сообщество", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(10.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionRow(
+                        icon = Icons.Default.SportsEsports,
+                        title = "Игры",
+                        subtitle = "Доступные разделы игровой беты",
+                        iconTint = Color(0xFF9B8CFF),
+                        onClick = onOpenGames,
+                    )
                     ActionRow(
                         icon = Icons.Default.Group,
                         title = "Друзья",

@@ -49,6 +49,19 @@ interface TomiloApi {
     @GET("wheel/recent-wins")
     suspend fun wheelRecentWins(): ApiResponse<WheelRecentWinsDto>
 
+    // ── Games hub ───────────────────────────────────────────────
+    @GET("users/profile/inventory")
+    suspend fun gameInventory(): ApiResponse<List<GameInventoryItemDto>>
+
+    @GET("users/profile/disciples")
+    suspend fun gameDisciples(): ApiResponse<GameDisciplesDto>
+
+    @GET("users/profile/cards")
+    suspend fun gameCards(): ApiResponse<GameCardsDto>
+
+    @GET("users/profile/alchemy/status")
+    suspend fun gameAlchemyStatus(): ApiResponse<GameAlchemyStatusDto>
+
     // ── Tomilo shop ─────────────────────────────────────────────
     @GET("shop/decorations/{type}")
     suspend fun shopDecorations(@Path("type") type: String): ApiResponse<List<ShopDecorationDto>>

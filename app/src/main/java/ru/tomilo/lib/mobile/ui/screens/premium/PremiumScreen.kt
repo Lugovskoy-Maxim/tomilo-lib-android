@@ -105,6 +105,7 @@ private val plans = listOf(
     Plan(id = "premium_1m", months = 1, label = "1 месяц", price = 150, pricePerMonth = 150),
     Plan(id = "premium_3m", months = 3, label = "3 месяца", price = 400, pricePerMonth = 133, badge = "Популярный"),
     Plan(id = "premium_6m", months = 6, label = "6 месяцев", price = 700, pricePerMonth = 117, badge = "Выгодно"),
+    Plan(id = "premium_1y", months = 12, label = "1 год", price = 1200, pricePerMonth = 100, badge = "Год"),
 )
 
 private const val PREMIUM_COIN_PRICE = 30_000

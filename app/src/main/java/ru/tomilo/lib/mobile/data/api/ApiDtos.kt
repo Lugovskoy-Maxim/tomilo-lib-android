@@ -598,8 +598,16 @@ data class ChapterDto(
     /** Разблокировка за монеты активности (с сервера). */
     val isUnlockedByActivityCoins: Boolean? = null,
     val status: String? = null,
+    /** Может быть строкой или populated-объектом тайтла. */
+    val titleId: JsonElement? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun titleKey(): String = jsonElementId(titleId)
+    fun titleSlug(): String? = (titleId as? kotlinx.serialization.json.JsonObject)
+        ?.get("slug")
+        ?.toString()
+        ?.trim('"')
+        ?.takeIf { it.isNotBlank() && it != "null" }
 
     fun numberLabel(): String {
         val n = chapterNumberAsDouble()
@@ -624,6 +632,93 @@ data class ChapterDto(
         return s == "hidden" || s == "deleted"
     }
 }
+
+// ── Games ──────────────────────────────────────────────────────
+
+@Serializable
+data class GameInventoryItemDto(
+    val itemId: String = "",
+    val count: Int = 0,
+    val name: String? = null,
+    val icon: String? = null,
+)
+
+@Serializable
+data class GameDiscipleDto(
+    val characterId: String = "",
+    val name: String? = null,
+    val displayName: String? = null,
+    val avatar: String? = null,
+    val titleName: String? = null,
+    val level: Int? = null,
+    val rank: String? = null,
+    val cp: Int? = null,
+    val attack: Int = 0,
+    val defense: Int = 0,
+    val speed: Int = 0,
+    val hp: Int = 0,
+    val inWarehouse: Boolean? = false,
+    val inMeditation: Boolean? = false,
+) {
+    fun displayName(): String = displayName?.takeIf { it.isNotBlank() }
+        ?: name?.takeIf { it.isNotBlank() }
+        ?: "Ученик"
+}
+
+@Serializable
+data class GameDisciplesDto(
+    val disciples: List<GameDiscipleDto> = emptyList(),
+    val maxDisciples: Int = 0,
+    val combatRating: Int = 0,
+    val balance: Int = 0,
+    val dailyBattlesCount: Int = 0,
+    val maxBattlesPerDay: Int = 0,
+    val sectLevel: Int = 1,
+    val sectLevelLabel: String? = null,
+    val spiritStones: Int = 0,
+    val canBattle: Boolean = false,
+)
+
+@Serializable
+data class GameCardDto(
+    val id: String = "",
+    val name: String = "Карта духа",
+    val description: String? = null,
+    val imageUrl: String? = null,
+    val stageImageUrl: String? = null,
+    val rarity: String = "common",
+    val characterName: String? = null,
+    val titleName: String? = null,
+    val currentStage: String? = null,
+    val copies: Int = 0,
+    val shards: Int = 0,
+)
+
+@Serializable
+data class GameCardsStatsDto(
+    val total: Int = 0,
+    val uniqueTitles: Int = 0,
+)
+
+@Serializable
+data class GameCardsDto(
+    val cards: List<GameCardDto> = emptyList(),
+    val showcase: List<GameCardDto> = emptyList(),
+    val stats: GameCardsStatsDto = GameCardsStatsDto(),
+)
+
+@Serializable
+data class GameAlchemyStatusDto(
+    val canCraft: Boolean = false,
+    val attemptsToday: Int = 0,
+    val attemptsLeft: Int = 0,
+    val craftsPerDay: Int = 0,
+    val alchemyLevel: Int = 1,
+    val alchemyExp: Int = 0,
+    val alchemyExpToNext: Int = 0,
+    val element: String? = null,
+    val cauldronTier: Int = 1,
+)
 
 @Serializable
 data class SearchHitDto(

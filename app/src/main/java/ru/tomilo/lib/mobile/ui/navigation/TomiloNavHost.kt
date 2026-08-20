@@ -49,6 +49,7 @@ import ru.tomilo.lib.mobile.ui.screens.history.HistoryScreen
 import ru.tomilo.lib.mobile.ui.screens.hub.TomiloHubScreen
 import ru.tomilo.lib.mobile.ui.screens.friends.FriendsScreen
 import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
+import ru.tomilo.lib.mobile.ui.screens.games.GamesScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
@@ -90,6 +91,7 @@ object Routes {
     const val Hub = "hub"
     const val Wheel = "wheel"
     const val Shop = "shop"
+    const val Games = "games"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
     /** title в path — надёжнее, чем query, для кириллицы */
@@ -156,6 +158,15 @@ fun TomiloNavHost(container: AppContainer) {
 
     fun goLogin() = navController.navigate(Routes.Login)
 
+    /** Строит предсказуемую иерархию Home → Title независимо от точки входа в читалку. */
+    fun navigateTitleRoot(id: String) {
+        if (id.isBlank()) return
+        navController.navigate(Routes.title(id)) {
+            popUpTo(Routes.Home) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+
     fun openDeepLink(rawLink: String) {
         val path = rawLink
             .substringAfter("tomilo-lib.ru", rawLink)
@@ -181,6 +192,7 @@ fun TomiloNavHost(container: AppContainer) {
             path == "offline" -> navController.navigate(Routes.Offline)
             path == "premium" -> navController.navigate(Routes.Premium)
             path == "tomilo-shop" -> navController.navigate(Routes.Shop)
+            path == "games" -> navController.navigate(Routes.Games)
             path == "notifications" -> navController.navigate(Routes.Notifications)
             else -> runCatching {
                 val url = if (rawLink.startsWith("http")) rawLink
@@ -263,7 +275,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenQuests = { navController.navigate(Routes.Quests) },
                     onOpenFriends = { navController.navigate(Routes.Friends) },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
-                    onOpenWheel = { navController.navigate(Routes.Wheel) },
+                    onOpenGames = { navController.navigate(Routes.Games) },
                     onContinueReading = { titleId, chapterId ->
                         navController.navigate(Routes.reader(chapterId, offline = false, titleId = titleId))
                     },
@@ -360,6 +372,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenHub = { navController.navigate(Routes.Hub) },
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
                     onOpenShop = { navController.navigate(Routes.Shop) },
+                    onOpenGames = { navController.navigate(Routes.Games) },
                     onOpenMyPublicProfile = { id -> navController.navigate(Routes.user(id)) },
                 )
             }
@@ -397,8 +410,22 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Hub) {
                 TomiloHubScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenWheel = { navController.navigate(Routes.Wheel) },
                     onOpenShop = { navController.navigate(Routes.Shop) },
+                    onOpenGames = { navController.navigate(Routes.Games) },
+                )
+            }
+            composable(Routes.Games) {
+                GamesScreen(
+                    authRepository = container.authRepository,
+                    gamesRepository = container.gamesRepository,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
+                    onOpenQuests = { navController.navigate(Routes.Quests) },
+                    onOpenWheel = { navController.navigate(Routes.Wheel) },
+                    onOpenWebTab = { tab ->
+                        val url = "${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/games?tab=${Routes.enc(tab)}"
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    },
                 )
             }
             composable(Routes.Shop) {
@@ -505,7 +532,7 @@ fun TomiloNavHost(container: AppContainer) {
                     downloadManager = container.downloadManager,
                     rewardedAdManager = container.rewardedAdManager,
                     adRewardStore = container.adRewardStore,
-                    onBack = { navController.popBackStack() },
+                    onOpenHome = { navigateTab(Routes.Home) },
                     onLogin = { goLogin() },
                     onOpenChapter = { titleId, chapterId, offline ->
                         navController.navigate(
@@ -546,20 +573,7 @@ fun TomiloNavHost(container: AppContainer) {
                     authRepository = container.authRepository,
                     chapterTransitionAds = container.chapterTransitionAds,
                     onBack = { navController.popBackStack() },
-                    onOpenChapter = { nextId ->
-                        // Заменяем текущий reader в стеке, чтобы «Назад» = выход к тайтлу
-                        navController.navigate(
-                            Routes.reader(nextId, offline = false, titleId = titleId),
-                        ) {
-                            popUpTo(Routes.Reader) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
-                    onOpenTitle = { id ->
-                        navController.navigate(Routes.title(id)) {
-                            launchSingleTop = true
-                        }
-                    },
+                    onOpenTitle = { id -> navigateTitleRoot(id) },
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                     onOpenPremium = { navController.navigate(Routes.Premium) },
                     onLogin = { goLogin() },

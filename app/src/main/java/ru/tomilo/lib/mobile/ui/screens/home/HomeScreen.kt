@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Update
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -39,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -92,7 +94,7 @@ fun HomeScreen(
     onOpenQuests: () -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onOpenOffline: () -> Unit = {},
-    onOpenWheel: () -> Unit = {},
+    onOpenGames: () -> Unit = {},
     onContinueReading: (titleId: String, chapterId: String) -> Unit = { _, _ -> },
 ) {
     val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
@@ -103,7 +105,7 @@ fun HomeScreen(
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var continueItems by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
     var genres by remember { mutableStateOf<List<String>>(emptyList()) }
-    var reloadToken by remember { mutableStateOf(0) }
+    var reloadToken by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(user?.stableId(), reloadToken) {
@@ -190,6 +192,7 @@ fun HomeScreen(
                     onQuests = onOpenQuests,
                     onOffline = onOpenOffline,
                     onFriends = onOpenFriends,
+                    onGames = onOpenGames,
                 )
                 if (genres.isNotEmpty()) {
                     SectionHead("Жанры", action = "Каталог", onAction = onOpenCatalog)
@@ -284,6 +287,7 @@ private fun ShortcutRow(
     onQuests: () -> Unit,
     onOffline: () -> Unit,
     onFriends: () -> Unit,
+    onGames: () -> Unit,
 ) {
     Row(
         Modifier
@@ -293,6 +297,7 @@ private fun ShortcutRow(
     ) {
         ShortcutChip("Обновления", Icons.Outlined.Update, onUpdates)
         ShortcutChip("Задания", Icons.Outlined.CardGiftcard, onQuests)
+        ShortcutChip("Игры", Icons.Outlined.SportsEsports, onGames)
         ShortcutChip("Офлайн", Icons.Outlined.CloudOff, onOffline)
         ShortcutChip("Друзья", Icons.Outlined.People, onFriends)
     }

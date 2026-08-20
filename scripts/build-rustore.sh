@@ -52,10 +52,19 @@ if [[ -n "$AAB_SRC" && -f "$AAB_SRC" ]]; then
   cp -f "$AAB_SRC" "$AAB_DST"
 fi
 
+CHECKSUM_DST="$OUT_DIR/tomilo-rustore-v${VER}-${CODE}-${STAMP}.sha256"
+(
+  cd "$OUT_DIR"
+  shasum -a 256 "$(basename "$APK_DST")" > "$(basename "$CHECKSUM_DST")"
+  if [[ -n "${AAB_DST:-}" && -f "$(basename "$AAB_DST")" ]]; then
+    shasum -a 256 "$(basename "$AAB_DST")" >> "$(basename "$CHECKSUM_DST")"
+  fi
+)
+
 # Короткий README рядом с билдом
 cat > "$OUT_DIR/README.txt" <<EOF
-Tomilo — сборка для RuStore (обычные пользователи)
-==================================================
+tomilo-lib — сборка для RuStore (обычные пользователи)
+======================================================
 versionName: $VER
 versionCode: $CODE
 package:     ru.tomilo.lib.mobile
@@ -84,6 +93,7 @@ ls -lh "$OUT_DIR"
 echo ""
 echo "Загрузите в RuStore Console:"
 echo "  $APK_DST"
+echo "  SHA-256: $CHECKSUM_DST"
 echo ""
 
 # verify signature if possible
