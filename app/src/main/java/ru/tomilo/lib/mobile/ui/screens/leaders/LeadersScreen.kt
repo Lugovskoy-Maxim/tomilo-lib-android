@@ -56,16 +56,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.LeaderboardUserDto
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -515,21 +513,13 @@ private fun LeaderRow(
 
 @Composable
 private fun LeaderAvatar(user: LeaderboardUserDto, size: Int, ringColor: Color) {
-    Box(
-        modifier = Modifier
-            .size(size.dp)
-            .border(2.dp, ringColor, CircleShape)
-            .padding(3.dp)
-            .clip(CircleShape)
-            .background(TomiloSurface2),
-    ) {
-        AsyncImage(
-            model = MediaUrl.resolve(user.avatar),
-            contentDescription = user.username,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
+    DecoratedAvatar(
+        avatarUrl = user.avatar,
+        username = user.username,
+        decorations = user.decorations(),
+        size = size.dp,
+        ringColor = ringColor,
+    )
 }
 
 @Composable

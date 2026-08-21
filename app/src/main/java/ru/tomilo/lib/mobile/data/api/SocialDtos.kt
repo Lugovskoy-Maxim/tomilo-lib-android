@@ -31,8 +31,11 @@ data class PublicUserDto(
     val ratingsCount: Int? = null,
     val createdAt: String? = null,
     val showStats: Boolean? = null,
+    val equippedDecorations: EquippedDecorationsDto? = null,
+    @SerialName("equipped_decorations") val equippedDecorationsLegacy: EquippedDecorationsDto? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
 }
 
 @Serializable
@@ -62,8 +65,11 @@ data class LeaderboardUserDto(
     val balance: Int? = null,
     /** Категория developmentHelp — принятые персонажи */
     val charactersAcceptedCount: Int? = null,
+    val equippedDecorations: EquippedDecorationsDto? = null,
+    @SerialName("equipped_decorations") val equippedDecorationsLegacy: EquippedDecorationsDto? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
 }
 
 @Serializable
@@ -181,6 +187,7 @@ data class CommentDto(
     fun authorName(): String = (user ?: author)?.username ?: "Аноним"
     fun authorId(): String = (user ?: author)?.stableId().orEmpty()
     fun authorAvatar(): String? = (user ?: author)?.avatar
+    fun authorDecorations(): EquippedDecorationsDto? = (user ?: author)?.decorations()
 }
 
 @Serializable
@@ -190,8 +197,11 @@ data class CommentUserDto(
     val username: String? = null,
     val avatar: String? = null,
     val level: Int? = null,
+    val equippedDecorations: EquippedDecorationsDto? = null,
+    @SerialName("equipped_decorations") val equippedDecorationsLegacy: EquippedDecorationsDto? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
 }
 
 @Serializable
@@ -216,8 +226,11 @@ data class ConversationUserDto(
     val avatar: String? = null,
     val level: Int? = null,
     val isSupport: Boolean? = null,
+    val equippedDecorations: EquippedDecorationsDto? = null,
+    @SerialName("equipped_decorations") val equippedDecorationsLegacy: EquippedDecorationsDto? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
 }
 
 @Serializable

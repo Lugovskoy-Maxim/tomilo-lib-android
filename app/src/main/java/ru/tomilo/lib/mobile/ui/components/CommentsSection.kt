@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -33,11 +32,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.CommentDto
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -190,15 +186,12 @@ private fun CommentItem(
             .padding(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        AsyncImage(
-            model = MediaUrl.resolve(comment.authorAvatar()),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(TomiloSurface2)
-                .clickable(enabled = comment.authorId().isNotBlank()) {
+        DecoratedAvatar(
+            avatarUrl = comment.authorAvatar(),
+            username = comment.authorName(),
+            decorations = comment.authorDecorations(),
+            size = 40.dp,
+            modifier = Modifier.clickable(enabled = comment.authorId().isNotBlank()) {
                     onOpenUser(comment.authorId())
                 },
         )

@@ -3,6 +3,9 @@ package ru.tomilo.lib.mobile.data.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 @Serializable
 data class ApiResponse<T>(
@@ -57,6 +60,8 @@ data class UserDto(
     val titlesReadCount: Int? = null,
     val completedTitlesCount: Int? = null,
     val balance: Int? = null,
+    val equippedDecorations: EquippedDecorationsDto? = null,
+    @SerialName("equipped_decorations") val equippedDecorationsLegacy: EquippedDecorationsDto? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     fun isStaff(): Boolean {
@@ -64,6 +69,34 @@ data class UserDto(
         return r == "admin" || r == "moderator"
     }
     fun isAdmin(): Boolean = role?.equals("admin", ignoreCase = true) == true
+    fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
+}
+
+/** Надетые украшения приходят с сервера строкой, populated-объектом либо null. */
+@Serializable
+data class EquippedDecorationsDto(
+    val avatar: JsonElement? = null,
+    val frame: JsonElement? = null,
+    val background: JsonElement? = null,
+    val card: JsonElement? = null,
+    val badge: JsonElement? = null,
+) {
+    fun avatarUrl(): String? = decorationImageUrl(avatar)
+    fun frameUrl(): String? = decorationImageUrl(frame)
+    fun backgroundUrl(): String? = decorationImageUrl(background)
+    fun cardUrl(): String? = decorationImageUrl(card)
+    fun badgeUrl(): String? = decorationImageUrl(badge)
+}
+
+private fun decorationImageUrl(value: JsonElement?): String? {
+    val raw = when (value) {
+        is JsonPrimitive -> value.contentOrNull
+        is JsonObject -> value["imageUrl"]?.let { (it as? JsonPrimitive)?.contentOrNull }
+            ?: value["image_url"]?.let { (it as? JsonPrimitive)?.contentOrNull }
+        else -> null
+    }?.trim().orEmpty()
+    if (raw.isBlank() || Regex("^[a-fA-F0-9]{24}$").matches(raw)) return null
+    return raw
 }
 
 @Serializable
@@ -646,11 +679,17 @@ data class GameInventoryItemDto(
 @Serializable
 data class GameDiscipleDto(
     val characterId: String = "",
+    val titleId: String? = null,
+    val isInternal: Boolean? = false,
+    val internalSlot: Int? = null,
     val name: String? = null,
     val displayName: String? = null,
     val avatar: String? = null,
     val titleName: String? = null,
+    val recruitedAt: String? = null,
     val level: Int? = null,
+    val exp: Int? = null,
+    val expToNext: Int? = null,
     val rank: String? = null,
     val cp: Int? = null,
     val attack: Int = 0,
@@ -659,6 +698,7 @@ data class GameDiscipleDto(
     val hp: Int = 0,
     val inWarehouse: Boolean? = false,
     val inMeditation: Boolean? = false,
+    val meditationStartedAt: String? = null,
 ) {
     fun displayName(): String = displayName?.takeIf { it.isNotBlank() }
         ?: name?.takeIf { it.isNotBlank() }
@@ -669,6 +709,17 @@ data class GameDiscipleDto(
 data class GameDisciplesDto(
     val disciples: List<GameDiscipleDto> = emptyList(),
     val maxDisciples: Int = 0,
+    val maxBattleSquadSize: Int? = null,
+    val minBattleSquadSize: Int? = null,
+    val arenaBattleSquadSize: Int? = null,
+    val arenaRosterActiveCount: Int? = null,
+    val arenaReadyCount: Int? = null,
+    val arenaMeditatingCount: Int? = null,
+    val arenaMeditatingDiscipleNames: List<String> = emptyList(),
+    val canEnterArena: Boolean? = null,
+    val battleSquadCharacterIds: List<String> = emptyList(),
+    val battleSquadDiscipleKeys: List<String> = emptyList(),
+    val primaryDiscipleCharacterId: String? = null,
     val combatRating: Int = 0,
     val balance: Int = 0,
     val dailyBattlesCount: Int = 0,
@@ -676,7 +727,74 @@ data class GameDisciplesDto(
     val sectLevel: Int = 1,
     val sectLevelLabel: String? = null,
     val spiritStones: Int = 0,
+    val canTrain: Boolean = false,
     val canBattle: Boolean = false,
+    val rerollCostCoins: Int? = null,
+    val trainCostCoins: Int? = null,
+    val cultivationSpeedMultiplier: Double? = null,
+)
+
+@Serializable
+data class GameCharacterRequest(val characterId: String)
+
+@Serializable
+data class GameWarehouseRequest(
+    val characterId: String,
+    val inWarehouse: Boolean,
+)
+
+@Serializable
+data class GameBattleSquadRequest(val characterIds: List<String>)
+
+@Serializable
+data class GameBattleRequest(
+    val opponentUserId: String,
+    val supportItemIds: List<String> = emptyList(),
+    val myDiscipleIds: List<String> = emptyList(),
+)
+
+@Serializable
+data class GameTrainResultDto(
+    val disciple: GameDiscipleDto? = null,
+    val balance: Int? = null,
+    val outcome: String? = null,
+)
+
+@Serializable
+data class GamePrimaryResultDto(val primaryDiscipleCharacterId: String? = null)
+
+@Serializable
+data class GameSimpleResultDto(val ok: Boolean? = null)
+
+@Serializable
+data class GameBattleSquadResultDto(val battleSquadCharacterIds: List<String> = emptyList())
+
+@Serializable
+data class GameBattleOpponentDto(
+    val userId: String = "",
+    val username: String = "Соперник",
+    val avatar: String? = null,
+    val combatRating: Int = 0,
+    val disciples: List<GameDiscipleDto> = emptyList(),
+    val battleSquad: List<GameDiscipleDto> = emptyList(),
+)
+
+@Serializable
+data class GameBattleMatchDto(
+    val opponent: GameBattleOpponentDto? = null,
+    val combatRating: Int? = null,
+    val isBot: Boolean = false,
+)
+
+@Serializable
+data class GameBattleResultDto(
+    val win: Boolean = false,
+    val coinsGained: Int = 0,
+    val expGained: Int? = null,
+    val combatRating: Int? = null,
+    val combatRatingDelta: Int? = null,
+    val ratingDelta: Int? = null,
+    val resultScreen: JsonElement? = null,
 )
 
 @Serializable

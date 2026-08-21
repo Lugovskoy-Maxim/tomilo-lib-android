@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.AppContainer
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.ui.components.AgeGateDialog
+import ru.tomilo.lib.mobile.ui.components.RewardNotificationHost
 import ru.tomilo.lib.mobile.ui.components.TomiloBottomBar
 import ru.tomilo.lib.mobile.ui.components.TomiloTabItem
 import ru.tomilo.lib.mobile.ui.screens.admin.AdminScreen
@@ -623,5 +624,6 @@ fun TomiloNavHost(container: AppContainer) {
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
+        RewardNotificationHost(Modifier.align(Alignment.TopCenter))
     }
 }

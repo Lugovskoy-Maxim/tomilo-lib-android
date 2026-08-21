@@ -536,30 +536,47 @@ fun PageIntro(
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .shadow(9.dp, RoundedCornerShape(26.dp), ambientColor = accent.copy(alpha = 0.16f))
+            .clip(RoundedCornerShape(26.dp))
             .background(
                 Brush.linearGradient(
-                    listOf(accent.copy(alpha = 0.16f), TomiloSurface),
+                    listOf(accent.copy(alpha = 0.22f), TomiloSurface, TomiloSurface2),
                 ),
             )
-            .border(1.dp, accent.copy(alpha = 0.20f), RoundedCornerShape(22.dp))
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .border(1.dp, accent.copy(alpha = 0.26f), RoundedCornerShape(26.dp)),
     ) {
         Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(accent.copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, tint = accent, modifier = Modifier.size(24.dp)) }
-        Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(2.dp))
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
+            Modifier
+                .size(96.dp)
+                .align(Alignment.TopEnd)
+                .background(
+                    Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent)),
+                ),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(17.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(50.dp)
+                    .shadow(7.dp, RoundedCornerShape(17.dp), ambientColor = accent.copy(alpha = 0.22f))
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(accent.copy(alpha = 0.18f))
+                    .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(17.dp)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(25.dp)) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(3.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
+            }
+            trailing?.invoke()
         }
-        trailing?.invoke()
     }
 }
 

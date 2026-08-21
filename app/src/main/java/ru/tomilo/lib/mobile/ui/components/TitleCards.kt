@@ -45,7 +45,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
-private val CardRadius = 18.dp
+private val CardRadius = 20.dp
 private val CoverShape = RoundedCornerShape(CardRadius)
 
 @Composable
@@ -88,16 +88,25 @@ fun TitlePosterCard(
 ) {
     val base = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
     Column(
-        modifier = base.clickable(onClick = onClick),
+        modifier = base
+            .shadow(7.dp, CoverShape, ambientColor = Color.Black.copy(alpha = 0.20f))
+            .clip(CoverShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(TomiloSurface2, TomiloSurface2.copy(alpha = 0.76f)),
+                ),
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.075f), CoverShape)
+            .clickable(onClick = onClick)
+            .padding(bottom = 9.dp),
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .shadow(8.dp, CoverShape, ambientColor = Color.Black.copy(alpha = 0.25f))
                 .clip(CoverShape)
                 .background(TomiloSurface2)
-                .border(1.dp, Color.White.copy(alpha = 0.08f), CoverShape),
+                .border(1.dp, Color.White.copy(alpha = 0.06f), CoverShape),
         ) {
             AsyncImage(
                 model = MediaUrl.resolve(cover),
@@ -109,7 +118,7 @@ fun TitlePosterCard(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
+                    .height(76.dp)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
@@ -175,15 +184,15 @@ fun TitlePosterCard(
                 )
             }
         }
-        Spacer(Modifier.height(7.dp))
+        Spacer(Modifier.height(9.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             lineHeight = 18.sp,
-            modifier = Modifier.padding(horizontal = 4.dp),
+            modifier = Modifier.padding(horizontal = 10.dp),
         )
         val footer = listOfNotNull(
             year?.toString(),
@@ -196,7 +205,7 @@ fun TitlePosterCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = TomiloMuted,
                 maxLines = 1,
-                modifier = Modifier.padding(horizontal = 4.dp).padding(bottom = 2.dp),
+                modifier = Modifier.padding(horizontal = 10.dp),
             )
         }
     }
@@ -231,24 +240,31 @@ fun TitleSearchCard(
             .fillMaxWidth()
             .padding(vertical = 5.dp),
         color = TomiloSurface2,
-        shape = RoundedCornerShape(19.dp),
+        shape = RoundedCornerShape(22.dp),
         tonalElevation = 0.dp,
-        shadowElevation = 2.dp,
+        shadowElevation = 5.dp,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            Color.White.copy(alpha = 0.075f),
+            Color.White.copy(alpha = 0.09f),
         ),
     ) {
         Row(
-            Modifier.padding(11.dp),
+            Modifier
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(TomiloPrimary.copy(alpha = 0.055f), Color.Transparent),
+                    ),
+                )
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 Modifier
-                    .size(width = 64.dp, height = 92.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(width = 68.dp, height = 98.dp)
+                    .shadow(7.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.26f))
+                    .clip(RoundedCornerShape(16.dp))
                     .background(TomiloSurface2)
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp)),
             ) {
                 AsyncImage(
                     model = MediaUrl.resolve(cover),
@@ -352,12 +368,20 @@ fun TitleSearchCard(
                     )
                 }
             } else {
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = TomiloMuted.copy(alpha = 0.72f),
-                    modifier = Modifier.size(20.dp),
-                )
+                Box(
+                    Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(11.dp))
+                        .background(Color.White.copy(alpha = 0.055f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = TomiloMuted.copy(alpha = 0.82f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
     }

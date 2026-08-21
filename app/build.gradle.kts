@@ -35,8 +35,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // RuStore / production consumer release
-        versionCode = 18
-        versionName = "1.2.3"
+        versionCode = 19
+        versionName = "1.2.4"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -120,7 +120,7 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
-    // Удобные имена артефактов: tomilo-rustore-1.2.3-release.apk
+    // Удобные имена артефактов: tomilo-rustore-1.2.4-release.apk
     applicationVariants.configureEach {
         val variant = this
         outputs.configureEach {

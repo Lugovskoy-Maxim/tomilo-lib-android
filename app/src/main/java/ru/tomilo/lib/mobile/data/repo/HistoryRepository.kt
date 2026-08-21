@@ -6,12 +6,19 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.RateTitleRequest
 import ru.tomilo.lib.mobile.data.api.ReadIdsDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
+
+data class HistoryReward(
+    val experienceGained: Int = 0,
+    val coinsGained: Int = 0,
+    val reason: String? = null,
+)
 
 class HistoryRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
@@ -55,10 +62,11 @@ class HistoryRepository(private val api: TomiloApi) {
         data.chapterIds.filter { it.isNotBlank() }.toSet()
     }
 
-    suspend fun markRead(titleId: String, chapterId: String): Result<Unit> = runCatching {
-        if (titleId.isBlank() || chapterId.isBlank()) return@runCatching
+    suspend fun markRead(titleId: String, chapterId: String): Result<HistoryReward> = runCatching {
+        if (titleId.isBlank() || chapterId.isBlank()) return@runCatching HistoryReward()
         val res = api.addHistory(titleId, chapterId)
         if (!res.success) error(res.message ?: "Не удалось сохранить прогресс")
+        parseHistoryReward(res.data)
     }
 
     suspend fun rateTitle(titleId: String, rating: Int): Result<Unit> = runCatching {
@@ -124,5 +132,20 @@ class HistoryRepository(private val api: TomiloApi) {
         return arr.mapNotNull {
             runCatching { json.decodeFromJsonElement<HistoryEntryDto>(it) }.getOrNull()
         }.filter { it.titleKey().isNotBlank() }
+    }
+
+    private fun parseHistoryReward(data: JsonElement?): HistoryReward {
+        val root = data as? JsonObject ?: return HistoryReward()
+        val progress = root["progress"] as? JsonObject ?: root
+        fun int(vararg keys: String): Int = keys.firstNotNullOfOrNull { key ->
+            progress[key]?.jsonPrimitive?.intOrNull ?: root[key]?.jsonPrimitive?.intOrNull
+        } ?: 0
+        val reason = progress["reason"]?.jsonPrimitive?.content
+            ?: root["reason"]?.jsonPrimitive?.content
+        return HistoryReward(
+            experienceGained = int("expGained", "experienceGained"),
+            coinsGained = int("bonusCoins", "coinsGained"),
+            reason = reason,
+        )
     }
 }

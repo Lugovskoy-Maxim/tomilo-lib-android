@@ -18,6 +18,7 @@ import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
+import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 
 class TomiloApp : Application(), ImageLoaderFactory {
     lateinit var container: AppContainer
@@ -49,8 +50,13 @@ class TomiloApp : Application(), ImageLoaderFactory {
                     NotificationsPollWorker.enqueueNow(this@TomiloApp)
                     container.readingPrefs.pendingHistory().forEach { (titleId, chapterId) ->
                         container.historyRepository.markRead(titleId, chapterId)
-                            .onSuccess {
+                            .onSuccess { reward ->
                                 container.readingPrefs.markHistorySynced(titleId, chapterId)
+                                RewardNotifications.show(
+                                    experience = reward.experienceGained,
+                                    coins = reward.coinsGained,
+                                    source = reward.reason ?: "Офлайн-глава синхронизирована",
+                                )
                             }
                     }
                 }

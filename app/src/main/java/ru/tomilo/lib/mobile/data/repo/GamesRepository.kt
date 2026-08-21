@@ -3,9 +3,16 @@ package ru.tomilo.lib.mobile.data.repo
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
 import ru.tomilo.lib.mobile.data.api.GameAlchemyStatusDto
+import ru.tomilo.lib.mobile.data.api.GameBattleMatchDto
+import ru.tomilo.lib.mobile.data.api.GameBattleRequest
+import ru.tomilo.lib.mobile.data.api.GameBattleResultDto
+import ru.tomilo.lib.mobile.data.api.GameBattleSquadRequest
 import ru.tomilo.lib.mobile.data.api.GameCardsDto
+import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
+import ru.tomilo.lib.mobile.data.api.GameTrainResultDto
+import ru.tomilo.lib.mobile.data.api.GameWarehouseRequest
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 
 data class GamesDashboard(
@@ -17,6 +24,51 @@ data class GamesDashboard(
 )
 
 class GamesRepository(private val api: TomiloApi) {
+    suspend fun disciples(): Result<GameDisciplesDto> = runCatching {
+        val response = api.gameDisciples()
+        if (!response.success) error(response.message ?: "Не удалось обновить секту")
+        response.data ?: error("Сервер не вернул данные секты")
+    }
+
+    suspend fun train(characterId: String): Result<GameTrainResultDto> = runCatching {
+        val response = api.gameTrainDisciple(GameCharacterRequest(characterId))
+        if (!response.success) error(response.message ?: "Тренировка не удалась")
+        response.data ?: GameTrainResultDto()
+    }
+
+    suspend fun setPrimary(characterId: String): Result<Unit> = runCatching {
+        val response = api.gameSetPrimaryDisciple(GameCharacterRequest(characterId))
+        if (!response.success) error(response.message ?: "Не удалось назначить основного ученика")
+    }
+
+    suspend fun setWarehouse(characterId: String, inWarehouse: Boolean): Result<Unit> = runCatching {
+        val response = api.gameSetDiscipleWarehouse(GameWarehouseRequest(characterId, inWarehouse))
+        if (!response.success) error(response.message ?: "Не удалось изменить состав секты")
+    }
+
+    suspend fun saveBattleSquad(characterIds: List<String>): Result<List<String>> = runCatching {
+        val response = api.gameSetBattleSquad(GameBattleSquadRequest(characterIds))
+        if (!response.success) error(response.message ?: "Не удалось сохранить боевой отряд")
+        response.data?.battleSquadCharacterIds ?: characterIds
+    }
+
+    suspend fun findOpponent(): Result<GameBattleMatchDto?> = runCatching {
+        val response = api.gameBattleMatch()
+        if (!response.success) error(response.message ?: "Не удалось найти соперника")
+        response.data
+    }
+
+    suspend fun battle(opponentUserId: String, characterIds: List<String>): Result<GameBattleResultDto> = runCatching {
+        val response = api.gameBattle(
+            GameBattleRequest(
+                opponentUserId = opponentUserId,
+                myDiscipleIds = characterIds,
+            ),
+        )
+        if (!response.success) error(response.message ?: "Не удалось провести бой")
+        response.data ?: error("Сервер не вернул результат боя")
+    }
+
     /** Независимые игровые блоки загружаются параллельно и не ломают всю страницу при частичном сбое. */
     suspend fun dashboard(): Result<GamesDashboard> = supervisorScope {
         runCatching {

@@ -56,6 +56,24 @@ interface TomiloApi {
     @GET("users/profile/disciples")
     suspend fun gameDisciples(): ApiResponse<GameDisciplesDto>
 
+    @POST("users/profile/disciples/train")
+    suspend fun gameTrainDisciple(@Body body: GameCharacterRequest): ApiResponse<GameTrainResultDto>
+
+    @POST("users/profile/disciples/primary")
+    suspend fun gameSetPrimaryDisciple(@Body body: GameCharacterRequest): ApiResponse<GamePrimaryResultDto>
+
+    @POST("users/profile/disciples/warehouse")
+    suspend fun gameSetDiscipleWarehouse(@Body body: GameWarehouseRequest): ApiResponse<GameSimpleResultDto>
+
+    @PUT("users/profile/disciples/battle-squad")
+    suspend fun gameSetBattleSquad(@Body body: GameBattleSquadRequest): ApiResponse<GameBattleSquadResultDto>
+
+    @GET("users/profile/disciples/battle-match")
+    suspend fun gameBattleMatch(): ApiResponse<GameBattleMatchDto?>
+
+    @POST("users/profile/disciples/battle")
+    suspend fun gameBattle(@Body body: GameBattleRequest): ApiResponse<GameBattleResultDto>
+
     @GET("users/profile/cards")
     suspend fun gameCards(): ApiResponse<GameCardsDto>
 

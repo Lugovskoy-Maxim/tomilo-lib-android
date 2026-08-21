@@ -61,9 +61,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.data.api.EquippedDecorationsDto
 import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.StatusPill
@@ -158,7 +160,10 @@ fun ShopScreen(
                 socialRepository.equipDecoration(category.type, id)
             }
             result
-                .onSuccess { reloadShop(if (equipped) "Украшение снято" else "Украшение надето") }
+                .onSuccess {
+                    authRepository.refreshProfile()
+                    reloadShop(if (equipped) "Украшение снято" else "Украшение надето")
+                }
                 .onFailure { snackbar.showSnackbar(it.message ?: "Не удалось изменить украшение") }
             busyId = null
         }
@@ -238,6 +243,9 @@ fun ShopScreen(
                             owned = id in ownedIds,
                             equipped = id in equippedIds,
                             busy = busyId == id,
+                            previewAvatar = user?.avatar,
+                            previewUsername = user?.username,
+                            equippedDecorations = user?.decorations(),
                             onAction = {
                                 when {
                                     user == null -> onLogin()
@@ -284,6 +292,9 @@ private fun ShopDecorationCard(
     owned: Boolean,
     equipped: Boolean,
     busy: Boolean,
+    previewAvatar: String?,
+    previewUsername: String?,
+    equippedDecorations: EquippedDecorationsDto?,
     onAction: () -> Unit,
 ) {
     val rarityColor = when (item.rarity.lowercase()) {
@@ -309,12 +320,41 @@ private fun ShopDecorationCard(
                     .background(rarityColor.copy(alpha = 0.10f))
                     .border(1.dp, rarityColor.copy(alpha = 0.22f), RoundedCornerShape(13.dp)),
             ) {
-                AsyncImage(
-                    model = MediaUrl.resolve(item.imageUrl),
-                    contentDescription = item.name,
-                    contentScale = if (type == "frame" || type == "badge") ContentScale.Fit else ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().padding(if (type == "frame" || type == "badge") 7.dp else 0.dp),
-                )
+                when (type) {
+                    "frame" -> DecoratedAvatar(
+                        avatarUrl = previewAvatar,
+                        username = previewUsername,
+                        decorations = equippedDecorations,
+                        frameUrl = item.imageUrl,
+                        size = 112.dp,
+                        modifier = Modifier.align(Alignment.Center),
+                        ringColor = rarityColor,
+                    )
+                    "avatar" -> DecoratedAvatar(
+                        avatarUrl = previewAvatar,
+                        username = previewUsername,
+                        decorations = equippedDecorations,
+                        avatarDecorationUrl = item.imageUrl,
+                        size = 112.dp,
+                        modifier = Modifier.align(Alignment.Center),
+                        ringColor = rarityColor,
+                    )
+                    "badge" -> DecoratedAvatar(
+                        avatarUrl = previewAvatar,
+                        username = previewUsername,
+                        decorations = equippedDecorations,
+                        badgeUrl = item.imageUrl,
+                        size = 112.dp,
+                        modifier = Modifier.align(Alignment.Center),
+                        ringColor = rarityColor,
+                    )
+                    else -> AsyncImage(
+                        model = MediaUrl.resolve(item.imageUrl),
+                        contentDescription = item.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
                 Surface(
                     color = rarityColor.copy(alpha = 0.92f),
                     shape = RoundedCornerShape(8.dp),

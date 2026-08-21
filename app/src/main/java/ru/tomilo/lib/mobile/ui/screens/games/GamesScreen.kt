@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.screens.games
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -85,6 +86,8 @@ private val GamesPurple = Color(0xFF9B8CFF)
 private val GamesCyan = Color(0xFF55C7D9)
 private val GamesGreen = Color(0xFF65B985)
 
+internal enum class GamesPage { HUB, SECT, ARENA }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GamesScreen(
@@ -101,6 +104,9 @@ fun GamesScreen(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    var page by remember { mutableStateOf(GamesPage.HUB) }
+
+    BackHandler(enabled = page != GamesPage.HUB) { page = GamesPage.HUB }
 
     LaunchedEffect(user?.stableId(), reload) {
         if (user == null) {
@@ -122,12 +128,26 @@ fun GamesScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Игры")
-                        Text("Арена наставника · бета", color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            when (page) {
+                                GamesPage.HUB -> "Игры"
+                                GamesPage.SECT -> "Секта"
+                                GamesPage.ARENA -> "Арена"
+                            },
+                        )
+                        Text(
+                            when (page) {
+                                GamesPage.HUB -> "Арена наставника · бета"
+                                GamesPage.SECT -> "Ученики и развитие"
+                                GamesPage.ARENA -> "Боевой отряд и PvP"
+                            },
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (page == GamesPage.HUB) onBack() else page = GamesPage.HUB }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
@@ -161,13 +181,30 @@ fun GamesScreen(
                 onRefresh = { reload += 1 },
                 modifier = Modifier.padding(padding).fillMaxSize(),
             ) {
-                GamesContent(
-                    dashboard = dashboard ?: GamesDashboard(),
-                    profileBalance = user?.balance ?: 0,
-                    onOpenQuests = onOpenQuests,
-                    onOpenWheel = onOpenWheel,
-                    onOpenWebTab = onOpenWebTab,
-                )
+                val currentDashboard = dashboard ?: GamesDashboard()
+                when (page) {
+                    GamesPage.HUB -> GamesContent(
+                        dashboard = currentDashboard,
+                        profileBalance = user?.balance ?: 0,
+                        onOpenQuests = onOpenQuests,
+                        onOpenWheel = onOpenWheel,
+                        onOpenSect = { page = GamesPage.SECT },
+                        onOpenArena = { page = GamesPage.ARENA },
+                        onOpenWebTab = onOpenWebTab,
+                    )
+                    GamesPage.SECT -> SectContent(
+                        disciples = currentDashboard.disciples,
+                        gamesRepository = gamesRepository,
+                        onOpenArena = { page = GamesPage.ARENA },
+                        onChanged = { reload += 1 },
+                    )
+                    GamesPage.ARENA -> ArenaContent(
+                        disciples = currentDashboard.disciples,
+                        gamesRepository = gamesRepository,
+                        onOpenSect = { page = GamesPage.SECT },
+                        onChanged = { reload += 1 },
+                    )
+                }
             }
         }
     }
@@ -210,6 +247,8 @@ private fun GamesContent(
     profileBalance: Int,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
+    onOpenSect: () -> Unit,
+    onOpenArena: () -> Unit,
     onOpenWebTab: (String) -> Unit,
 ) {
     val totalItems = dashboard.inventory.sumOf { it.count }
@@ -284,8 +323,19 @@ private fun GamesContent(
                 subtitle = "${disciples.sectLevelLabel ?: "Уровень ${disciples.sectLevel}"} · сила ${disciples.combatRating}",
                 badge = "${disciples.disciples.size}/${disciples.maxDisciples.coerceAtLeast(disciples.disciples.size)}",
                 accent = GamesPurple,
-                external = true,
-                onClick = { onOpenWebTab("disciples") },
+                onClick = onOpenSect,
+            )
+        }
+        item {
+            val maxBattles = disciples.maxBattlesPerDay.takeIf { it > 0 } ?: 3
+            val remaining = (maxBattles - disciples.dailyBattlesCount).coerceAtLeast(0)
+            GameModeCard(
+                icon = Icons.Default.MilitaryTech,
+                title = "Арена",
+                subtitle = "Соберите отряд и сразитесь с соперником",
+                badge = "$remaining/$maxBattles",
+                accent = Color(0xFFE98273),
+                onClick = onOpenArena,
             )
         }
         item {
@@ -325,7 +375,7 @@ private fun GamesContent(
             item { InventoryPreview(dashboard) }
         }
         if (disciples.disciples.isNotEmpty()) {
-            item { GamesSectionTitle("Ученики секты", "Управлять", { onOpenWebTab("disciples") }) }
+            item { GamesSectionTitle("Ученики секты", "Управлять", onOpenSect, external = false) }
             items(disciples.disciples.take(3), key = { it.characterId.ifBlank { it.displayName() } }) {
                 DiscipleRow(it)
             }
@@ -447,13 +497,13 @@ private fun GameModeCard(
 }
 
 @Composable
-private fun GamesSectionTitle(title: String, action: String, onAction: () -> Unit) {
+private fun GamesSectionTitle(title: String, action: String, onAction: () -> Unit, external: Boolean = true) {
     Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         OutlinedButton(onClick = onAction) {
             Text(action)
             Spacer(Modifier.width(5.dp))
-            Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(15.dp))
+            Icon(if (external) Icons.AutoMirrored.Filled.OpenInNew else Icons.Default.AutoAwesome, null, modifier = Modifier.size(15.dp))
         }
     }
 }

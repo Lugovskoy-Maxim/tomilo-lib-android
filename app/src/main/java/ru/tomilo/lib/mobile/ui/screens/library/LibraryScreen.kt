@@ -1,10 +1,8 @@
 package ru.tomilo.lib.mobile.ui.screens.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
@@ -60,7 +57,6 @@ import ru.tomilo.lib.mobile.ui.components.rememberSwipeRevealCoordinator
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
-import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 
 private enum class ShelfTab(val label: String, val bookmarkCategory: String? = null) {
     Reading("Читаю", "reading"),
@@ -85,6 +81,7 @@ fun LibraryScreen(
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
     var tab by remember { mutableStateOf(ShelfTab.Reading) }
+    var lastBookmarkTab by remember { mutableStateOf(ShelfTab.Reading) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var bookmarks by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
@@ -148,77 +145,141 @@ fun LibraryScreen(
             TopAppBar(title = { Text("Полка") }, colors = tomiloTopBarColors())
         },
     ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .fillMaxSize(),
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 110.dp),
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                singleLine = true,
-                placeholder = { Text("Поиск на полке") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Очистить")
+            item(key = "library_search") {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    singleLine = true,
+                    placeholder = { Text("Поиск на полке") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Очистить")
+                            }
+                        }
+                    },
+                )
+            }
+            item(key = "library_tabs") {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = tab.bookmarkCategory != null,
+                        onClick = { tab = lastBookmarkTab },
+                        label = { Text("Закладки") },
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilterChip(
+                        selected = tab == ShelfTab.History,
+                        onClick = { tab = ShelfTab.History },
+                        label = { Text("История") },
+                        modifier = Modifier.weight(1f),
+                    )
+                    FilterChip(
+                        selected = tab == ShelfTab.Offline,
+                        onClick = { tab = ShelfTab.Offline },
+                        label = { Text("Офлайн") },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (tab.bookmarkCategory != null) {
+                item(key = "library_bookmark_categories") {
+                    Row(
+                        Modifier
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        ShelfTab.entries.filter { it.bookmarkCategory != null }.forEach { item ->
+                            FilterChip(
+                                selected = tab == item,
+                                onClick = {
+                                    lastBookmarkTab = item
+                                    tab = item
+                                },
+                                label = { Text(item.label) },
+                            )
                         }
                     }
-                },
-            )
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                ShelfTab.entries.forEach { item ->
-                    FilterChip(
-                        selected = tab == item,
-                        onClick = { tab = item },
-                        label = { Text(item.label) },
+                }
+            }
+            item(key = "library_summary_${tab.name}") {
+                val count = when (tab) {
+                    ShelfTab.History -> filteredHistory.size
+                    ShelfTab.Offline -> offlineGroups.size
+                    else -> filteredBookmarks.size
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text(tab.label, style = androidx.compose.material3.MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Text(
+                        "$count · свайп влево для действий",
+                        color = ru.tomilo.lib.mobile.ui.theme.TomiloMuted,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                     )
                 }
             }
 
-            if (user == null && tab != ShelfTab.Offline) {
-                ErrorBox("Войдите, чтобы видеть полку", onRetry = onLogin)
-                return@Column
-            }
-
             when {
-                loading && tab != ShelfTab.Offline -> ListCardsSkeleton()
-                error != null && tab != ShelfTab.Offline -> ErrorBox(error ?: "Ошибка") { reload += 1 }
-                tab.bookmarkCategory != null && filteredBookmarks.isEmpty() -> EmptyState(
-                    title = if (needle.isBlank()) "Пока пусто" else "Нет совпадений",
-                    message = if (needle.isBlank()) {
-                        "Добавьте тайтл в «${tab.label}» со страницы тайтла."
-                    } else {
-                        "На полке нет «$needle» в категории «${tab.label}»."
-                    },
-                    icon = Icons.Outlined.BookmarkBorder,
-                    modifier = Modifier.padding(ScreenPadding),
-                )
-                tab == ShelfTab.History && filteredHistory.isEmpty() -> EmptyState(
-                    title = "История пуста",
-                    message = "Откройте главу — продолжение чтения появится на полке и на ленте.",
-                    icon = Icons.Outlined.History,
-                    modifier = Modifier.padding(ScreenPadding),
-                )
-                tab == ShelfTab.Offline && offlineGroups.isEmpty() -> EmptyState(
-                    title = "Нет офлайн-глав",
-                    message = "Скачайте главы с страницы тайтла — они откроются без сети.",
-                    icon = Icons.Outlined.CloudOff,
-                    modifier = Modifier.padding(ScreenPadding),
-                )
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 110.dp),
-                ) {
+                user == null && tab != ShelfTab.Offline -> item(key = "library_guest") {
+                    ErrorBox(
+                        "Войдите, чтобы видеть полку",
+                        modifier = Modifier.fillMaxWidth().height(380.dp),
+                        onRetry = onLogin,
+                    )
+                }
+                loading && tab != ShelfTab.Offline -> item(key = "library_loading") {
+                    ListCardsSkeleton(count = 5)
+                }
+                error != null && tab != ShelfTab.Offline -> item(key = "library_error") {
+                    ErrorBox(
+                        error ?: "Ошибка",
+                        modifier = Modifier.fillMaxWidth().height(380.dp),
+                    ) { reload += 1 }
+                }
+                tab.bookmarkCategory != null && filteredBookmarks.isEmpty() -> item(key = "library_empty_bookmarks") {
+                    EmptyState(
+                        title = if (needle.isBlank()) "Пока пусто" else "Нет совпадений",
+                        message = if (needle.isBlank()) {
+                            "Добавьте тайтл в «${tab.label}» со страницы тайтла."
+                        } else {
+                            "На полке нет «$needle» в категории «${tab.label}»."
+                        },
+                        icon = Icons.Outlined.BookmarkBorder,
+                        modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                    )
+                }
+                tab == ShelfTab.History && filteredHistory.isEmpty() -> item(key = "library_empty_history") {
+                    EmptyState(
+                        title = "История пуста",
+                        message = "Откройте главу — продолжение чтения появится на полке и на ленте.",
+                        icon = Icons.Outlined.History,
+                        modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                    )
+                }
+                tab == ShelfTab.Offline && offlineGroups.isEmpty() -> item(key = "library_empty_offline") {
+                    EmptyState(
+                        title = "Нет офлайн-глав",
+                        message = "Скачайте главы со страницы тайтла — они откроются без сети.",
+                        icon = Icons.Outlined.CloudOff,
+                        modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                    )
+                }
+                else -> {
                     when (tab) {
                         ShelfTab.History, ShelfTab.Offline -> Unit
                         else -> items(filteredBookmarks, key = { it.resolvedTitleId() + tab.name }) { item ->

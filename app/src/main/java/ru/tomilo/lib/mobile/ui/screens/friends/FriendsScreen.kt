@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -49,13 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ConversationUserDto
 import ru.tomilo.lib.mobile.data.api.FriendEntryDto
 import ru.tomilo.lib.mobile.data.api.FriendRequestEntryDto
@@ -63,6 +59,7 @@ import ru.tomilo.lib.mobile.data.api.FriendRequestsDto
 import ru.tomilo.lib.mobile.data.api.FriendSearchResultDto
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
+import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -310,7 +307,12 @@ private fun UserRow(user: ConversationUserDto, onUser: () -> Unit, actions: @Com
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp).clip(RoundedCornerShape(19.dp)).background(TomiloSurface2.copy(alpha = 0.78f)).clickable(onClick = onUser).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(model = MediaUrl.resolve(user.avatar), contentDescription = user.username, contentScale = ContentScale.Crop, modifier = Modifier.size(52.dp).clip(CircleShape).background(TomiloSurface2))
+        DecoratedAvatar(
+            avatarUrl = user.avatar,
+            username = user.username,
+            decorations = user.decorations(),
+            size = 52.dp,
+        )
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
             Text(user.username ?: "Пользователь", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)

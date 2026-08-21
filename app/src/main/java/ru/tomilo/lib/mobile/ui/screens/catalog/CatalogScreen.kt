@@ -292,185 +292,155 @@ fun CatalogScreen(
             )
         },
     ) { padding ->
-        Column(
-            Modifier
-                .padding(padding)
-                .fillMaxSize(),
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 110.dp),
+            state = gridState,
+            contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 100.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(padding).fillMaxSize(),
         ) {
-            OutlinedTextField(
-                value = searchInput,
-                onValueChange = { searchInput = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
-                placeholder = { Text("Название, автор…") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchInput.isNotEmpty()) {
-                        IconButton(onClick = { searchInput = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Очистить")
-                        }
-                    }
-                },
-            )
+            item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_controls") {
+                Column(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = searchInput,
+                        onValueChange = { searchInput = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        singleLine = true,
+                        shape = RoundedCornerShape(20.dp),
+                        placeholder = { Text("Название, автор…") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        trailingIcon = {
+                            if (searchInput.isNotEmpty()) {
+                                IconButton(onClick = { searchInput = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Очистить")
+                                }
+                            }
+                        },
+                    )
 
-            if (options.genres.isNotEmpty()) {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(start = 12.dp, end = 12.dp, top = 6.dp),
-                ) {
-                    options.genres.take(16).forEach { genre ->
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 6.dp, bottom = 2.dp)) {
                         FilterChip(
-                            selected = genre in selectedGenres,
-                            onClick = {
-                                selectedGenres = if (genre in selectedGenres) selectedGenres - genre else selectedGenres + genre
+                            selected = activeFilters > 0,
+                            onClick = { showFilters = true },
+                            label = { Text(if (activeFilters > 0) "Фильтры · $activeFilters" else "Все фильтры") },
+                            leadingIcon = {
+                                Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.height(17.dp))
                             },
-                            label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
                             modifier = Modifier.padding(horizontal = 3.dp),
                         )
+                        SORTS.forEachIndexed { i, s ->
+                            FilterChip(
+                                selected = sortIndex == i,
+                                onClick = { sortIndex = i },
+                                label = { Text(s.label) },
+                                modifier = Modifier.padding(horizontal = 3.dp),
+                            )
+                        }
                     }
-                }
-            }
 
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp),
-            ) {
-                DEFAULT_TYPES.forEach { type ->
-                    FilterChip(
-                        selected = type in selectedTypes,
-                        onClick = {
-                            selectedTypes = if (type in selectedTypes) selectedTypes - type else selectedTypes + type
-                        },
-                        label = { Text(ReaderMode.typeLabel(type)) },
-                        modifier = Modifier.padding(horizontal = 3.dp),
-                    )
-                }
-            }
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(if (total > 0) "$total тайтлов" else "Подбираем тайтлы", color = TomiloMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        if (activeFilters > 0) StatusPill("$activeFilters фильтр.")
+                    }
 
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 2.dp),
-            ) {
-                SORTS.forEachIndexed { i, s ->
-                    FilterChip(
-                        selected = sortIndex == i,
-                        onClick = { sortIndex = i },
-                        label = { Text(s.label) },
-                        modifier = Modifier.padding(horizontal = 3.dp),
-                    )
-                }
-            }
-
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(if (total > 0) "$total тайтлов" else "Подбираем тайтлы", color = TomiloMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                if (activeFilters > 0) StatusPill("$activeFilters фильтр.")
-            }
-
-            if (activeFilters > 0) {
-                Row(
-                    Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    selectedTypes.forEach { type ->
-                        FilterChip(
-                            selected = true,
-                            onClick = { selectedTypes = selectedTypes - type },
-                            label = { Text(ReaderMode.typeLabel(type)) },
-                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
+                    if (activeFilters > 0) {
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            selectedTypes.forEach { type ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedTypes = selectedTypes - type },
+                                    label = { Text(ReaderMode.typeLabel(type)) },
+                                    trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            selectedStatus?.let { st ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedStatus = null },
+                                    label = { Text(STATUS_LABELS[st] ?: ru.tomilo.lib.mobile.core.GenreLabels.status(st)) },
+                                    trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            selectedGenres.forEach { genre ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedGenres = selectedGenres - genre },
+                                    label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
+                                    trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            selectedYears.forEach { year ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedYears = selectedYears - year },
+                                    label = { Text("$year") },
+                                    trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            selectedAges.forEach { age ->
+                                FilterChip(
+                                    selected = true,
+                                    onClick = { selectedAges = selectedAges - age },
+                                    label = { Text(if (age == 0) "0+" else "$age+") },
+                                    trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            if (includeAdult) {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = {
+                                        includeAdult = false
+                                        scope.launch { contentPrefs.setShowAdult(false) }
+                                    },
+                                    label = { Text("18+") },
+                                    trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
+                                    modifier = Modifier.padding(end = 4.dp),
+                                )
+                            }
+                            TextButton(onClick = { clearFilters() }) { Text("Сбросить") }
+                        }
                     }
-                    selectedStatus?.let { st ->
-                        FilterChip(
-                            selected = true,
-                            onClick = { selectedStatus = null },
-                            label = { Text(STATUS_LABELS[st] ?: ru.tomilo.lib.mobile.core.GenreLabels.status(st)) },
-                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                    }
-                    selectedGenres.forEach { genre ->
-                        FilterChip(
-                            selected = true,
-                            onClick = { selectedGenres = selectedGenres - genre },
-                            label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
-                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                    }
-                    selectedYears.forEach { year ->
-                        FilterChip(
-                            selected = true,
-                            onClick = { selectedYears = selectedYears - year },
-                            label = { Text("$year") },
-                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                    }
-                    selectedAges.forEach { age ->
-                        FilterChip(
-                            selected = true,
-                            onClick = { selectedAges = selectedAges - age },
-                            label = { Text(if (age == 0) "0+" else "$age+") },
-                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                    }
-                    if (includeAdult) {
-                        FilterChip(
-                            selected = true,
-                            onClick = {
-                                includeAdult = false
-                                scope.launch { contentPrefs.setShowAdult(false) }
-                            },
-                            label = { Text("18+") },
-                            trailingIcon = { Icon(Icons.Default.Close, null, Modifier.height(14.dp)) },
-                            modifier = Modifier.padding(end = 4.dp),
-                        )
-                    }
-                    TextButton(onClick = { clearFilters() }) { Text("Сбросить") }
                 }
             }
 
             when {
-                loading && items.isEmpty() -> CatalogGridSkeleton(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                )
-                error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка") { reload += 1 }
-                items.isEmpty() -> EmptyState(
-                    title = "Ничего не найдено",
-                    message = "Попробуйте изменить запрос или сбросить выбранные фильтры.",
-                    icon = Icons.Outlined.SearchOff,
-                    actionLabel = if (activeFilters > 0 || searchInput.isNotBlank()) "Сбросить фильтры" else null,
-                    onAction = if (activeFilters > 0 || searchInput.isNotBlank()) {
-                        {
-                            searchInput = ""
-                            sortIndex = 0
-                            clearFilters()
-                        }
-                    } else null,
-                )
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 110.dp),
-                    state = gridState,
-                    contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 100.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
+                loading && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_loading") {
+                    CatalogGridSkeleton(Modifier.fillMaxWidth())
+                }
+                error != null && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_error") {
+                    ErrorBox(error ?: "Ошибка", modifier = Modifier.fillMaxWidth().height(390.dp)) { reload += 1 }
+                }
+                items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_empty") {
+                    EmptyState(
+                        title = "Ничего не найдено",
+                        message = "Попробуйте изменить запрос или сбросить выбранные фильтры.",
+                        icon = Icons.Outlined.SearchOff,
+                        modifier = Modifier.fillMaxWidth().height(390.dp),
+                        actionLabel = if (activeFilters > 0 || searchInput.isNotBlank()) "Сбросить фильтры" else null,
+                        onAction = if (activeFilters > 0 || searchInput.isNotBlank()) {
+                            {
+                                searchInput = ""
+                                sortIndex = 0
+                                clearFilters()
+                            }
+                        } else null,
+                    )
+                }
+                else -> {
                     items(
                         items = items,
                         key = { item ->

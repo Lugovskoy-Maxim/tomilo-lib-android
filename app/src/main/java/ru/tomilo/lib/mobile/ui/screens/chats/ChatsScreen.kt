@@ -3,17 +3,18 @@ package ru.tomilo.lib.mobile.ui.screens.chats
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -40,19 +41,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.TokenBridge
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
+import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -224,7 +223,7 @@ fun ChatsScreen(
             )
         },
     ) { padding ->
-        if (!authReady || (loading && user != null && items.isEmpty() && error == null)) {
+        if (!authReady) {
             LoadingBox(Modifier.padding(padding), message = "Загружаем чаты…")
             return@Scaffold
         }
@@ -235,73 +234,84 @@ fun ChatsScreen(
             return@Scaffold
         }
 
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            PageIntro(
-                title = if (chatsUnread + supportUnread > 0) "Есть новые сообщения" else "Оставайтесь на связи",
-                subtitle = if (isAdmin) "Личные диалоги и обращения поддержки" else "Друзья и команда поддержки tomilo-lib",
-                icon = Icons.Outlined.Forum,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                trailing = {
-                    val unread = chatsUnread + supportUnread
-                    StatusPill(if (unread > 0) unreadLabel(unread) else "Онлайн")
-                },
-            )
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 110.dp),
+        ) {
+            item(key = "chats_intro") {
+                PageIntro(
+                    title = if (chatsUnread + supportUnread > 0) "Есть новые сообщения" else "Оставайтесь на связи",
+                    subtitle = if (isAdmin) "Личные диалоги и обращения поддержки" else "Друзья и команда поддержки tomilo-lib",
+                    icon = Icons.Outlined.Forum,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    trailing = {
+                        val unread = chatsUnread + supportUnread
+                        StatusPill(if (unread > 0) unreadLabel(unread) else "Онлайн")
+                    },
+                )
+            }
             if (isAdmin) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    FilterChip(
-                        selected = tab == ChatsTab.Chats,
-                        onClick = { tab = ChatsTab.Chats },
-                        label = {
-                            Text(if (chatsUnread > 0) "Чаты · ${unreadLabel(chatsUnread)}" else "Чаты")
-                        },
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    FilterChip(
-                        selected = tab == ChatsTab.Support,
-                        onClick = { tab = ChatsTab.Support },
-                        label = {
-                            Text(
-                                if (supportUnread > 0) "Поддержка · ${unreadLabel(supportUnread)}"
-                                else "Поддержка",
-                            )
-                        },
-                    )
+                item(key = "chats_filters") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        FilterChip(
+                            selected = tab == ChatsTab.Chats,
+                            onClick = { tab = ChatsTab.Chats },
+                            label = {
+                                Text(if (chatsUnread > 0) "Чаты · ${unreadLabel(chatsUnread)}" else "Чаты")
+                            },
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        FilterChip(
+                            selected = tab == ChatsTab.Support,
+                            onClick = { tab = ChatsTab.Support },
+                            label = {
+                                Text(
+                                    if (supportUnread > 0) "Поддержка · ${unreadLabel(supportUnread)}"
+                                    else "Поддержка",
+                                )
+                            },
+                        )
+                    }
                 }
             }
 
             when {
-                loading && items.isEmpty() -> LoadingBox(
-                    Modifier.weight(1f),
-                    message = if (tab == ChatsTab.Support) {
-                        "Загружаем обращения…"
-                    } else {
-                        "Загружаем чаты…"
-                    },
-                )
-                error != null && items.isEmpty() -> Column(Modifier.weight(1f)) {
-                    ErrorBox(error ?: "Ошибка") { reload += 1 }
+                loading && items.isEmpty() -> item(key = "chats_loading") {
+                    LoadingBox(
+                        Modifier.fillMaxWidth().height(360.dp),
+                        message = if (tab == ChatsTab.Support) {
+                            "Загружаем обращения…"
+                        } else {
+                            "Загружаем чаты…"
+                        },
+                    )
                 }
-                items.isEmpty() -> EmptyState(
-                    title = if (tab == ChatsTab.Support) "Нет обращений" else "Диалогов пока нет",
-                    message = when {
-                        tab == ChatsTab.Support ->
-                            "Новые обращения пользователей появятся здесь."
-                        isAdmin ->
-                            "Личные диалоги доступны с друзьями, а обращения — во вкладке поддержки."
-                        else ->
-                            "Начните диалог с другом или напишите в поддержку через кнопку вверху."
-                    },
-                    icon = Icons.Outlined.Forum,
-                    modifier = Modifier.weight(1f).padding(ScreenPadding),
-                )
-                else -> LazyColumn(
-                    Modifier.weight(1f),
-                    contentPadding = ScreenPadding,
-                ) {
+                error != null && items.isEmpty() -> item(key = "chats_error") {
+                    ErrorBox(
+                        error ?: "Ошибка",
+                        modifier = Modifier.fillMaxWidth().height(360.dp),
+                    ) { reload += 1 }
+                }
+                items.isEmpty() -> item(key = "chats_empty") {
+                    EmptyState(
+                        title = if (tab == ChatsTab.Support) "Нет обращений" else "Диалогов пока нет",
+                        message = when {
+                            tab == ChatsTab.Support ->
+                                "Новые обращения пользователей появятся здесь."
+                            isAdmin ->
+                                "Личные диалоги доступны с друзьями, а обращения — во вкладке поддержки."
+                            else ->
+                                "Начните диалог с другом или напишите в поддержку через кнопку вверху."
+                        },
+                        icon = Icons.Outlined.Forum,
+                        modifier = Modifier.fillMaxWidth().height(360.dp).padding(ScreenPadding),
+                    )
+                }
+                else -> {
                     if (error != null) {
                         item {
                             Text(
@@ -341,14 +351,11 @@ fun ChatsScreen(
                                 .padding(horizontal = 13.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            AsyncImage(
-                                model = MediaUrl.resolve(c.participant?.avatar),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(TomiloSurface2),
+                            DecoratedAvatar(
+                                avatarUrl = c.participant?.avatar,
+                                username = name,
+                                decorations = c.participant?.decorations(),
+                                size = 48.dp,
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {

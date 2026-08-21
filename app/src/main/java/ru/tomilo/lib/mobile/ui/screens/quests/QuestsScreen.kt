@@ -57,6 +57,7 @@ import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.components.PageIntro
+import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -123,6 +124,12 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                 actionBusy = true
                                 authRepository.claimDailyBonus()
                                     .onSuccess { result ->
+                                        RewardNotifications.show(
+                                            experience = result.experienceGained,
+                                            coins = result.coinsGained,
+                                            source = "Ежедневный бонус",
+                                        )
+                                        authRepository.refreshProfile()
                                         message("+${result.experienceGained} опыта · +${result.coinsGained} монет")
                                         reload += 1
                                     }
@@ -154,7 +161,16 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                     scope.launch {
                                         actionBusy = true
                                         authRepository.claimAllQuests()
-                                            .onSuccess { message("Получено наград: ${it.claimedCount}"); reload += 1 }
+                                            .onSuccess { result ->
+                                                RewardNotifications.show(
+                                                    experience = result.expGained,
+                                                    coins = result.coinsGained,
+                                                    source = "${result.claimedCount} заданий выполнено",
+                                                )
+                                                authRepository.refreshProfile()
+                                                message("Получено: +${result.expGained} XP · +${result.coinsGained} монет")
+                                                reload += 1
+                                            }
                                             .onFailure { message(it.message ?: "Награды недоступны") }
                                         actionBusy = false
                                     }
@@ -170,7 +186,16 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                 scope.launch {
                                     actionBusy = true
                                     authRepository.claimQuest(quest.id)
-                                        .onSuccess { message("Награда получена"); reload += 1 }
+                                        .onSuccess { result ->
+                                            RewardNotifications.show(
+                                                experience = result.expGained,
+                                                coins = result.coinsGained,
+                                                source = quest.name,
+                                            )
+                                            authRepository.refreshProfile()
+                                            message("+${result.expGained} XP · +${result.coinsGained} монет")
+                                            reload += 1
+                                        }
                                         .onFailure { message(it.message ?: "Награда недоступна") }
                                     actionBusy = false
                                 }

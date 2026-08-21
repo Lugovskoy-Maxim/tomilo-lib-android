@@ -6,7 +6,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -43,10 +45,13 @@ import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.ViewDay
@@ -60,8 +65,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -86,6 +93,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -121,6 +129,7 @@ import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
+import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
@@ -179,6 +188,7 @@ fun ReaderScreen(
     var speed by remember { mutableFloatStateOf(settings.autoScrollSpeed) }
     var brightness by remember { mutableFloatStateOf(-1f) }
     var showChapters by remember { mutableStateOf(false) }
+    var chapterQuery by rememberSaveable { mutableStateOf("") }
     var showComments by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
@@ -227,6 +237,13 @@ fun ReaderScreen(
     val hasPrev = prevChapterId != null
     val hasNext = nextChapterId != null
     val atTitleEnd = !hasNext && chapters.isNotEmpty()
+    val visibleChapters = remember(chapters, chapterQuery) {
+        val needle = chapterQuery.trim()
+        if (needle.isBlank()) chapters else chapters.filter { chapter ->
+            chapter.numberLabel().contains(needle, ignoreCase = true) ||
+                chapter.name.orEmpty().contains(needle, ignoreCase = true)
+        }
+    }
     val canOpenTitle = !effectiveTitleId.isNullOrBlank()
     val currentPage by remember(layout, pagerState, listState) {
         derivedStateOf {
@@ -319,7 +336,17 @@ fun ReaderScreen(
                         readingPrefs.markLocalRead(tid, id, queueSync = loggedIn)
                         if (loggedIn) {
                             historyRepository.markRead(tid, id)
-                                .onSuccess { readingPrefs.markHistorySynced(tid, id) }
+                                .onSuccess { reward ->
+                                    readingPrefs.markHistorySynced(tid, id)
+                                    RewardNotifications.show(
+                                        experience = reward.experienceGained,
+                                        coins = reward.coinsGained,
+                                        source = reward.reason ?: "Чтение главы",
+                                    )
+                                    if (reward.experienceGained != 0 || reward.coinsGained != 0) {
+                                        authRepository.refreshProfile()
+                                    }
+                                }
                         }
                     }
                     return@launch
@@ -356,7 +383,17 @@ fun ReaderScreen(
                             readingPrefs.markLocalRead(resolvedTitleId, id, queueSync = loggedIn)
                             if (loggedIn) {
                                 historyRepository.markRead(resolvedTitleId, id)
-                                    .onSuccess { readingPrefs.markHistorySynced(resolvedTitleId, id) }
+                                    .onSuccess { reward ->
+                                        readingPrefs.markHistorySynced(resolvedTitleId, id)
+                                        RewardNotifications.show(
+                                            experience = reward.experienceGained,
+                                            coins = reward.coinsGained,
+                                            source = reward.reason ?: "Чтение главы",
+                                        )
+                                        if (reward.experienceGained != 0 || reward.coinsGained != 0) {
+                                            authRepository.refreshProfile()
+                                        }
+                                    }
                             }
                         }
                     }
@@ -744,62 +781,72 @@ fun ReaderScreen(
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Black.copy(alpha = 0.88f), Color.Transparent),
+                            listOf(Color.Black.copy(alpha = 0.78f), Color.Transparent),
                         ),
                     )
                     .statusBarsPadding()
-                    .padding(top = 4.dp, start = 4.dp, end = 4.dp, bottom = 18.dp),
+                    .padding(top = 8.dp, start = 10.dp, end = 10.dp, bottom = 22.dp),
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
+                Surface(
+                    color = Color(0xEA15151A),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                    shadowElevation = 10.dp,
                 ) {
-                    IconButton(onClick = { openParentTitle() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "К странице тайтла", tint = Color.White)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            if (offline) "$title · офлайн" else title,
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
+                    Column {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            IconButton(onClick = { openParentTitle() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "К странице тайтла", tint = Color.White)
+                            }
+                            Column(
+                                Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable(enabled = canOpenTitle) { openParentTitle() }
+                                    .padding(horizontal = 4.dp, vertical = 3.dp),
+                            ) {
+                                Text(
+                                    title,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    buildString {
+                                        append("Стр. ${(currentPage + 1).coerceAtMost(pages.size)} из ${pages.size}")
+                                        append(" · ")
+                                        append(ReaderMode.layoutLabel(layout))
+                                        if (offline) append(" · офлайн")
+                                    },
+                                    color = TomiloMuted,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                )
+                            }
+                            Text(
+                                "${(readProgress * 100).toInt().coerceIn(0, 100)}%",
+                                color = TomiloPrimary,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(TomiloPrimary.copy(alpha = 0.13f))
+                                    .padding(horizontal = 9.dp, vertical = 6.dp),
+                            )
+                            IconButton(onClick = { chapterQuery = ""; showChapters = true }) {
+                                Icon(Icons.AutoMirrored.Filled.List, "Главы", tint = Color.White)
+                            }
+                        }
+                        LinearProgressIndicator(
+                            progress = { readProgress.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(3.dp),
+                            color = TomiloPrimary,
+                            trackColor = Color.White.copy(alpha = 0.08f),
                         )
-                        Text(
-                            buildString {
-                                append(ReaderMode.typeLabel(titleType))
-                                append(" · ")
-                                append(ReaderMode.layoutLabel(layout))
-                                if (layout == ReaderLayout.PAGER) {
-                                    append(" · ")
-                                    append(if (direction == ReaderDirection.RTL) "RTL" else "LTR")
-                                }
-                            },
-                            color = TomiloMuted,
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                    IconButton(
-                        onClick = { openParentTitle() },
-                        enabled = !effectiveTitleId.isNullOrBlank(),
-                    ) {
-                        Icon(Icons.Outlined.Info, "Тайтл", tint = Color.White)
-                    }
-                    IconButton(onClick = { showComments = true }) {
-                        Icon(Icons.Default.ChatBubbleOutline, "Комментарии", tint = Color.White)
-                    }
-                    IconButton(onClick = { showChapters = true }) {
-                        Icon(Icons.AutoMirrored.Filled.List, "Главы", tint = Color.White)
                     }
                 }
-                LinearProgressIndicator(
-                    progress = { readProgress.coerceIn(0f, 1f) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .padding(horizontal = 16.dp),
-                    color = TomiloPrimary,
-                    trackColor = Color.White.copy(alpha = 0.12f),
-                )
             }
         }
 
@@ -814,83 +861,118 @@ fun ReaderScreen(
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f)),
                         ),
                     )
                     .navigationBarsPadding()
-                    .padding(start = 12.dp, end = 12.dp, top = 20.dp, bottom = 12.dp),
+                    .padding(start = 10.dp, end = 10.dp, top = 26.dp, bottom = 8.dp),
             ) {
-                if (pages.size > 1) {
-                    Slider(
-                        value = pageSliderValue.coerceIn(0f, pages.lastIndex.toFloat()),
-                        onValueChange = {
-                            pageSliderActive = true
-                            pageSliderValue = it
-                        },
-                        onValueChangeFinished = {
-                            val target = pageSliderValue.toInt().coerceIn(0, pages.lastIndex)
-                            scope.launch {
-                                if (layout == ReaderLayout.PAGER) pagerState.animateScrollToPage(target)
-                                else listState.animateScrollToItem(target)
-                            }
-                            pageSliderActive = false
-                        },
-                        valueRange = 0f..pages.lastIndex.toFloat(),
-                    )
-                }
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
+                Surface(
+                    color = Color(0xF216161B),
+                    shape = RoundedCornerShape(26.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                    shadowElevation = 14.dp,
                 ) {
-                    IconButton(onClick = { goPrev() }, enabled = hasPrev || chapters.isEmpty()) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.NavigateBefore,
-                            "Предыдущая глава",
-                            tint = if (hasPrev || chapters.isEmpty()) Color.White else Color.Gray,
-                        )
-                    }
-                    if (layout == ReaderLayout.WEBTOON) {
-                        IconButton(onClick = {
-                            autoScroll = !autoScroll
-                            if (autoScroll) chromeVisible = false
-                        }) {
-                            Icon(
-                                if (autoScroll) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                "Автопрокрутка",
-                                tint = Color.White,
+                    Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Страница ${(currentPage + 1).coerceAtMost(pages.size)}",
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                if (currentIndex >= 0) "Глава ${currentIndex + 1} из ${chapters.size}" else "${pages.size} стр.",
+                                color = TomiloMuted,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                        if (pages.size > 1) {
+                            Slider(
+                                value = pageSliderValue.coerceIn(0f, pages.lastIndex.toFloat()),
+                                onValueChange = {
+                                    pageSliderActive = true
+                                    pageSliderValue = it
+                                },
+                                onValueChangeFinished = {
+                                    val target = pageSliderValue.toInt().coerceIn(0, pages.lastIndex)
+                                    scope.launch {
+                                        if (layout == ReaderLayout.PAGER) pagerState.animateScrollToPage(target)
+                                        else listState.animateScrollToItem(target)
+                                    }
+                                    pageSliderActive = false
+                                },
+                                valueRange = 0f..pages.lastIndex.toFloat(),
+                                modifier = Modifier.height(34.dp),
+                            )
+                        }
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            ReaderDockAction(
+                                icon = Icons.AutoMirrored.Filled.NavigateBefore,
+                                label = "Пред.",
+                                enabled = hasPrev || chapters.isEmpty(),
+                                modifier = Modifier.weight(1f),
+                                onClick = { goPrev() },
+                            )
+                            if (layout == ReaderLayout.WEBTOON) {
+                                ReaderDockAction(
+                                    icon = if (autoScroll) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    label = if (autoScroll) "Стоп" else "Авто",
+                                    active = autoScroll,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        autoScroll = !autoScroll
+                                        if (autoScroll) chromeVisible = false
+                                    },
+                                )
+                            } else {
+                                ReaderDockAction(
+                                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                                    label = "Тайтл",
+                                    enabled = canOpenTitle,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { openParentTitle() },
+                                )
+                            }
+                            ReaderDockAction(
+                                icon = Icons.Default.ChatBubbleOutline,
+                                label = "Обсудить",
+                                modifier = Modifier.weight(1f),
+                                onClick = { showComments = true },
+                            )
+                            ReaderDockAction(
+                                icon = Icons.Default.Settings,
+                                label = "Режим",
+                                modifier = Modifier.weight(1f),
+                                onClick = { showSettings = true },
+                            )
+                            ReaderDockAction(
+                                icon = Icons.AutoMirrored.Filled.NavigateNext,
+                                label = "След.",
+                                enabled = hasNext || chapters.isEmpty(),
+                                modifier = Modifier.weight(1f),
+                                onClick = { goNext() },
+                            )
+                        }
+                        if (atTitleEnd && canOpenTitle) {
+                            Button(
+                                onClick = { openParentTitle() },
+                                modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+                            ) { Text("Вернуться к тайтлу") }
+                        }
+                        if (failedPages.isNotEmpty()) {
+                            Text(
+                                "Не загрузилось страниц: ${failedPages.size}",
+                                color = Color(0xFFE98273),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.align(Alignment.CenterHorizontally),
                             )
                         }
                     }
-                    IconButton(onClick = { showComments = true }) {
-                        Icon(Icons.Default.ChatBubbleOutline, "Комментарии", tint = Color.White)
-                    }
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Default.Settings, "Режим чтения", tint = Color.White)
-                    }
-                    IconButton(onClick = { goNext() }, enabled = hasNext || chapters.isEmpty()) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.NavigateNext,
-                            "Следующая глава",
-                            tint = if (hasNext || chapters.isEmpty()) Color.White else Color.Gray,
-                        )
-                    }
                 }
-                if (atTitleEnd && canOpenTitle) {
-                    Button(
-                        onClick = { openParentTitle() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 6.dp),
-                    ) { Text("К тайтлу") }
-                }
-                Text(
-                    text = "Стр. ${(currentPage + 1).coerceAtMost(pages.size)} / ${pages.size}" +
-                        if (failedPages.isNotEmpty()) " · ошибок: ${failedPages.size}" else "",
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                )
             }
         }
     }
@@ -908,6 +990,22 @@ fun ReaderScreen(
                     .heightIn(max = 680.dp),
             ) {
                 item(key = "chapter-comments-$currentChapterId") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.size(44.dp).clip(RoundedCornerShape(15.dp)).background(TomiloPrimary.copy(alpha = 0.13f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.ChatBubbleOutline, null, tint = TomiloPrimary)
+                        }
+                        Spacer(Modifier.size(11.dp))
+                        Column {
+                            Text("Обсуждение главы", style = MaterialTheme.typography.titleLarge)
+                            Text("Мнения читателей без ухода со страницы", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     CommentsSection(
                         entityType = "chapter",
                         entityId = currentChapterId,
@@ -929,8 +1027,9 @@ fun ReaderScreen(
             containerColor = TomiloSurface,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
-            Column(Modifier.padding(20.dp)) {
-                Text("Как читать", color = Color.White, style = MaterialTheme.typography.titleLarge)
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                Text("Режим чтения", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Настройте читалку под этот тайтл", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(14.dp))
                 Text("Раскладка", color = TomiloMuted, style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(8.dp))
@@ -1035,29 +1134,66 @@ fun ReaderScreen(
             containerColor = TomiloSurface,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
-            Text(
-                "Главы" + if (chapters.isNotEmpty()) " (${chapters.size})" else "",
-                color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Главы", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    Text(
+                        if (currentIndex >= 0) "Сейчас ${currentIndex + 1} из ${chapters.size}" else "Всего ${chapters.size}",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                IconButton(onClick = { showChapters = false }) {
+                    Icon(Icons.Default.Close, "Закрыть", tint = Color.White)
+                }
+            }
             if (chapters.isEmpty()) {
                 Text("Список загружается…", color = TomiloMuted, modifier = Modifier.padding(20.dp))
             } else {
-                LazyColumn(state = chaptersListState, modifier = Modifier.height(420.dp)) {
-                    items(chapters, key = { it.stableId() }) { ch ->
+                OutlinedTextField(
+                    value = chapterQuery,
+                    onValueChange = { chapterQuery = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp),
+                    placeholder = { Text("Номер или название главы") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = {
+                        if (chapterQuery.isNotBlank()) {
+                            IconButton(onClick = { chapterQuery = "" }) {
+                                Icon(Icons.Default.Close, "Очистить")
+                            }
+                        }
+                    },
+                )
+                if (visibleChapters.isEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().height(260.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(Icons.Default.Search, null, tint = TomiloMuted, modifier = Modifier.size(34.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("Главы не найдены", color = Color.White)
+                        Text("Измените запрос", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                } else LazyColumn(state = chaptersListState, modifier = Modifier.fillMaxHeight(0.68f)) {
+                    items(visibleChapters, key = { it.stableId() }) { ch ->
                         val selected = ch.stableId() == currentChapterId
                         Row(
                             modifier = Modifier
                                 .padding(horizontal = 12.dp, vertical = 3.dp)
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(17.dp))
                                 .clickable {
                                     showChapters = false
                                     goChapter(ch.stableId())
                                 }
-                                .background(if (selected) TomiloPrimary.copy(alpha = 0.16f) else Color.Transparent)
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                                .background(if (selected) TomiloPrimary.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.025f))
+                                .padding(horizontal = 14.dp, vertical = 13.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -1070,6 +1206,8 @@ fun ReaderScreen(
                             )
                             if (ChapterAccess.isPremiumOnly(ch.isPaid, ch.freeAt, ch.isUnlockedByActivityCoins) && !isPremium) {
                                 Icon(Icons.Default.Lock, "Premium", tint = TomiloMuted, modifier = Modifier.size(18.dp))
+                            } else if (selected) {
+                                Icon(Icons.Default.CheckCircle, "Текущая глава", tint = TomiloPrimary, modifier = Modifier.size(19.dp))
                             }
                         }
                     }
@@ -1077,6 +1215,34 @@ fun ReaderScreen(
             }
             Spacer(Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun ReaderDockAction(
+    icon: ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    active: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val tint = when {
+        !enabled -> Color.White.copy(alpha = 0.28f)
+        active -> TomiloPrimary
+        else -> Color.White.copy(alpha = 0.88f)
+    }
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (active) TomiloPrimary.copy(alpha = 0.13f) else Color.Transparent)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 7.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(3.dp))
+        Text(label, color = tint, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -1116,23 +1282,55 @@ private fun handlePageState(
 private fun ReaderLoading() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            androidx.compose.material3.CircularProgressIndicator(color = TomiloPrimary, strokeWidth = 2.dp)
-            Spacer(Modifier.height(12.dp))
-            Text("Открываем главу", color = TomiloMuted)
+            Box(
+                Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Brush.linearGradient(listOf(TomiloPrimary.copy(alpha = 0.24f), Color(0xFF17171D))))
+                    .border(1.dp, TomiloPrimary.copy(alpha = 0.30f), RoundedCornerShape(24.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = TomiloPrimary,
+                    strokeWidth = 2.5.dp,
+                    modifier = Modifier.size(34.dp),
+                )
+            }
+            Spacer(Modifier.height(15.dp))
+            Text("Открываем главу", color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Text("Подготавливаем страницы и позицию чтения", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 
 @Composable
 private fun ReaderError(message: String, onRetry: () -> Unit) {
-    Column(
-        Modifier.fillMaxSize().padding(28.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(message, color = Color.White, style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = onRetry) { Text("Повторить") }
+    Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            color = Color(0xFF17171D),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.size(62.dp).clip(RoundedCornerShape(21.dp)).background(Color(0xFFE98273).copy(alpha = 0.13f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Default.BrokenImage, null, tint = Color(0xFFE98273), modifier = Modifier.size(31.dp)) }
+                Spacer(Modifier.height(15.dp))
+                Text("Страница не открылась", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(5.dp))
+                Text(message, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(18.dp))
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(7.dp))
+                    Text("Попробовать снова")
+                }
+            }
+        }
     }
 }
 
@@ -1144,20 +1342,34 @@ private fun PremiumGate(
     onPremium: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    Column(
-        Modifier.fillMaxSize().padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(message ?: "Платная глава", color = Color.White, style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.height(16.dp))
-        if (needsLogin) {
-            Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
-            Spacer(Modifier.height(8.dp))
+    Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            color = Color(0xFF17171D),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, Color(0xFFE4B85D).copy(alpha = 0.30f)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.size(68.dp).clip(RoundedCornerShape(23.dp)).background(Color(0xFFE4B85D).copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Default.Lock, null, tint = Color(0xFFE4B85D), modifier = Modifier.size(32.dp)) }
+                Spacer(Modifier.height(15.dp))
+                Text("Глава доступна в Premium", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(5.dp))
+                Text(message ?: "Платная глава", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(18.dp))
+                if (needsLogin) {
+                    OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти в аккаунт") }
+                    Spacer(Modifier.height(8.dp))
+                }
+                Button(onClick = onPremium, modifier = Modifier.fillMaxWidth()) { Text("Оформить Premium") }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Проверить доступ снова") }
+            }
         }
-        Button(onClick = onPremium, modifier = Modifier.fillMaxWidth()) { Text("Оформить Premium") }
-        Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onRetry, modifier = Modifier.fillMaxWidth()) { Text("Повторить") }
     }
 }
 
@@ -1195,27 +1407,44 @@ private fun WebtoonReader(
             )
         }
         item {
-            Column(
-                Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 18.dp),
+                color = Color(0xFF15151A),
+                shape = RoundedCornerShape(26.dp),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
             ) {
-                Text(
-                    if (hasNext) "Потяните ниже — следующая глава" else "Вы дочитали доступные главы",
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                if (showTitleButton) {
-                    Button(
-                        onClick = onOpenTitle,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
-                    ) { Text("К тайтлу") }
-                }
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    TextButton(onClick = onPrev) { Text("← Пред.", color = Color.White) }
-                    if (hasNext) {
-                        TextButton(onClick = onNext) { Text("След. →", color = Color.White) }
+                Column(
+                    Modifier.fillMaxWidth().padding(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        Modifier.size(54.dp).clip(CircleShape).background(TomiloPrimary.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.CheckCircle, null, tint = TomiloPrimary, modifier = Modifier.size(29.dp))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        if (hasNext) "Глава прочитана" else "Вы дочитали доступные главы",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        if (hasNext) "Следующая глава откроется автоматически" else "Можно вернуться к тайтлу или обсудить главу",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (showTitleButton) {
+                        Button(
+                            onClick = onOpenTitle,
+                            modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                        ) { Text("Вернуться к тайтлу") }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 9.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        TextButton(onClick = onPrev) { Text("← Предыдущая", color = Color.White) }
+                        if (hasNext) {
+                            TextButton(onClick = onNext) { Text("Следующая →", color = Color.White) }
+                        }
                     }
                 }
             }

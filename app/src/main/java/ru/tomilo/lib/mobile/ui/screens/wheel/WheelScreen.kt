@@ -3,7 +3,7 @@ package ru.tomilo.lib.mobile.ui.screens.wheel
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -68,6 +68,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,6 +85,7 @@ import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.PageIntro
+import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -112,6 +115,7 @@ fun WheelScreen(
     val user by authRepository.userFlow.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val haptics = LocalHapticFeedback.current
     val rotation = remember { Animatable(0f) }
     var wheel by remember { mutableStateOf<WheelDto?>(null) }
     var winners by remember { mutableStateOf<List<WheelRecentWinDto>>(emptyList()) }
@@ -151,6 +155,7 @@ fun WheelScreen(
         scope.launch {
             spinning = true
             result = null
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             authRepository.spinWheel(skipCooldown)
                 .onSuccess { won ->
                     val count = current.segments.size.coerceAtLeast(1)
@@ -161,7 +166,20 @@ fun WheelScreen(
                     val currentNormalized = ((rotation.value % 360f) + 360f) % 360f
                     val landing = 360f - (index + 0.5f) * slice
                     val target = rotation.value + 6f * 360f + (landing - currentNormalized + 360f) % 360f
-                    rotation.animateTo(target, tween(7_200, easing = FastOutSlowInEasing))
+                    rotation.animateTo(
+                        target,
+                        tween(
+                            durationMillis = 6_200,
+                            easing = CubicBezierEasing(0.08f, 0.62f, 0.08f, 1f),
+                        ),
+                    )
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    RewardNotifications.show(
+                        experience = won.expGained ?: 0,
+                        coins = (won.coinsGained ?: 0) + (won.compensationCoins ?: 0),
+                        source = "Колесо судьбы",
+                    )
+                    authRepository.refreshProfile()
                     result = won
                     wheel = authRepository.wheel().getOrDefault(current.copy(
                         balance = won.balance ?: current.balance,
@@ -305,9 +323,28 @@ private fun WheelPanel(segments: List<WheelSegmentDto>, rotation: Float, spinnin
     ) {
         FortuneWheel(segments, rotation, Modifier.fillMaxWidth().aspectRatio(1f))
         Box(
-            Modifier.align(Alignment.TopCenter).size(30.dp).clip(RoundedCornerShape(bottomStart = 15.dp, bottomEnd = 15.dp))
-                .background(TomiloPremium),
-        )
+            Modifier
+                .size(74.dp)
+                .shadow(16.dp, CircleShape)
+                .clip(CircleShape)
+                .background(Brush.radialGradient(listOf(Color(0xFFFFE9A4), Color(0xFFD99213))))
+                .border(3.dp, Color(0xFFFFF0BD), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Casino,
+                contentDescription = null,
+                tint = Color(0xFF4A3105),
+                modifier = Modifier.size(34.dp),
+            )
+        }
+        Box(
+            Modifier.align(Alignment.TopCenter).size(width = 38.dp, height = 22.dp)
+                .clip(RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFFFFEDAD), TomiloPremium)))
+                .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp)),
+            contentAlignment = Alignment.Center,
+        ) { Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF563600))) }
         if (spinning) StatusPill("Судьба выбирает…", TomiloPremium, Modifier.align(Alignment.BottomCenter))
     }
 }
@@ -320,7 +357,8 @@ private fun FortuneWheel(segments: List<WheelSegmentDto>, rotationValue: Float, 
         val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
         val rect = Rect(topLeft, androidx.compose.ui.geometry.Size(diameter, diameter))
         val sweep = 360f / n
-        drawCircle(TomiloPremium.copy(alpha = 0.25f), diameter / 2f + 12.dp.toPx(), center)
+        drawCircle(Color.Black.copy(alpha = 0.26f), diameter / 2f + 17.dp.toPx(), center)
+        drawCircle(TomiloPremium.copy(alpha = 0.32f), diameter / 2f + 12.dp.toPx(), center)
         drawCircle(Color(0xFF17130A), diameter / 2f + 6.dp.toPx(), center)
         rotate(rotationValue, center) {
             repeat(n) { index ->
@@ -357,12 +395,13 @@ private fun FortuneWheel(segments: List<WheelSegmentDto>, rotationValue: Float, 
                 drawContext.canvas.nativeCanvas.drawText(shortReward(segment), x, y + paint.textSize / 3f, paint)
             }
         }
-        repeat(12) { index ->
-            val angle = Math.toRadians((-90.0 + index * 30.0))
+        repeat(24) { index ->
+            val angle = Math.toRadians((-90.0 + index * 15.0))
             val r = diameter / 2f + 7.dp.toPx()
             val bulb = Offset(center.x + cos(angle).toFloat() * r, center.y + sin(angle).toFloat() * r)
-            drawCircle(if (index % 2 == 0) Color.White else Color(0xFFFFE18B), 2.8.dp.toPx(), bulb)
+            drawCircle(if (index % 2 == 0) Color.White else Color(0xFFFFD35F), 2.5.dp.toPx(), bulb)
         }
+        drawCircle(Color.Black.copy(alpha = 0.20f), diameter * 0.16f, center)
         drawCircle(TomiloPremium, diameter * 0.115f, center)
         drawCircle(Color(0xFFFFF3CC), diameter * 0.045f, center)
         val pointer = Path().apply {
