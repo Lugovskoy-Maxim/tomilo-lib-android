@@ -13,7 +13,7 @@ import ru.tomilo.lib.mobile.R
 object NotificationHelper {
     const val CHANNEL_ID = "tomilo_updates"
     const val APP_UPDATE_CHANNEL_ID = "tomilo_app_updates"
-    private const val CHANNEL_NAME = "Обновления tomilo-lib"
+    private const val CHANNEL_NAME = "Обновления TOMILO LIB"
     const val GROUP_KEY = "tomilo_updates_group"
     const val EXTRA_OPEN_LIST = "open_notifications"
     const val EXTRA_TITLE_ID = "notif_title_id"
@@ -39,7 +39,7 @@ object NotificationHelper {
                 "Новые версии приложения",
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {
-                description = "Обновления tomilo-lib из официальных GitHub Releases"
+                description = "Обновления TOMILO LIB из официальных GitHub Releases"
                 enableVibration(true)
             },
         )
@@ -111,7 +111,7 @@ object NotificationHelper {
         )
         val summary = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_tomilo)
-            .setContentTitle("tomilo-lib")
+            .setContentTitle("TOMILO LIB")
             .setContentText("Новые уведомления")
             .setGroup(GROUP_KEY)
             .setGroupSummary(true)
@@ -153,7 +153,7 @@ object NotificationHelper {
         val body = "Доступна версия $versionName. Откройте официальный релиз, чтобы скачать обновление."
         val notification = NotificationCompat.Builder(context, APP_UPDATE_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_tomilo)
-            .setContentTitle("Обновление tomilo-lib")
+            .setContentTitle("Обновление TOMILO LIB")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(pending)

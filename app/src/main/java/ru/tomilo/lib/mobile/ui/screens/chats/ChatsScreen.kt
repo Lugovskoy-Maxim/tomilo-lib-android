@@ -241,7 +241,7 @@ fun ChatsScreen(
             item(key = "chats_intro") {
                 PageIntro(
                     title = if (chatsUnread + supportUnread > 0) "Есть новые сообщения" else "Оставайтесь на связи",
-                    subtitle = if (isAdmin) "Личные диалоги и обращения поддержки" else "Друзья и команда поддержки tomilo-lib",
+                    subtitle = if (isAdmin) "Личные диалоги и обращения поддержки" else "Друзья и команда поддержки TOMILO LIB",
                     icon = Icons.Outlined.Forum,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     trailing = {

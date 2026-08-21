@@ -42,7 +42,7 @@ class NotificationsPollWorker(
             if (unread > lastCount && unread > 0 && NotificationHelper.canNotify(applicationContext)) {
                 NotificationHelper.showUpdate(
                     context = applicationContext,
-                    title = "tomilo-lib",
+                    title = "TOMILO LIB",
                     body = if (unread == 1) "Новое уведомление"
                     else "Непрочитанных: $unread",
                     notificationId = 1001,
@@ -72,7 +72,7 @@ class NotificationsPollWorker(
             val id = n.stableId()
             if (id.isBlank()) return@forEach
             val title = n.title?.takeIf { it.isNotBlank() }
-                ?: if (isChapterRelated(n.type)) "Новая глава" else "tomilo-lib"
+                ?: if (isChapterRelated(n.type)) "Новая глава" else "TOMILO LIB"
             val body = n.message?.takeIf { it.isNotBlank() }
                 ?: "У вас новое уведомление"
             val open = n.toOpenRequest()

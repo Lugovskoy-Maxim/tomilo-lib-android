@@ -35,8 +35,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // RuStore / production consumer release
-        versionCode = 20
-        versionName = "1.2.5"
+        versionCode = 21
+        versionName = "1.2.6"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -66,13 +66,13 @@ android {
             buildConfigField("String", "STORE_CHANNEL", "\"rustore\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
             // Имя приложения в лаунчере для стора
-            resValue("string", "app_name", "tomilo-lib")
+            resValue("string", "app_name", "TOMILO LIB")
         }
         create("play") {
             dimension = "store"
             buildConfigField("String", "STORE_CHANNEL", "\"play\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
-            resValue("string", "app_name", "tomilo-lib")
+            resValue("string", "app_name", "TOMILO LIB")
         }
     }
 
