@@ -7,6 +7,7 @@ import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import ru.tomilo.lib.mobile.BuildConfig
@@ -29,6 +30,8 @@ object NetworkModule {
             val token = tokenProvider()
             val original = chain.request()
             val builder = original.newBuilder()
+                .header("User-Agent", "tomilo-lib-android/${BuildConfig.VERSION_NAME}")
+                .header("Accept", "application/json")
             if (!token.isNullOrBlank()) {
                 builder.header("Authorization", "Bearer $token")
             }
@@ -39,6 +42,42 @@ object NetworkModule {
                 builder.header("Pragma", "no-cache")
             }
             chain.proceed(builder.build())
+        }
+
+        // API иногда кратковременно отвечает 429/5xx либо обрывает соединение.
+        // Повторяем только безопасные GET-запросы; мутации никогда не дублируем.
+        val retryGetInterceptor = Interceptor { chain ->
+            val original = chain.request()
+            val maxAttempts = if (original.method == "GET") 3 else 1
+            var lastFailure: java.io.IOException? = null
+            var lastResponse: Response? = null
+
+            for (attempt in 0 until maxAttempts) {
+                if (attempt > 0) {
+                    try {
+                        Thread.sleep(300L * attempt)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
+                }
+                val request = if (attempt == 0) original else {
+                    original.newBuilder()
+                        .header("Cache-Control", "no-cache")
+                        .header("X-Tomilo-Retry", attempt.toString())
+                        .build()
+                }
+                try {
+                    val response = chain.proceed(request)
+                    val retryable = response.code in setOf(408, 425, 429, 500, 502, 503, 504)
+                    if (!retryable || attempt == maxAttempts - 1) return@Interceptor response
+                    response.close()
+                    lastResponse = response
+                } catch (failure: java.io.IOException) {
+                    lastFailure = failure
+                    if (attempt == maxAttempts - 1) throw failure
+                }
+            }
+            lastResponse ?: throw lastFailure ?: java.io.IOException("API request failed")
         }
 
         // Кеш только публичных GET без Authorization (иначе 401/пустые чаты залипают)
@@ -85,6 +124,7 @@ object NetworkModule {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(offlineCacheInterceptor)
+            .addInterceptor(retryGetInterceptor)
             .addInterceptor(authInterceptor)
             .addNetworkInterceptor(cacheInterceptor)
             .addInterceptor(logging)
@@ -104,8 +144,17 @@ object NetworkModule {
         val cache = Cache(File(context.cacheDir, "media_cache"), 200L * 1024L * 1024L)
         return OkHttpClient.Builder()
             .cache(cache)
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", "tomilo-lib-android/${BuildConfig.VERSION_NAME}")
+                    .header("Referer", BuildConfig.SITE_URL + "/")
+                    .build()
+                chain.proceed(request)
+            }
             .build()
     }
 

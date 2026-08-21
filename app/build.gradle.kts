@@ -35,11 +35,12 @@ android {
         minSdk = 26
         targetSdk = 35
         // RuStore / production consumer release
-        versionCode = 19
-        versionName = "1.2.4"
+        versionCode = 20
+        versionName = "1.2.5"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
+        buildConfigField("String", "S3_BASE_URL", "\"https://s3.regru.cloud/tomilolib\"")
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
         buildConfigField("String", "GITHUB_REPO", "\"Lugovskoy-Maxim/tomilo-lib-android\"")
         // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
@@ -166,6 +167,8 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
+
+    testImplementation("junit:junit:4.13.2")
 
     implementation("androidx.work:work-runtime-ktx:2.10.0")
 

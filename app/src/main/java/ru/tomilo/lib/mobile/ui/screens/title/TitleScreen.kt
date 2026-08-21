@@ -783,7 +783,7 @@ fun TitleScreen(
                                     chapter.releaseDate?.let(::chapterDateLabel),
                                     chapter.views?.toString()?.trim('"')
                                         ?.toLongOrNull()?.let(::chapterViewsLabel),
-                                    (chapter.pagesCount ?: chapter.pages?.size)
+                                    (chapter.pagesCount ?: chapter.pagePaths().size)
                                         ?.takeIf { it > 0 }?.let { "$it стр." },
                                     chapter.status?.takeIf { it.isNotBlank() }
                                         ?.let(::chapterStatusLabel),

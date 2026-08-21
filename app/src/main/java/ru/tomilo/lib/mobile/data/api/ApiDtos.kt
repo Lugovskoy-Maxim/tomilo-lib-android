@@ -621,6 +621,8 @@ data class ChapterDto(
     val chapterNumber: JsonElement? = null,
     val name: String? = null,
     val pages: List<String>? = null,
+    /** Совместимость со старыми импортерами и web reader (`pages || images`). */
+    val images: List<String>? = null,
     val pagesCount: Int? = null,
     val views: JsonElement? = null,
     val isPublished: Boolean? = null,
@@ -635,6 +637,10 @@ data class ChapterDto(
     val titleId: JsonElement? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun pagePaths(): List<String> = (pages?.takeIf { it.isNotEmpty() } ?: images.orEmpty())
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
     fun titleKey(): String = jsonElementId(titleId)
     fun titleSlug(): String? = (titleId as? kotlinx.serialization.json.JsonObject)
         ?.get("slug")

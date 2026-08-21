@@ -13,12 +13,14 @@ object PageImages {
 
     fun request(context: Context, data: Any, attempt: Int = 0): ImageRequest {
         val bypassCache = attempt > 0
+        val source = retrySource(data, attempt)
         return ImageRequest.Builder(context)
-            .data(data)
+            .data(source)
             .crossfade(attempt == 0)
-            .memoryCachePolicy(if (bypassCache) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
-            .diskCachePolicy(if (bypassCache) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
-            .networkCachePolicy(if (bypassCache) CachePolicy.DISABLED else CachePolicy.ENABLED)
+            .memoryCachePolicy(if (bypassCache) CachePolicy.DISABLED else CachePolicy.ENABLED)
+            .diskCachePolicy(if (bypassCache) CachePolicy.DISABLED else CachePolicy.ENABLED)
+            // DISABLED здесь запрещает сам сетевой запрос, а не только кеш.
+            .networkCachePolicy(CachePolicy.ENABLED)
             .build()
     }
 
@@ -34,10 +36,10 @@ object PageImages {
         val loader = context.imageLoader
         loader.enqueue(
             ImageRequest.Builder(context)
-                .data(data)
-                .memoryCachePolicy(if (attempt > 0) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
-                .diskCachePolicy(if (attempt > 0) CachePolicy.WRITE_ONLY else CachePolicy.ENABLED)
-                .networkCachePolicy(if (attempt > 0) CachePolicy.DISABLED else CachePolicy.ENABLED)
+                .data(retrySource(data, attempt))
+                .memoryCachePolicy(if (attempt > 0) CachePolicy.DISABLED else CachePolicy.ENABLED)
+                .diskCachePolicy(if (attempt > 0) CachePolicy.DISABLED else CachePolicy.ENABLED)
+                .networkCachePolicy(CachePolicy.ENABLED)
                 .listener(
                     onSuccess = { _, result ->
                         val ok = result.drawable.intrinsicWidth >= 8 &&
@@ -54,5 +56,14 @@ object PageImages {
                 )
                 .build(),
         )
+    }
+
+    private fun retrySource(data: Any, attempt: Int): Any {
+        if (data !is String) return data
+        val candidate = MediaUrl.candidate(data, attempt)
+        if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) return candidate
+        if (attempt <= 0) return candidate
+        val separator = if ('?' in candidate) '&' else '?'
+        return "$candidate${separator}tomilo_retry=$attempt"
     }
 }

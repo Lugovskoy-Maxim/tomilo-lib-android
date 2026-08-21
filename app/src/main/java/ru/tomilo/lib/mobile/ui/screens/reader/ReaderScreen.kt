@@ -373,7 +373,7 @@ fun ReaderScreen(
                     unlockedByActivityCoins = chapter.isUnlockedByActivityCoins,
                     subscriptionExpiresAt = subExpires,
                 )
-                val resolved = chapter.pages.orEmpty().map { MediaUrl.resolve(it) }
+                val resolved = chapter.pagePaths().map { MediaUrl.resolve(it) }.filter { it.isNotBlank() }
                 when {
                     resolved.isNotEmpty() -> {
                         pages = resolved

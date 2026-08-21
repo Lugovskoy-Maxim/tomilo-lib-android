@@ -86,7 +86,7 @@ class OfflineRepository(
                     chapterId = ch.stableId(),
                     chapterNumber = ch.numberLabel(),
                     name = ch.name,
-                    pagesCount = ch.pagesCount ?: ch.pages?.size,
+                    pagesCount = ch.pagesCount ?: ch.pagePaths().size,
                     releaseDate = ch.releaseDate,
                 )
             }
@@ -253,7 +253,7 @@ class OfflineRepository(
                 val res = api.chapterById(chapterId)
                 if (!res.success) error(res.message ?: "Не удалось получить главу")
                 val chapter = res.data ?: error("Глава пуста")
-                val pages = chapter.pages.orEmpty()
+                val pages = chapter.pagePaths()
                 if (pages.isEmpty()) error("У главы нет страниц")
 
                 val root = File(context.filesDir, "offline/$titleId/$chapterId")
@@ -313,13 +313,18 @@ class OfflineRepository(
     private suspend fun downloadPageWithRetry(url: String, dest: File, pageIndex: Int) {
         val part = File(dest.parentFile, dest.name + ".part")
         var lastError: Throwable? = null
-        repeat(3) { attempt ->
+        val candidates = MediaUrl.candidates(url).ifEmpty { listOf(url) }
+        repeat(4) { attempt ->
             part.delete()
             dest.delete()
             try {
+                val source = candidates[attempt % candidates.size]
+                val separator = if ('?' in source) '&' else '?'
+                val retryUrl = if (attempt == 0) source else "$source${separator}tomilo_retry=$attempt"
                 val req = Request.Builder()
-                    .url(url)
+                    .url(retryUrl)
                     .header("Cache-Control", if (attempt == 0) "max-age=3600" else "no-cache")
+                    .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
                     .get()
                     .build()
                 http.newCall(req).execute().use { response ->
@@ -341,7 +346,7 @@ class OfflineRepository(
                 lastError = e
                 part.delete()
                 dest.delete()
-                if (attempt < 2) delay(400L * (attempt + 1))
+                if (attempt < 3) delay(500L * (attempt + 1))
             }
         }
         throw lastError ?: IllegalStateException("Не удалось скачать страницу ${pageIndex + 1}")
