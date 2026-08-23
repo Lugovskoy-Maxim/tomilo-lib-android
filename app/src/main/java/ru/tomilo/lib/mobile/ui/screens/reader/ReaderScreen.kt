@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -79,6 +81,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -93,10 +96,14 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -115,10 +122,13 @@ import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.PageImages
+import ru.tomilo.lib.mobile.core.PageDimensions
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderDirection
 import ru.tomilo.lib.mobile.core.ReaderLayout
 import ru.tomilo.lib.mobile.core.ReaderMode
+import ru.tomilo.lib.mobile.core.WebtoonTile
+import ru.tomilo.lib.mobile.core.WebtoonTiles
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.local.ReadingPosition
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
@@ -175,6 +185,7 @@ fun ReaderScreen(
     var needsPremium by remember { mutableStateOf(false) }
     var needsLogin by remember { mutableStateOf(false) }
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pageDimensions by remember { mutableStateOf<List<PageDimensions>>(emptyList()) }
     val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
     var title by remember { mutableStateOf("Глава") }
     var offline by remember { mutableStateOf(false) }
@@ -308,6 +319,7 @@ fun ReaderScreen(
             currentChapterId = id
             autoScroll = false
             pages = emptyList()
+            pageDimensions = emptyList()
             failedPages = emptySet()
             loadedPages = emptySet()
             pageRetryNonce = emptyMap()
@@ -327,7 +339,9 @@ fun ReaderScreen(
                     val entity = offlineRepository.getEntity(id)
                     effectiveTitleId = titleId ?: entity?.titleId
                     title = entity?.let { "Глава ${it.chapterNumber}" } ?: "Глава (офлайн)"
-                    pages = local.map { File(it).toURI().toString() }
+                    val localSources = local.map { File(it).toURI().toString() }
+                    pageDimensions = WebtoonTiles.measureLocalSources(localSources)
+                    pages = localSources
                     offline = true
                     loading = false
                     val tid = effectiveTitleId
@@ -376,6 +390,7 @@ fun ReaderScreen(
                 val resolved = chapter.pagePaths().map { MediaUrl.resolve(it) }.filter { it.isNotBlank() }
                 when {
                     resolved.isNotEmpty() -> {
+                        pageDimensions = chapter.pageDimensions.orEmpty()
                         pages = resolved
                         val resolvedTitleId = chapter.titleKey().ifBlank { effectiveTitleId.orEmpty() }
                         if (resolvedTitleId.isNotBlank()) {
@@ -704,6 +719,7 @@ fun ReaderScreen(
             )
             else -> WebtoonReader(
                 pages = pages,
+                pageDimensions = pageDimensions,
                 listState = listState,
                 chapterId = currentChapterId,
                 failedPages = failedPages,
@@ -1362,6 +1378,7 @@ private fun PremiumGate(
 @Composable
 private fun WebtoonReader(
     pages: List<String>,
+    pageDimensions: List<PageDimensions>,
     listState: LazyListState,
     chapterId: String,
     failedPages: Set<Int>,
@@ -1378,18 +1395,30 @@ private fun WebtoonReader(
 ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(pages, key = { i, _ -> "$chapterId-$i" }) { index, page ->
-            ReaderPage(
-                page = page,
-                index = index,
-                total = pages.size,
-                failed = index in failedPages,
-                loaded = index in loadedPages,
-                attempt = pageRetryNonce[index] ?: 0,
-                fillHeight = false,
-                onRetry = { onRetry(index, page) },
-                onState = { success, attempt -> onState(index, success, attempt, page) },
-                onTap = onToggleChrome,
-            )
+            val dimensions = pageDimensions.getOrNull(index)
+            if (dimensions?.isValid() == true) {
+                TiledWebtoonPage(
+                    page = page,
+                    index = index,
+                    total = pages.size,
+                    dimensions = dimensions,
+                    attempt = pageRetryNonce[index] ?: 0,
+                    onTap = onToggleChrome,
+                )
+            } else {
+                ReaderPage(
+                    page = page,
+                    index = index,
+                    total = pages.size,
+                    failed = index in failedPages,
+                    loaded = index in loadedPages,
+                    attempt = pageRetryNonce[index] ?: 0,
+                    fillHeight = false,
+                    onRetry = { onRetry(index, page) },
+                    onState = { success, attempt -> onState(index, success, attempt, page) },
+                    onTap = onToggleChrome,
+                )
+            }
         }
         item {
             Surface(
@@ -1431,6 +1460,119 @@ private fun WebtoonReader(
                             TextButton(onClick = onNext) { Text("Следующая →", color = Color.White) }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TiledWebtoonPage(
+    page: String,
+    index: Int,
+    total: Int,
+    dimensions: PageDimensions,
+    attempt: Int,
+    onTap: () -> Unit,
+) {
+    val tiles = remember(dimensions) { WebtoonTiles.split(dimensions) }
+    Column(Modifier.fillMaxWidth().background(Color.Black)) {
+        tiles.forEach { tile ->
+            WebtoonTileImage(
+                page = page,
+                pageIndex = index,
+                totalPages = total,
+                tile = tile,
+                attempt = attempt,
+                onTap = onTap,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WebtoonTileImage(
+    page: String,
+    pageIndex: Int,
+    totalPages: Int,
+    tile: WebtoonTile,
+    attempt: Int,
+    onTap: () -> Unit,
+) {
+    val context = LocalContext.current
+    val view = LocalView.current
+    var active by remember(page, tile.index) { mutableStateOf(false) }
+    var bitmap by remember(page, tile.index, attempt) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var loading by remember(page, tile.index, attempt) { mutableStateOf(false) }
+    var error by remember(page, tile.index, attempt) { mutableStateOf<String?>(null) }
+    var localRetry by remember(page, tile.index, attempt) { mutableIntStateOf(0) }
+
+    LaunchedEffect(active, page, tile, attempt, localRetry) {
+        if (!active) {
+            delay(900)
+            if (!active) bitmap = null
+            return@LaunchedEffect
+        }
+        if (bitmap != null || loading) return@LaunchedEffect
+        loading = true
+        error = null
+        var lastFailure: Throwable? = null
+        repeat(PageImages.MAX_ATTEMPTS) { retry ->
+            val result = runCatching {
+                WebtoonTiles.decode(context, page, tile, retry = attempt + localRetry + retry)
+            }
+            result.onSuccess {
+                bitmap = it
+                loading = false
+                return@LaunchedEffect
+            }.onFailure { lastFailure = it }
+            delay(300L * (retry + 1))
+        }
+        error = lastFailure?.message ?: "Не удалось загрузить фрагмент"
+        loading = false
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(tile.width.toFloat() / tile.height.toFloat())
+            .background(Color.Black)
+            .onGloballyPositioned { coordinates ->
+                val top = coordinates.positionInWindow().y
+                val bottom = top + coordinates.size.height
+                val screenHeight = view.height.takeIf { it > 0 }
+                    ?: context.resources.displayMetrics.heightPixels
+                active = bottom >= -screenHeight * 0.5f &&
+                    top <= screenHeight * 1.5f
+            }
+            .pointerInput(page, tile.index) {
+                detectTapGestures(onTap = { onTap() })
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        bitmap?.let { ready ->
+            Image(
+                bitmap = ready.asImageBitmap(),
+                contentDescription = "Страница ${pageIndex + 1} из $totalPages, фрагмент ${tile.index + 1}",
+                contentScale = ContentScale.FillBounds,
+                filterQuality = FilterQuality.High,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        if (loading && bitmap == null) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(25.dp),
+                color = TomiloPrimary,
+                strokeWidth = 2.dp,
+            )
+        }
+        if (error != null && bitmap == null) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
+                Icon(Icons.Default.BrokenImage, null, tint = TomiloMuted)
+                Text("Не загрузился фрагмент", color = Color.White)
+                TextButton(onClick = { localRetry += 1 }) {
+                    Icon(Icons.Default.Refresh, null)
+                    Text("Повторить")
                 }
             }
         }

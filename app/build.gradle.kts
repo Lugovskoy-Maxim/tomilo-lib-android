@@ -35,8 +35,8 @@ android {
         minSdk = 26
         targetSdk = 35
         // RuStore / production consumer release
-        versionCode = 23
-        versionName = "1.2.8"
+        versionCode = 24
+        versionName = "1.2.9"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")

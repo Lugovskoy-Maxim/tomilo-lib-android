@@ -3,6 +3,7 @@ package ru.tomilo.lib.mobile.data.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import ru.tomilo.lib.mobile.core.PageDimensions
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -621,6 +622,7 @@ data class ChapterDto(
     val chapterNumber: JsonElement? = null,
     val name: String? = null,
     val pages: List<String>? = null,
+    val pageDimensions: List<PageDimensions>? = null,
     /** Совместимость со старыми импортерами и web reader (`pages || images`). */
     val images: List<String>? = null,
     val pagesCount: Int? = null,
