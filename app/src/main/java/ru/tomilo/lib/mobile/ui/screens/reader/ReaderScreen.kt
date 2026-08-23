@@ -1483,6 +1483,7 @@ private fun TiledWebtoonPage(
                 pageIndex = index,
                 totalPages = total,
                 tile = tile,
+                eager = tile.index == 0,
                 attempt = attempt,
                 onTap = onTap,
             )
@@ -1496,12 +1497,14 @@ private fun WebtoonTileImage(
     pageIndex: Int,
     totalPages: Int,
     tile: WebtoonTile,
+    eager: Boolean,
     attempt: Int,
     onTap: () -> Unit,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
-    var active by remember(page, tile.index) { mutableStateOf(false) }
+    // Верх страницы должен начать загрузку до первого события прокрутки.
+    var active by remember(page, tile.index) { mutableStateOf(eager) }
     var bitmap by remember(page, tile.index, attempt) { mutableStateOf<android.graphics.Bitmap?>(null) }
     var loading by remember(page, tile.index, attempt) { mutableStateOf(false) }
     var error by remember(page, tile.index, attempt) { mutableStateOf<String?>(null) }
@@ -1539,11 +1542,19 @@ private fun WebtoonTileImage(
             .background(Color.Black)
             .onGloballyPositioned { coordinates ->
                 val top = coordinates.positionInWindow().y
+                // На первом layout-pass positionInWindow иногда ещё NaN. Не
+                // выключаем eager-загрузку, пока координаты не стали валидными.
+                if (!top.isFinite()) return@onGloballyPositioned
                 val bottom = top + coordinates.size.height
                 val screenHeight = view.height.takeIf { it > 0 }
                     ?: context.resources.displayMetrics.heightPixels
-                active = bottom >= -screenHeight * 0.5f &&
+                val visibleSoon = bottom >= -screenHeight * 0.5f &&
                     top <= screenHeight * 1.5f
+                // Не отменяем самый первый decode верхней плитки из-за
+                // промежуточной геометрии до появления bitmap/ошибки.
+                if (visibleSoon || !eager || bitmap != null || error != null) {
+                    active = visibleSoon
+                }
             }
             .pointerInput(page, tile.index) {
                 detectTapGestures(onTap = { onTap() })
