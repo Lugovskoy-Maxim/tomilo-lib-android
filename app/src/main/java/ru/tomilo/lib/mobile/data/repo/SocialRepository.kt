@@ -8,6 +8,7 @@ import kotlinx.serialization.json.jsonArray
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
 import ru.tomilo.lib.mobile.data.api.BookmarkStatusDto
 import ru.tomilo.lib.mobile.data.api.CommentDto
+import ru.tomilo.lib.mobile.data.api.CommentReactionRequest
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
 import ru.tomilo.lib.mobile.data.api.CreateCommentRequest
 import ru.tomilo.lib.mobile.data.api.CreateConversationRequest
@@ -144,6 +145,21 @@ class SocialRepository(private val api: TomiloApi) {
         if (commentId.isBlank()) error("Комментарий не найден")
         val res = api.likeComment(commentId)
         if (!res.success) error(res.message ?: "Не удалось поставить лайк")
+    }
+
+    suspend fun commentReactionEmojis(): Result<List<String>> = runCatching {
+        val res = api.commentReactionEmojis()
+        if (!res.success) error(res.message ?: "Не удалось загрузить реакции")
+        res.data?.emojis.orEmpty().filter { it.isNotBlank() }.distinct()
+    }
+
+    suspend fun toggleCommentReaction(commentId: String, emoji: String): Result<Unit> = runCatching {
+        if (commentId.isBlank()) error("Комментарий не найден")
+        if (emoji.isBlank()) error("Реакция не выбрана")
+        val res = api.toggleCommentReaction(commentId, CommentReactionRequest(emoji))
+        if (!res.success) {
+            error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось поставить реакцию")
+        }
     }
 
     // ── Chats ───────────────────────────────────────────────────

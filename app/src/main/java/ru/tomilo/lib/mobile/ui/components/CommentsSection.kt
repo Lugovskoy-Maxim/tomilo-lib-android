@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,14 +15,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.AddReaction
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,6 +46,9 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 
+private val fallbackCommentReactions = listOf("👍", "👎", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏")
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CommentsSection(
     entityType: String,
@@ -56,15 +65,41 @@ fun CommentsSection(
     var draft by remember { mutableStateOf("") }
     var posting by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
+    var reactionEmojis by remember { mutableStateOf(fallbackCommentReactions) }
+    var reactionPickerComment by remember { mutableStateOf<CommentDto?>(null) }
+    var pendingReactionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(entityId, entityType, reload) {
-        loading = true
+        loading = comments.isEmpty()
         error = null
         socialRepository.comments(entityType, entityId)
             .onSuccess { comments = it }
             .onFailure { error = it.message }
         loading = false
+    }
+
+    LaunchedEffect(Unit) {
+        socialRepository.commentReactionEmojis().onSuccess { available ->
+            if (available.isNotEmpty()) reactionEmojis = available
+        }
+    }
+
+    fun react(comment: CommentDto, emoji: String) {
+        if (!isLoggedIn) {
+            onLoginRequired()
+            return
+        }
+        val id = comment.stableId()
+        if (id.isBlank() || id in pendingReactionIds) return
+        pendingReactionIds = pendingReactionIds + id
+        reactionPickerComment = null
+        scope.launch {
+            socialRepository.toggleCommentReaction(id, emoji)
+                .onSuccess { reload += 1 }
+                .onFailure { error = it.message }
+            pendingReactionIds = pendingReactionIds - id
+        }
     }
 
     Column(modifier = modifier.fillMaxWidth().padding(16.dp)) {
@@ -131,55 +166,89 @@ fun CommentsSection(
             error != null && comments.isEmpty() -> Text(error ?: "", color = TomiloMuted)
             comments.isEmpty() -> Text("Пока нет комментариев", color = TomiloMuted)
             else -> comments.forEach { c ->
-                CommentItem(
+                CommentThread(
                     comment = c,
                     onOpenUser = onOpenUser,
-                    onLike = {
-                        if (!isLoggedIn) {
-                            onLoginRequired()
-                        } else {
-                            scope.launch {
-                                socialRepository.likeComment(c.stableId())
-                                    .onSuccess { reload += 1 }
-                                    .onFailure { error = it.message }
-                            }
-                        }
+                    pendingReactionIds = pendingReactionIds,
+                    onReaction = { comment, emoji -> react(comment, emoji) },
+                    onAddReaction = { comment ->
+                        if (isLoggedIn) reactionPickerComment = comment else onLoginRequired()
                     },
                 )
-                c.replies.orEmpty().forEach { reply ->
-                    CommentItem(
-                        comment = reply,
-                        onOpenUser = onOpenUser,
-                        indent = true,
-                        onLike = {
-                            if (!isLoggedIn) {
-                                onLoginRequired()
-                            } else {
-                                scope.launch {
-                                    socialRepository.likeComment(reply.stableId())
-                                        .onSuccess { reload += 1 }
-                                        .onFailure { error = it.message }
-                                }
-                            }
-                        },
-                    )
-                }
             }
         }
     }
+
+    reactionPickerComment?.let { comment ->
+        AlertDialog(
+            onDismissRequest = { reactionPickerComment = null },
+            title = { Text("Добавить реакцию") },
+            text = {
+                FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
+                    reactionEmojis.forEach { emoji ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            modifier = Modifier
+                                .padding(bottom = 6.dp)
+                                .clickable { react(comment, emoji) },
+                        ) {
+                            Text(emoji, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(10.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { reactionPickerComment = null }) { Text("Закрыть") }
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CommentThread(
+    comment: CommentDto,
+    onOpenUser: (String) -> Unit,
+    pendingReactionIds: Set<String>,
+    onReaction: (CommentDto, String) -> Unit,
+    onAddReaction: (CommentDto) -> Unit,
+    level: Int = 0,
+) {
+    CommentItem(
+        comment = comment,
+        onOpenUser = onOpenUser,
+        level = level,
+        reactionPending = comment.stableId() in pendingReactionIds,
+        onReaction = { emoji -> onReaction(comment, emoji) },
+        onAddReaction = { onAddReaction(comment) },
+    )
+    comment.replies.orEmpty().forEach { reply ->
+        CommentThread(
+            comment = reply,
+            onOpenUser = onOpenUser,
+            pendingReactionIds = pendingReactionIds,
+            onReaction = onReaction,
+            onAddReaction = onAddReaction,
+            level = level + 1,
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CommentItem(
     comment: CommentDto,
     onOpenUser: (String) -> Unit,
-    onLike: () -> Unit,
-    indent: Boolean = false,
+    level: Int,
+    reactionPending: Boolean,
+    onReaction: (String) -> Unit,
+    onAddReaction: () -> Unit,
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(start = if (indent) 28.dp else 0.dp, bottom = 10.dp)
+            .padding(start = (level.coerceAtMost(3) * 20).dp, bottom = 10.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(TomiloSurface2.copy(alpha = 0.62f))
             .border(1.dp, TomiloBorder.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
@@ -214,21 +283,44 @@ private fun CommentItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 comment.createdAt?.take(10)?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
-                    Spacer(Modifier.width(4.dp))
                 }
-                IconButton(onClick = onLike) {
-                    Icon(
-                        Icons.Default.ThumbUp,
-                        contentDescription = "Нравится",
-                        tint = TomiloMuted,
-                        modifier = Modifier.size(16.dp),
-                    )
+                Spacer(Modifier.weight(1f))
+                if (reactionPending) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    IconButton(onClick = onAddReaction, modifier = Modifier.size(34.dp)) {
+                        Icon(Icons.Default.AddReaction, "Добавить реакцию", modifier = Modifier.size(19.dp))
+                    }
                 }
-                Text(
-                    (comment.likesCount ?: 0).toString(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TomiloMuted,
-                )
+            }
+            val reactions = comment.reactionCounts()
+            if (reactions.isNotEmpty()) {
+                FlowRow(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    reactions.forEach { reaction ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.72f),
+                            modifier = Modifier
+                                .padding(bottom = 5.dp)
+                                .clickable(enabled = !reactionPending) { onReaction(reaction.emoji) },
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(reaction.emoji)
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    reaction.resolvedCount().toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

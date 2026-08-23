@@ -157,6 +157,21 @@ data class CreateCommentRequest(
 )
 
 @Serializable
+data class CommentReactionDto(
+    val emoji: String = "",
+    val count: Int? = null,
+    val userIds: List<String>? = null,
+) {
+    fun resolvedCount(): Int = (count ?: userIds?.size ?: 0).coerceAtLeast(0)
+}
+
+@Serializable
+data class CommentReactionRequest(val emoji: String)
+
+@Serializable
+data class CommentReactionEmojisDto(val emojis: List<String> = emptyList())
+
+@Serializable
 data class CommentsPageDto(
     val comments: List<CommentDto> = emptyList(),
     val total: Int = 0,
@@ -174,20 +189,44 @@ data class CommentDto(
     val entityId: String? = null,
     val parentId: String? = null,
     val isSpoiler: Boolean? = null,
+    /** Актуальные поля API. likesCount/dislikesCount оставлены для старых ответов. */
+    val likes: Int? = null,
+    val dislikes: Int? = null,
     val likesCount: Int? = null,
     val dislikesCount: Int? = null,
+    val reactions: List<CommentReactionDto>? = null,
     val repliesCount: Int? = null,
     val createdAt: String? = null,
+    /** На сервере автор называется userId и может быть ID либо populated-объектом. */
+    val userId: JsonElement? = null,
     val user: CommentUserDto? = null,
     val author: CommentUserDto? = null,
     val replies: List<CommentDto>? = null,
     val hiddenBySystem: Boolean? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
-    fun authorName(): String = (user ?: author)?.username ?: "Аноним"
-    fun authorId(): String = (user ?: author)?.stableId().orEmpty()
-    fun authorAvatar(): String? = (user ?: author)?.avatar
-    fun authorDecorations(): EquippedDecorationsDto? = (user ?: author)?.decorations()
+    private fun populatedAuthor(): CommentUserDto? = user ?: author ?: (userId as? JsonObject)?.let {
+        runCatching { NetworkModule.json.decodeFromJsonElement<CommentUserDto>(it) }.getOrNull()
+    }
+    fun authorName(): String = populatedAuthor()?.username ?: "Аноним"
+    fun authorId(): String = populatedAuthor()?.stableId().orEmpty().ifBlank {
+        (userId as? JsonPrimitive)?.contentOrNull.orEmpty()
+    }
+    fun authorAvatar(): String? = populatedAuthor()?.avatar
+    fun authorDecorations(): EquippedDecorationsDto? = populatedAuthor()?.decorations()
+    fun reactionCounts(): List<CommentReactionDto> {
+        val current = reactions.orEmpty()
+            .filter { it.emoji.isNotBlank() && it.resolvedCount() > 0 }
+        if (current.isNotEmpty()) return current
+        return buildList {
+            (likes ?: likesCount)?.takeIf { it > 0 }?.let {
+                add(CommentReactionDto(emoji = "👍", count = it))
+            }
+            (dislikes ?: dislikesCount)?.takeIf { it > 0 }?.let {
+                add(CommentReactionDto(emoji = "👎", count = it))
+            }
+        }
+    }
 }
 
 @Serializable

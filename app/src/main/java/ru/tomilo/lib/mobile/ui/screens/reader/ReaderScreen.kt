@@ -647,21 +647,6 @@ fun ReaderScreen(
         }.collect { readProgress = it }
     }
 
-    LaunchedEffect(listState, pagerState, pages, currentChapterId, layout) {
-        if (pages.isEmpty()) return@LaunchedEffect
-        snapshotFlow {
-            if (layout == ReaderLayout.PAGER) pagerState.currentPage else listState.firstVisibleItemIndex
-        }.collect { first ->
-            val start = (first + 1).coerceAtMost(pages.lastIndex)
-            val end = (first + 3).coerceAtMost(pages.lastIndex)
-            if (start <= end) {
-                for (index in start..end) {
-                    if (index !in failedPages) PageImages.prefetch(context, pages[index])
-                }
-            }
-        }
-    }
-
     LaunchedEffect(currentPage, pages.size, pageSliderActive) {
         if (!pageSliderActive) {
             pageSliderValue = currentPage.coerceIn(0, pages.lastIndex.coerceAtLeast(0)).toFloat()

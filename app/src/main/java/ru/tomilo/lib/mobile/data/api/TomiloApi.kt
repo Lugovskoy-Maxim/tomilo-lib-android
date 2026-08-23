@@ -217,6 +217,15 @@ interface TomiloApi {
     @POST("comments/{id}/like")
     suspend fun likeComment(@Path("id") id: String): ApiResponse<JsonElement>
 
+    @GET("comments/reactions/emojis")
+    suspend fun commentReactionEmojis(): ApiResponse<CommentReactionEmojisDto>
+
+    @POST("comments/{id}/reactions")
+    suspend fun toggleCommentReaction(
+        @Path("id") id: String,
+        @Body body: CommentReactionRequest,
+    ): ApiResponse<JsonElement>
+
     // ── Messaging ───────────────────────────────────────────────
     @GET("conversations")
     suspend fun conversations(): ApiResponse<JsonElement>

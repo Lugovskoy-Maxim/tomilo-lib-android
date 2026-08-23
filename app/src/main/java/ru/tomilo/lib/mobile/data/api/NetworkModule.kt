@@ -4,6 +4,7 @@ import android.content.Context
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.serialization.json.Json
 import okhttp3.Cache
+import okhttp3.Dispatcher
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -142,8 +143,15 @@ object NetworkModule {
     /** Shared client for image/page downloads (disk cache). */
     fun createMediaClient(context: Context): OkHttpClient {
         val cache = Cache(File(context.cacheDir, "media_cache"), 200L * 1024L * 1024L)
+        // Карточки и читалка используют один клиент. Ограничение не даёт одному
+        // устройству открыть десятки соединений к сайту/CDN при быстром скролле.
+        val dispatcher = Dispatcher().apply {
+            maxRequests = 4
+            maxRequestsPerHost = 2
+        }
         return OkHttpClient.Builder()
             .cache(cache)
+            .dispatcher(dispatcher)
             .retryOnConnectionFailure(true)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(45, TimeUnit.SECONDS)

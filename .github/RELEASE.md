@@ -14,8 +14,8 @@
 4. Поставьте тег, совпадающий с `versionName`:
 
 ```bash
-git tag v1.2.7
-git push origin v1.2.7
+git tag v1.2.8
+git push origin v1.2.8
 ```
 
 Либо Actions → **Release** → Run workflow.
