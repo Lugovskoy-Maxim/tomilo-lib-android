@@ -1,8 +1,11 @@
 package ru.tomilo.lib.mobile
 
 import android.app.Application
+import android.os.Build
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
@@ -42,6 +45,11 @@ class TomiloApp : Application(), ImageLoaderFactory {
         appScope.launch {
             container.authStore.tokenFlow.collectLatest { token ->
                 TokenBridge.setCached(token)
+                // Вход может завершиться, когда сеть уже подключена и новый
+                // network callback не придёт. Запускаем подписку сразу по токену.
+                if (!token.isNullOrBlank()) {
+                    NotificationsPollWorker.schedule(this@TomiloApp)
+                }
             }
         }
         appScope.launch {
@@ -73,6 +81,15 @@ class TomiloApp : Application(), ImageLoaderFactory {
         val mediaClient: OkHttpClient = NetworkModule.createMediaClient(this)
         return ImageLoader.Builder(this)
             .okHttpClient(mediaClient)
+            .components {
+                // ImageDecoder сохраняет анимацию WebP/GIF на Android 9+.
+                // На Android 8 используется совместимый GIF-декодер.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
+                }
+            }
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.25)

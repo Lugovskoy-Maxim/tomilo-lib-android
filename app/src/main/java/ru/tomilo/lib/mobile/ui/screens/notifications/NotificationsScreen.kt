@@ -1,5 +1,9 @@
 package ru.tomilo.lib.mobile.ui.screens.notifications
 
+import android.content.Intent
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
@@ -47,6 +52,8 @@ import ru.tomilo.lib.mobile.data.api.NotificationDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.push.toOpenRequest
+import ru.tomilo.lib.mobile.push.NotificationHelper
+import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
@@ -79,6 +86,22 @@ fun NotificationsScreen(
     var reload by remember { mutableIntStateOf(0) }
     var pendingDelete by remember { mutableStateOf<NotificationDto?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var backgroundNotifications by remember {
+        mutableStateOf(NotificationHelper.canNotify(context))
+    }
+    val notificationSettings = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        backgroundNotifications = NotificationHelper.canNotify(context)
+        if (backgroundNotifications) NotificationsPollWorker.schedule(context)
+    }
+
+    LaunchedEffect(user?.stableId(), backgroundNotifications) {
+        if (user != null && backgroundNotifications) {
+            NotificationsPollWorker.schedule(context)
+        }
+    }
 
     LaunchedEffect(user?.stableId(), reload) {
         if (user == null) return@LaunchedEffect
@@ -124,21 +147,32 @@ fun NotificationsScreen(
             }
             return@Scaffold
         }
-        when {
-            loading -> LoadingBox(Modifier.padding(padding))
-            error != null && items.isEmpty() -> Column(Modifier.padding(padding)) {
-                ErrorBox(error ?: "Ошибка") { reload += 1 }
-            }
-            items.isEmpty() -> EmptyState(
-                title = "Пока тихо",
-                message = "Новые главы, ответы и системные сообщения появятся здесь.",
-                icon = Icons.Default.NotificationsNone,
-                modifier = Modifier.padding(padding),
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            BackgroundNotificationsCard(
+                enabled = backgroundNotifications,
+                onOpenSettings = {
+                    notificationSettings.launch(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        },
+                    )
+                },
             )
-            else -> LazyColumn(
-                Modifier.padding(padding).fillMaxSize(),
-                contentPadding = ScreenPadding,
-            ) {
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                when {
+                    loading -> LoadingBox()
+                    error != null && items.isEmpty() -> Column {
+                        ErrorBox(error ?: "Ошибка") { reload += 1 }
+                    }
+                    items.isEmpty() -> EmptyState(
+                        title = "Пока тихо",
+                        message = "Новые главы, ответы и системные сообщения появятся здесь.",
+                        icon = Icons.Default.NotificationsNone,
+                    )
+                    else -> LazyColumn(
+                        Modifier.fillMaxSize(),
+                        contentPadding = ScreenPadding,
+                    ) {
                 item {
                     val unread = items.count { !it.read() }
                     PageIntro(
@@ -149,7 +183,7 @@ fun NotificationsScreen(
                         trailing = { StatusPill(if (unread > 0) "$unread новых" else "Готово") },
                     )
                 }
-                items(items, key = { it.stableId() }) { n ->
+                        items(items, key = { it.stableId() }) { n ->
                     Row(
                         Modifier
                             .padding(horizontal = 12.dp, vertical = 5.dp)
@@ -205,6 +239,8 @@ fun NotificationsScreen(
                             Icon(Icons.Default.DeleteOutline, contentDescription = "Удалить")
                         }
                     }
+                        }
+                    }
                 }
             }
         }
@@ -227,5 +263,48 @@ fun NotificationsScreen(
             },
             onDismiss = { pendingDelete = null },
         )
+    }
+}
+
+@Composable
+private fun BackgroundNotificationsCard(
+    enabled: Boolean,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (enabled) TomiloPrimary.copy(alpha = 0.10f) else TomiloSurface)
+            .border(
+                1.dp,
+                if (enabled) TomiloPrimary.copy(alpha = 0.25f) else TomiloBorder,
+                RoundedCornerShape(18.dp),
+            )
+            .clickable(onClick = onOpenSettings)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            if (enabled) Icons.Default.NotificationsActive else Icons.Default.NotificationsNone,
+            contentDescription = null,
+            tint = if (enabled) TomiloPrimary else TomiloMuted,
+        )
+        Spacer(Modifier.size(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                if (enabled) "Фоновые уведомления включены" else "Включите фоновые уведомления",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                if (enabled) "Новые главы и ответы придут даже при закрытом приложении"
+                else "Разрешите уведомления в настройках Android",
+                style = MaterialTheme.typography.bodySmall,
+                color = TomiloMuted,
+            )
+        }
+        Text("Настроить", color = TomiloPrimary, style = MaterialTheme.typography.labelLarge)
     }
 }

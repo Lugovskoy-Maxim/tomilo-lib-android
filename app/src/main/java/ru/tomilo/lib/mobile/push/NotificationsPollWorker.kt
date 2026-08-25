@@ -33,13 +33,22 @@ class NotificationsPollWorker(
 
         val listResult = app.container.socialRepository.notifications(page = 1)
         val list = listResult.getOrElse {
+            // Серверная лента может временно не ответить, но проверка закладок
+            // остаётся независимым резервным каналом новых глав.
+            pollBookmarkChapters(app, prefs, emptySet())
             return if (runAttemptCount < 3) Result.retry() else Result.success()
         }
 
         if (list.isEmpty()) {
             val unread = app.container.socialRepository.notificationsUnread()
             val lastCount = prefs.getInt(KEY_LAST_UNREAD, 0)
-            if (unread > lastCount && unread > 0 && NotificationHelper.canNotify(applicationContext)) {
+            val bookmarkNotifications = pollBookmarkChapters(app, prefs, emptySet())
+            if (
+                bookmarkNotifications == 0 &&
+                unread > lastCount &&
+                unread > 0 &&
+                NotificationHelper.canNotify(applicationContext)
+            ) {
                 NotificationHelper.showUpdate(
                     context = applicationContext,
                     title = "TOMILO LIB",
@@ -68,6 +77,7 @@ class NotificationsPollWorker(
             if (id.isNotBlank() && (firstRun || n.read())) knownIds.add(id)
         }
 
+        val deliveredChapterTitles = linkedSetOf<String>()
         fresh.forEach { n ->
             val id = n.stableId()
             if (id.isBlank()) return@forEach
@@ -85,7 +95,12 @@ class NotificationsPollWorker(
                 chapterId = open.chapterId,
                 linkUrl = open.linkUrl,
             )
-            if (delivered) knownIds.add(id)
+            if (delivered) {
+                knownIds.add(id)
+                if (isChapterRelated(n.type)) {
+                    n.resolvedTitleId().takeIf { it.isNotBlank() }?.let(deliveredChapterTitles::add)
+                }
+            }
         }
 
         val newestId = list.firstOrNull()?.stableId().orEmpty()
@@ -96,7 +111,78 @@ class NotificationsPollWorker(
             .putInt(KEY_LAST_UNREAD, unread)
             .apply()
 
+        pollBookmarkChapters(app, prefs, deliveredChapterTitles)
+
         return Result.success()
+    }
+
+    private suspend fun pollBookmarkChapters(
+        app: TomiloApp,
+        prefs: android.content.SharedPreferences,
+        alreadyDeliveredTitleIds: Set<String>,
+    ): Int {
+        val bookmarks = app.container.socialRepository.bookmarks().getOrElse { return 0 }
+        val current = bookmarks.mapNotNull { bookmark ->
+            if (bookmark.category.equals("dropped", ignoreCase = true)) return@mapNotNull null
+            val title = bookmark.resolvedTitle() ?: return@mapNotNull null
+            val titleId = bookmark.resolvedTitleId().takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val count = (title.totalChapters ?: title.chaptersCount)?.coerceAtLeast(0)
+                ?: return@mapNotNull null
+            BookmarkChapterSnapshot(
+                titleId = titleId,
+                titleName = bookmark.displayName(),
+                chapterCount = count,
+            )
+        }.distinctBy { it.titleId }
+
+        val oldIds = prefs.getString(KEY_BOOKMARK_IDS, "").orEmpty()
+            .split(',')
+            .filter { it.isNotBlank() }
+            .toSet()
+        val previous = oldIds.associateWith { id ->
+            prefs.getInt(bookmarkCountKey(id), -1)
+        }.filterValues { it >= 0 }
+        val ready = prefs.getBoolean(KEY_BOOKMARK_SNAPSHOT_READY, false)
+        val updates = if (ready) {
+            findBookmarkChapterUpdates(previous, current, alreadyDeliveredTitleIds)
+        } else {
+            emptyList()
+        }
+
+        val deliveredIds = updates.mapNotNullTo(mutableSetOf()) { item ->
+            val gained = item.chapterCount - (previous[item.titleId] ?: item.chapterCount)
+            val body = if (gained == 1) {
+                "В «${item.titleName}» появилась новая глава"
+            } else {
+                "В «${item.titleName}» появилось новых глав: $gained"
+            }
+            val shown = NotificationHelper.showUpdate(
+                context = applicationContext,
+                title = "Новые главы в закладках",
+                body = body,
+                notificationId = NotificationHelper.idFor("bookmark:${item.titleId}:${item.chapterCount}"),
+                titleId = item.titleId,
+            )
+            item.titleId.takeIf { shown }
+        }
+
+        val currentIds = current.mapTo(linkedSetOf()) { it.titleId }
+        val editor = prefs.edit()
+            .putBoolean(KEY_BOOKMARK_SNAPSHOT_READY, true)
+            .putString(KEY_BOOKMARK_IDS, currentIds.joinToString(","))
+        (oldIds - currentIds).forEach { editor.remove(bookmarkCountKey(it)) }
+        current.forEach { item ->
+            val old = previous[item.titleId]
+            val serverDelivered = item.titleId in alreadyDeliveredTitleIds
+            val safeToAdvance = old == null ||
+                item.chapterCount <= old ||
+                item.titleId in deliveredIds ||
+                serverDelivered
+            if (safeToAdvance) editor.putInt(bookmarkCountKey(item.titleId), item.chapterCount)
+        }
+        editor.apply()
+        return deliveredIds.size
     }
 
     private fun isChapterRelated(type: String?): Boolean {
@@ -112,6 +198,11 @@ class NotificationsPollWorker(
         private const val KEY_KNOWN_IDS = "known_notif_ids"
         private const val KEY_KNOWN_IDS_CSV = "known_notif_ids_csv"
         private const val KEY_LAST_UNREAD = "last_unread"
+        private const val KEY_BOOKMARK_SNAPSHOT_READY = "bookmark_snapshot_ready"
+        private const val KEY_BOOKMARK_IDS = "bookmark_title_ids"
+        private const val KEY_BOOKMARK_COUNT_PREFIX = "bookmark_chapter_count:"
+
+        private fun bookmarkCountKey(titleId: String) = "$KEY_BOOKMARK_COUNT_PREFIX$titleId"
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
@@ -124,7 +215,9 @@ class NotificationsPollWorker(
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 UNIQUE_PERIODIC,
-                ExistingPeriodicWorkPolicy.KEEP,
+                // Обновляем существующую задачу после установки новой версии,
+                // чтобы новые ограничения и логика применялись без переустановки.
+                ExistingPeriodicWorkPolicy.UPDATE,
                 periodic,
             )
 
@@ -141,7 +234,8 @@ class NotificationsPollWorker(
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 UNIQUE_ONCE,
-                ExistingWorkPolicy.REPLACE,
+                // Повторный вызов не должен отменять уже идущий сетевой запрос.
+                ExistingWorkPolicy.KEEP,
                 once,
             )
         }

@@ -1,6 +1,12 @@
 package ru.tomilo.lib.mobile.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -61,6 +67,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -206,17 +213,30 @@ fun LoadingBox(
     modifier: Modifier = Modifier,
     message: String? = null,
 ) {
-    val pulse by rememberInfiniteTransition(label = "loadingPulse").animateFloat(
+    val transition = rememberInfiniteTransition(label = "loadingMotion")
+    val pulse by transition.animateFloat(
         initialValue = 0.55f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
         label = "loadingPulseAlpha",
     )
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing)),
+        label = "loadingHaloRotation",
+    )
+    val loadingMessage = message?.trim()?.takeIf { it.isNotBlank() } ?: "Загружаем…"
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 Modifier
                     .size(64.dp)
+                    .graphicsLayer {
+                        scaleX = 0.96f + pulse * 0.04f
+                        scaleY = 0.96f + pulse * 0.04f
+                        rotationZ = rotation
+                    }
                     .clip(RoundedCornerShape(22.dp))
                     .background(TomiloPrimary.copy(alpha = 0.10f * pulse))
                     .border(1.dp, TomiloPrimary.copy(alpha = 0.20f), RoundedCornerShape(22.dp)),
@@ -228,16 +248,14 @@ fun LoadingBox(
                     modifier = Modifier.size(31.dp),
                 )
             }
-            if (!message.isNullOrBlank()) {
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    message,
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                )
-            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                loadingMessage,
+                color = TomiloMuted,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
         }
     }
 }
@@ -249,21 +267,27 @@ fun LoadingMoreBar(
     message: String = "Подгружаем ещё тайтлы…",
     modifier: Modifier = Modifier,
 ) {
-    if (!visible) return
-    Column(
-        modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp, horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier.fillMaxWidth(),
+        enter = fadeIn(tween(180)) + expandVertically(tween(220)),
+        exit = fadeOut(tween(140)) + shrinkVertically(tween(180)),
     ) {
-        LinearProgressIndicator(
-            modifier = Modifier
+        Column(
+            Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp)),
-            color = TomiloPrimary,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(message, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                .padding(vertical = 12.dp, horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(4.dp)),
+                color = TomiloPrimary,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(message, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 
@@ -273,6 +297,7 @@ fun ErrorBox(
     modifier: Modifier = Modifier,
     onRetry: (() -> Unit)? = null,
 ) {
+    val friendlyMessage = remember(message) { userFacingError(message) }
     Surface(
         modifier = modifier
             .fillMaxSize()
@@ -302,7 +327,7 @@ fun ErrorBox(
             Spacer(Modifier.height(18.dp))
             Text("Не удалось загрузить", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
             Spacer(Modifier.height(6.dp))
-            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+            Text(friendlyMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
             if (onRetry != null) {
                 Spacer(Modifier.height(18.dp))
                 Button(onClick = onRetry) {
@@ -324,6 +349,12 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    val iconPulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
+        initialValue = 0.97f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
+        label = "emptyStateScale",
+    )
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -335,6 +366,10 @@ fun EmptyState(
             Box(
                 Modifier
                     .size(76.dp)
+                    .graphicsLayer {
+                        scaleX = iconPulse
+                        scaleY = iconPulse
+                    }
                     .shadow(18.dp, RoundedCornerShape(26.dp), ambientColor = TomiloPrimary.copy(alpha = 0.20f))
                     .clip(RoundedCornerShape(26.dp))
                     .background(
@@ -374,6 +409,31 @@ fun EmptyState(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             ) { Text(actionLabel) }
         }
+    }
+}
+
+private fun userFacingError(raw: String): String {
+    val message = raw.trim()
+    val lower = message.lowercase()
+    return when {
+        message.isBlank() || lower == "ошибка" ->
+            "Не удалось получить данные. Проверьте подключение и попробуйте снова."
+        lower.contains("unable to resolve host") ||
+            lower.contains("failed to connect") ||
+            lower.contains("network is unreachable") ||
+            lower.contains("no address associated") ->
+            "Нет подключения к серверу. Проверьте интернет и попробуйте снова."
+        lower.contains("timeout") || lower.contains("timed out") ->
+            "Сервер отвечает слишком долго. Попробуйте ещё раз через несколько секунд."
+        lower.contains("401") || lower.contains("unauthorized") || lower.contains("invalid token") ->
+            "Сессия завершилась. Войдите в аккаунт ещё раз."
+        lower.contains("403") || lower.contains("forbidden") ->
+            "Для этого действия недостаточно прав."
+        lower.contains("500") || lower.contains("502") || lower.contains("503") ->
+            "Сервис временно недоступен. Попробуйте снова немного позже."
+        message.length > 180 || lower.contains("exception") ->
+            "Произошла техническая ошибка. Попробуйте снова."
+        else -> message
     }
 }
 

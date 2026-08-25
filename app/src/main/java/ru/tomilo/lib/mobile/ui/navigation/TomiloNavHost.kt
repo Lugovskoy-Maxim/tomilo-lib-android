@@ -227,6 +227,17 @@ fun TomiloNavHost(container: AppContainer) {
         }
     }
 
+    fun navigateHomeRoot() {
+        // На странице тайтла «Домой» означает именно корень приложения, а не
+        // восстановление сохранённого вложенного стека текущей вкладки.
+        if (!navController.popBackStack(Routes.Home, inclusive = false)) {
+            navController.navigate(Routes.Home) {
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
+    }
+
     if (!contentSettings.ageGateAnswered) {
         AgeGateDialog(
             onAdult = { scope.launch { container.contentPrefs.answerAgeGate(isAdult = true) } },
@@ -358,7 +369,6 @@ fun TomiloNavHost(container: AppContainer) {
                     authRepository = container.authRepository,
                     socialRepository = container.socialRepository,
                     offlineRepository = container.offlineRepository,
-                    appUpdateManager = container.appUpdateManager,
                     contentPrefs = container.contentPrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
@@ -533,7 +543,7 @@ fun TomiloNavHost(container: AppContainer) {
                     downloadManager = container.downloadManager,
                     rewardedAdManager = container.rewardedAdManager,
                     adRewardStore = container.adRewardStore,
-                    onOpenHome = { navigateTab(Routes.Home) },
+                    onOpenHome = { navigateHomeRoot() },
                     onLogin = { goLogin() },
                     onOpenChapter = { titleId, chapterId, offline ->
                         navController.navigate(
