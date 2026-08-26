@@ -208,6 +208,9 @@ fun TomiloNavHost(container: AppContainer) {
         val nav = pendingNotification ?: return@LaunchedEffect
         container.pendingNotificationOpen.value = null
         when {
+            !nav.conversationId.isNullOrBlank() -> navController.navigate(
+                Routes.chat(nav.conversationId, nav.conversationTitle.orEmpty()),
+            )
             !nav.chapterId.isNullOrBlank() -> navController.navigate(
                 Routes.reader(nav.chapterId, titleId = nav.titleId),
             )

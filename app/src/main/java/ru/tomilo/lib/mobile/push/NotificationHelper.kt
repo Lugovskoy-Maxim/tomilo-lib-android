@@ -19,6 +19,8 @@ object NotificationHelper {
     const val EXTRA_TITLE_ID = "notif_title_id"
     const val EXTRA_CHAPTER_ID = "notif_chapter_id"
     const val EXTRA_LINK = "notif_link"
+    const val EXTRA_CONVERSATION_ID = "notif_conversation_id"
+    const val EXTRA_CONVERSATION_TITLE = "notif_conversation_title"
     private const val SUMMARY_ID = 1000
     private const val APP_UPDATE_ID = 0x1230
 
@@ -57,6 +59,8 @@ object NotificationHelper {
         titleId: String? = null,
         chapterId: String? = null,
         linkUrl: String? = null,
+        conversationId: String? = null,
+        conversationTitle: String? = null,
     ): Boolean {
         ensureChannel(context)
         if (!canNotify(context)) return false
@@ -64,10 +68,12 @@ object NotificationHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra(EXTRA_OPEN_LIST, true)
+            putExtra(EXTRA_OPEN_LIST, conversationId.isNullOrBlank())
             titleId?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_TITLE_ID, it) }
             chapterId?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_CHAPTER_ID, it) }
             linkUrl?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_LINK, it) }
+            conversationId?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_CONVERSATION_ID, it) }
+            conversationTitle?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_CONVERSATION_TITLE, it) }
         }
         val pending = PendingIntent.getActivity(
             context,

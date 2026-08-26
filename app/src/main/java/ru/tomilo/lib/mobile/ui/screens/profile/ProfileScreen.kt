@@ -234,7 +234,7 @@ fun ProfileScreen(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        ProfileStatChip("Главы", "${user!!.chaptersRead ?: 0}", Modifier.weight(1f))
+                        ProfileStatChip("Главы", "${user!!.readChaptersTotal()}", Modifier.weight(1f))
                         ProfileStatChip("Тайтлы", "${user!!.titlesReadCount ?: 0}", Modifier.weight(1f))
                         ProfileStatChip("Серия", "${user!!.currentStreak ?: 0}", Modifier.weight(1f))
                         ProfileStatChip("Монеты", "${user!!.balance ?: 0}", Modifier.weight(1f))

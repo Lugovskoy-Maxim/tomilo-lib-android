@@ -36,7 +36,7 @@ class AppContainer(context: Context) {
     val readingPrefs = ReadingPrefs(appContext)
     val contentPrefs = ContentPrefs(appContext)
     val searchHistoryPrefs = SearchHistoryPrefs(appContext)
-    val appUpdateManager = AppUpdateManager(appContext)
+    val appUpdateManager = AppUpdateManager()
     val adRewardStore = AdRewardStore(appContext)
     val adFrequencyStore = AdFrequencyStore(appContext)
     val rewardedAdManager = RewardedAdManager(appContext)

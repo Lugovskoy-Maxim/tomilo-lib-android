@@ -56,6 +56,7 @@ data class UserDto(
     val commentsCount: Int? = null,
     val likesReceivedCount: Int? = null,
     val chaptersRead: Int? = null,
+    val chaptersReadCount: Int? = null,
     val readingTimeMinutes: Int? = null,
     val currentStreak: Int? = null,
     val titlesReadCount: Int? = null,
@@ -71,6 +72,7 @@ data class UserDto(
     }
     fun isAdmin(): Boolean = role?.equals("admin", ignoreCase = true) == true
     fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
+    fun readChaptersTotal(): Int = (chaptersReadCount ?: chaptersRead ?: 0).coerceAtLeast(0)
 }
 
 /** Надетые украшения приходят с сервера строкой, populated-объектом либо null. */

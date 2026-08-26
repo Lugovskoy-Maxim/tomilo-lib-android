@@ -11,6 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +32,30 @@ import ru.tomilo.lib.mobile.data.api.EquippedDecorationsDto
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import java.util.Locale
+
+private val AvatarGradients = listOf(
+    listOf(Color(0xFFE85D55), Color(0xFF9E3D72)),
+    listOf(Color(0xFF6C63E8), Color(0xFF354FB4)),
+    listOf(Color(0xFF168A8A), Color(0xFF2464A8)),
+    listOf(Color(0xFFB86A31), Color(0xFFE04757)),
+    listOf(Color(0xFF527B46), Color(0xFF24877C)),
+)
+
+internal fun avatarInitials(username: String?): String {
+    val value = username.orEmpty().trim()
+    if (value.isEmpty()) return "T"
+    val words = value
+        .split(Regex("\\s+"))
+        .map { word -> word.filter(Char::isLetterOrDigit) }
+        .filter(String::isNotEmpty)
+    val initials = when {
+        words.size > 1 -> "${words.first().first()}${words.last().first()}"
+        words.isNotEmpty() -> words.first().take(2)
+        else -> "T"
+    }
+    return initials.uppercase(Locale.ROOT)
+}
 
 /**
  * Единый аватар tomilo-lib. Декорация avatar заменяет обычную картинку,
@@ -46,11 +74,20 @@ fun DecoratedAvatar(
     badgeUrl: String? = null,
     online: Boolean = false,
 ) {
-    val effectiveAvatar = avatarDecorationUrl ?: decorations?.avatarUrl() ?: avatarUrl
+    val avatarModels = listOfNotNull(
+        avatarDecorationUrl?.takeIf(String::isNotBlank),
+        decorations?.avatarUrl()?.takeIf(String::isNotBlank),
+        avatarUrl?.takeIf(String::isNotBlank),
+    ).distinct().map(MediaUrl::resolve)
+    var avatarModelIndex by remember(avatarModels) { mutableIntStateOf(0) }
+    val effectiveAvatar = avatarModels.getOrNull(avatarModelIndex)
     val effectiveFrame = frameUrl ?: decorations?.frameUrl()
     val effectiveBadge = badgeUrl ?: decorations?.badgeUrl()
     val inset = if (effectiveFrame != null) size * 0.105f else 2.dp
-    val initial = username?.trim()?.firstOrNull()?.uppercase() ?: "T"
+    val initials = avatarInitials(username)
+    val avatarColors = AvatarGradients[
+        (username.orEmpty().lowercase(Locale.ROOT).hashCode() and Int.MAX_VALUE) % AvatarGradients.size
+    ]
 
     Box(
         modifier = modifier.size(size),
@@ -64,24 +101,31 @@ fun DecoratedAvatar(
                 .clip(CircleShape)
                 .background(
                     Brush.linearGradient(
-                        listOf(TomiloPrimary.copy(alpha = 0.42f), TomiloSurface2),
+                        avatarColors,
                     ),
                 )
                 .border(1.5.dp, if (effectiveFrame == null) ringColor else Color.White.copy(alpha = 0.08f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                initial,
+                initials,
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
-            AsyncImage(
-                model = MediaUrl.resolve(effectiveAvatar),
-                contentDescription = "Аватар ${username.orEmpty()}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (effectiveAvatar != null) {
+                AsyncImage(
+                    model = effectiveAvatar,
+                    contentDescription = "Аватар ${username.orEmpty()}",
+                    contentScale = ContentScale.Crop,
+                    onError = {
+                        if (avatarModelIndex < avatarModels.lastIndex) {
+                            avatarModelIndex += 1
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         if (!effectiveFrame.isNullOrBlank()) {

@@ -1,11 +1,8 @@
 package ru.tomilo.lib.mobile.data.update
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import android.text.Html
-import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -14,7 +11,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.data.api.NetworkModule
-import java.io.File
 import java.util.concurrent.TimeUnit
 
 @Serializable
@@ -43,7 +39,7 @@ data class AppRelease(
     val apkSize: Long,
 )
 
-class AppUpdateManager(private val context: Context) {
+class AppUpdateManager {
     private val client = OkHttpClient.Builder()
         .followRedirects(true)
         .followSslRedirects(true)
@@ -52,15 +48,6 @@ class AppUpdateManager(private val context: Context) {
         .build()
 
     private val repo = BuildConfig.GITHUB_REPO
-
-    fun canInstallInPlace(): Boolean = !BuildConfig.DEBUG
-
-    fun hasInstallPermission(): Boolean = context.packageManager.canRequestPackageInstalls()
-
-    fun installSettingsIntent(): Intent {
-        val uri = Uri.parse("package:${context.packageName}")
-        return Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, uri)
-    }
 
     suspend fun fetchLatest(): Result<AppRelease> = withContext(Dispatchers.IO) {
         runCatching { fetchLatestFromApi() }
@@ -72,63 +59,6 @@ class AppUpdateManager(private val context: Context) {
         val remoteCode = release.versionCode
         if (remoteCode != null) return remoteCode > BuildConfig.VERSION_CODE
         return compareSemver(release.versionName, localName) > 0
-    }
-
-    suspend fun download(
-        release: AppRelease,
-        onProgress: (Float) -> Unit,
-    ): Result<File> = withContext(Dispatchers.IO) {
-        runCatching {
-            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-            val dest = File(dir, "tomilo-update.apk")
-            if (dest.exists()) dest.delete()
-            val request = Request.Builder()
-                .url(release.apkUrl)
-                .header("User-Agent", "TOMILO-LIB-Android/${BuildConfig.VERSION_NAME}")
-                .header("Accept", "application/octet-stream")
-                .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) error("Не удалось скачать APK (${response.code})")
-                val body = response.body ?: error("Пустой файл обновления")
-                val total = body.contentLength().takeIf { it > 0 } ?: release.apkSize
-                body.byteStream().use { input ->
-                    dest.outputStream().use { output ->
-                        val buf = ByteArray(DEFAULT_BUFFER_SIZE)
-                        var read = 0L
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n <= 0) break
-                            output.write(buf, 0, n)
-                            read += n
-                            if (total > 0) onProgress((read.toFloat() / total).coerceIn(0f, 1f))
-                        }
-                    }
-                }
-            }
-            if (!dest.isFile || dest.length() < 1024) {
-                dest.delete()
-                error("Скачанный APK повреждён")
-            }
-            val archive = context.packageManager.getPackageArchiveInfo(dest.absolutePath, 0)
-            if (archive?.packageName != context.packageName) {
-                dest.delete()
-                error("APK имеет неверный package и не будет установлен")
-            }
-            dest
-        }
-    }
-
-    fun installIntent(apk: File): Intent {
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            apk,
-        )
-        return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
     }
 
     fun openReleaseIntent(url: String): Intent =

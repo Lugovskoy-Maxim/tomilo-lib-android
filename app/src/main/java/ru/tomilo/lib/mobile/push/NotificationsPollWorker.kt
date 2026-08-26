@@ -34,8 +34,9 @@ class NotificationsPollWorker(
         val listResult = app.container.socialRepository.notifications(page = 1)
         val list = listResult.getOrElse {
             // Серверная лента может временно не ответить, но проверка закладок
-            // остаётся независимым резервным каналом новых глав.
+            // и сообщений остаётся независимым резервным каналом.
             pollBookmarkChapters(app, prefs, emptySet())
+            pollConversations(app, prefs)
             return if (runAttemptCount < 3) Result.retry() else Result.success()
         }
 
@@ -43,8 +44,10 @@ class NotificationsPollWorker(
             val unread = app.container.socialRepository.notificationsUnread()
             val lastCount = prefs.getInt(KEY_LAST_UNREAD, 0)
             val bookmarkNotifications = pollBookmarkChapters(app, prefs, emptySet())
+            val messageNotifications = pollConversations(app, prefs)
             if (
                 bookmarkNotifications == 0 &&
+                messageNotifications == 0 &&
                 unread > lastCount &&
                 unread > 0 &&
                 NotificationHelper.canNotify(applicationContext)
@@ -63,7 +66,9 @@ class NotificationsPollWorker(
 
         val firstRun = lastSeenId.isBlank() && knownIds.isEmpty()
         val fresh = if (firstRun) {
-            list.filter { !it.read() && isChapterRelated(it.type) }.take(5)
+            // Раньше первый запуск сохранял ответы/реакции как уже показанные,
+            // но показывал только главы. В результате событие терялось навсегда.
+            list.filter { !it.read() }.take(5)
         } else {
             list.filter { n ->
                 val id = n.stableId()
@@ -71,10 +76,14 @@ class NotificationsPollWorker(
             }.take(8)
         }
 
-        // Не спамим историей и уже прочитанным: запоминаем id без показа.
+        val freshIds = fresh.mapTo(hashSetOf()) { it.stableId() }
+        // Не спамим глубокой историей и уже прочитанным. Выбранные свежие
+        // события запоминаются только после фактического показа уведомления.
         list.forEach { n ->
             val id = n.stableId()
-            if (id.isNotBlank() && (firstRun || n.read())) knownIds.add(id)
+            if (id.isNotBlank() && (n.read() || (firstRun && id !in freshIds))) {
+                knownIds.add(id)
+            }
         }
 
         val deliveredChapterTitles = linkedSetOf<String>()
@@ -112,8 +121,81 @@ class NotificationsPollWorker(
             .apply()
 
         pollBookmarkChapters(app, prefs, deliveredChapterTitles)
+        pollConversations(app, prefs)
 
         return Result.success()
+    }
+
+    /**
+     * Сообщения не входят в общую ленту /notifications: сервер хранит их в
+     * conversations. Поэтому проверяем новые непрочитанные диалоги отдельно.
+     */
+    private suspend fun pollConversations(
+        app: TomiloApp,
+        prefs: android.content.SharedPreferences,
+    ): Int {
+        val conversations = app.container.socialRepository.conversations().getOrElse { return 0 }
+            .toMutableList()
+        if (app.container.authStore.user()?.isAdmin() == true) {
+            app.container.socialRepository.supportInbox()
+                .onSuccess { support -> conversations.addAll(support) }
+        }
+        val current = conversations.mapNotNull { conversation ->
+            val id = conversation.stableId().takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val preview = conversation.lastMessagePreview.orEmpty().trim()
+            val signature = listOf(
+                conversation.lastMessageAt.orEmpty(),
+                conversation.lastMessageSenderId.orEmpty(),
+                conversation.unreadCount.toString(),
+                preview,
+            ).joinToString("|")
+            ConversationSnapshot(
+                conversationId = id,
+                participantName = conversation.participant?.username
+                    ?.takeIf { it.isNotBlank() }
+                    ?: if (conversation.type == "support") "Поддержка" else "Пользователь",
+                preview = preview,
+                signature = signature,
+                unreadCount = conversation.unreadCount,
+            )
+        }.distinctBy { it.conversationId }
+
+        val oldIds = prefs.getString(KEY_CONVERSATION_IDS, "").orEmpty()
+            .split(',')
+            .filter { it.isNotBlank() }
+            .toSet()
+        val previous = oldIds.associateWith { id ->
+            prefs.getString(conversationSignatureKey(id), "").orEmpty()
+        }
+        val updates = findConversationUpdates(previous, current).take(5)
+        val deliveredIds = updates.mapNotNullTo(mutableSetOf()) { item ->
+            val shown = NotificationHelper.showUpdate(
+                context = applicationContext,
+                title = "Новое сообщение · ${item.participantName}",
+                body = item.preview.ifBlank {
+                    if (item.unreadCount > 1) "Непрочитанных сообщений: ${item.unreadCount}"
+                    else "Вам отправили сообщение"
+                },
+                notificationId = NotificationHelper.idFor("message:${item.conversationId}:${item.signature}"),
+                conversationId = item.conversationId,
+                conversationTitle = item.participantName,
+            )
+            item.conversationId.takeIf { shown }
+        }
+
+        val currentIds = current.mapTo(linkedSetOf()) { it.conversationId }
+        val editor = prefs.edit().putString(KEY_CONVERSATION_IDS, currentIds.joinToString(","))
+        (oldIds - currentIds).forEach { editor.remove(conversationSignatureKey(it)) }
+        current.forEach { item ->
+            val unchanged = previous[item.conversationId] == item.signature
+            // Не теряем уведомление, если системное разрешение было отключено:
+            // сохраним новый снимок лишь после показа либо после прочтения.
+            if (item.unreadCount == 0 || item.conversationId in deliveredIds || unchanged) {
+                editor.putString(conversationSignatureKey(item.conversationId), item.signature)
+            }
+        }
+        editor.apply()
+        return deliveredIds.size
     }
 
     private suspend fun pollBookmarkChapters(
@@ -201,8 +283,12 @@ class NotificationsPollWorker(
         private const val KEY_BOOKMARK_SNAPSHOT_READY = "bookmark_snapshot_ready"
         private const val KEY_BOOKMARK_IDS = "bookmark_title_ids"
         private const val KEY_BOOKMARK_COUNT_PREFIX = "bookmark_chapter_count:"
+        private const val KEY_CONVERSATION_IDS = "message_conversation_ids"
+        private const val KEY_CONVERSATION_SIGNATURE_PREFIX = "message_conversation_signature:"
 
         private fun bookmarkCountKey(titleId: String) = "$KEY_BOOKMARK_COUNT_PREFIX$titleId"
+        private fun conversationSignatureKey(conversationId: String) =
+            "$KEY_CONVERSATION_SIGNATURE_PREFIX$conversationId"
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()

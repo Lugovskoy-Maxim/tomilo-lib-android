@@ -56,6 +56,7 @@ import ru.tomilo.lib.mobile.data.api.GameBattleResultDto
 import ru.tomilo.lib.mobile.data.api.GameDiscipleDto
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
+import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -631,11 +632,10 @@ private fun OpponentCard(
     Surface(color = TomiloSurface, shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, ArenaRed.copy(alpha = 0.5f))) {
         Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AsyncImage(
-                    model = MediaUrl.resolve(opponent.avatar),
-                    contentDescription = opponent.username,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(54.dp).clip(CircleShape).background(ArenaRed.copy(alpha = 0.12f)),
+                DecoratedAvatar(
+                    avatarUrl = opponent.avatar,
+                    username = opponent.username,
+                    size = 54.dp,
                 )
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f)) {

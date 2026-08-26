@@ -63,17 +63,23 @@ class MainActivity : ComponentActivity() {
         val titleId = intent.getStringExtra(NotificationHelper.EXTRA_TITLE_ID)?.ifBlank { null }
         val chapterId = intent.getStringExtra(NotificationHelper.EXTRA_CHAPTER_ID)?.ifBlank { null }
         val link = intent.getStringExtra(NotificationHelper.EXTRA_LINK)?.ifBlank { null }
-        if (!openList && titleId == null && chapterId == null && link == null) return
+        val conversationId = intent.getStringExtra(NotificationHelper.EXTRA_CONVERSATION_ID)?.ifBlank { null }
+        val conversationTitle = intent.getStringExtra(NotificationHelper.EXTRA_CONVERSATION_TITLE)?.ifBlank { null }
+        if (!openList && titleId == null && chapterId == null && link == null && conversationId == null) return
         intent.removeExtra(NotificationHelper.EXTRA_OPEN_LIST)
         intent.removeExtra(NotificationHelper.EXTRA_TITLE_ID)
         intent.removeExtra(NotificationHelper.EXTRA_CHAPTER_ID)
         intent.removeExtra(NotificationHelper.EXTRA_LINK)
+        intent.removeExtra(NotificationHelper.EXTRA_CONVERSATION_ID)
+        intent.removeExtra(NotificationHelper.EXTRA_CONVERSATION_TITLE)
         val app = application as? TomiloApp ?: return
         app.container.pendingNotificationOpen.value = NotificationOpen(
             openList = openList || (titleId == null && chapterId == null && link == null),
             titleId = titleId,
             chapterId = chapterId,
             linkUrl = link,
+            conversationId = conversationId,
+            conversationTitle = conversationTitle,
         )
     }
 

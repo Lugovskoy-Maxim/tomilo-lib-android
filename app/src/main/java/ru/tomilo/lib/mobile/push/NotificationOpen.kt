@@ -14,6 +14,8 @@ data class NotificationOpen(
     val titleId: String? = null,
     val chapterId: String? = null,
     val linkUrl: String? = null,
+    val conversationId: String? = null,
+    val conversationTitle: String? = null,
 )
 
 fun NotificationDto.toOpenRequest(): NotificationOpen = NotificationOpen(
