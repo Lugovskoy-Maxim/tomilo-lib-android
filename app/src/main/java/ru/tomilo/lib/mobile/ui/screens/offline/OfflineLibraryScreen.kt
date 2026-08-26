@@ -2,7 +2,9 @@ package ru.tomilo.lib.mobile.ui.screens.offline
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -501,22 +504,33 @@ private fun OfflineStatusCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(18.dp),
-        color = TomiloSurface2.copy(alpha = 0.78f),
+        shape = RoundedCornerShape(24.dp),
+        color = TomiloSurface2.copy(alpha = 0.68f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    if (online) Icons.Default.Wifi else Icons.Default.WifiOff,
-                    contentDescription = null,
-                    tint = if (online) MaterialTheme.colorScheme.primary else TomiloMuted,
-                )
-                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier
+                        .size(58.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (online) Color.White.copy(alpha = 0.06f) else TomiloPrimary.copy(alpha = 0.12f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (online) Icons.Default.Wifi else Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = if (online) MaterialTheme.colorScheme.primary else TomiloMuted,
+                        modifier = Modifier.size(30.dp),
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (online) "Сеть доступна" else "Офлайн-режим",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                     )
                     Text(
                         if (online) "Локальные главы готовы, каталог можно обновить"
@@ -596,14 +610,15 @@ private fun OfflineTitleBlock(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(TomiloSurface2.copy(alpha = 0.7f)),
+            .clip(RoundedCornerShape(24.dp))
+            .background(TomiloSurface2.copy(alpha = 0.66f))
+            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(24.dp)),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
-                .padding(10.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AsyncImage(
@@ -611,16 +626,16 @@ private fun OfflineTitleBlock(
                 contentDescription = group.titleName,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(width = 56.dp, height = 78.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .size(width = 82.dp, height = 116.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(TomiloSurface2),
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     group.titleName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -643,10 +658,20 @@ private fun OfflineTitleBlock(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                    Spacer(Modifier.height(7.dp))
+                    LinearProgressIndicator(
+                        progress = { if (dlCount > 0) (readCount.toFloat() / dlCount).coerceIn(0f, 1f) else 0f },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
+                        color = TomiloPrimary,
+                        trackColor = Color.White.copy(alpha = 0.13f),
+                    )
                 }
             }
             IconButton(onClick = onDeleteTitle) {
-                Icon(Icons.Default.Delete, contentDescription = "Удалить тайтл", tint = TomiloMuted)
+                Box(
+                    Modifier.size(42.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.06f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Default.Delete, contentDescription = "Удалить тайтл", tint = TomiloMuted) }
             }
             Icon(
                 if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -663,7 +688,7 @@ private fun OfflineTitleBlock(
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier
-                            .padding(start = 78.dp, end = 12.dp, bottom = 6.dp)
+                            .padding(start = 110.dp, end = 12.dp, bottom = 8.dp)
                             .clickable(onClick = onOpenTitleOnline),
                     )
                 }
@@ -673,7 +698,7 @@ private fun OfflineTitleBlock(
                         Modifier
                             .fillMaxWidth()
                             .clickable { onOpenChapter(ch) }
-                            .padding(start = 78.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            .padding(start = 110.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(

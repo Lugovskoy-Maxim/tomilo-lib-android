@@ -1,6 +1,7 @@
 package ru.tomilo.lib.mobile.ui.screens.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -67,7 +69,6 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
-import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -183,46 +184,24 @@ fun HomeScreen(
             Column(
                 Modifier
                     .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(TomiloPrimary.copy(alpha = 0.035f), TomiloBg, TomiloBg),
+                        ),
+                    )
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 110.dp),
             ) {
-                HomeSearchBar(onClick = onOpenSearch)
-                ShortcutRow(
-                    onUpdates = onOpenUpdates,
-                    onQuests = onOpenQuests,
-                    onOffline = onOpenOffline,
-                    onFriends = onOpenFriends,
-                    onGames = onOpenGames,
-                )
-                if (genres.isNotEmpty()) {
-                    SectionHead("Жанры", action = "Каталог", onAction = onOpenCatalog)
-                    Row(
-                        Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        genres.forEach { genre ->
-                            FilterChip(
-                                selected = false,
-                                onClick = { onOpenGenre(genre) },
-                                label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
                 if (continueItems.isNotEmpty()) {
                     SectionHead("Продолжить", action = "История", onAction = onOpenHistory)
                     Row(
-                        Modifier
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp),
+                        Modifier.padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        continueItems.forEach { item ->
+                        continueItems.take(2).forEach { item ->
                             ContinueCard(
                                 item = item,
+                                modifier = Modifier.weight(1f),
                                 onOpen = {
                                     val chapter = item.chapterKey()
                                     if (chapter.isNotBlank()) onContinueReading(item.titleKey(), chapter)
@@ -234,21 +213,57 @@ fun HomeScreen(
                     Spacer(Modifier.height(22.dp))
                 }
 
-                SectionHead("Новые главы", action = "Все", onAction = onOpenUpdates.ifBlankAction(onOpenCatalog))
-                Column(Modifier.padding(horizontal = 12.dp)) {
-                    updates.take(8).forEach { item ->
-                        TitleSearchCard(
-                            title = item.displayTitle(),
-                            cover = item.coverPath(),
-                            type = ReaderMode.typeLabel(item.type),
-                            rating = item.displayRating(),
-                            subtitle = item.chapterBadge() ?: item.totalChapters?.let { "$it гл." },
-                            isAdult = item.isAdult == true,
-                            onClick = { onOpenTitle(item.stableId(), item.slug) },
-                        )
+                HomeSearchBar(onClick = onOpenSearch)
+                ShortcutRow(
+                    onUpdates = onOpenUpdates,
+                    onQuests = onOpenQuests,
+                    onOffline = onOpenOffline,
+                    onFriends = onOpenFriends,
+                    onGames = onOpenGames,
+                )
+
+                SectionHead("Новые главы", action = "Каталог", onAction = onOpenUpdates.ifBlankAction(onOpenCatalog))
+                Column(
+                    Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    updates.take(6).chunked(3).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { item ->
+                                TitlePosterCard(
+                                    title = item.displayTitle(),
+                                    cover = item.coverPath(),
+                                    onClick = { onOpenTitle(item.stableId(), item.slug) },
+                                    modifier = Modifier.weight(1f),
+                                    width = null,
+                                    type = ReaderMode.typeLabel(item.type),
+                                    rating = item.displayRating(),
+                                    chapterBadge = item.chapterBadge() ?: item.totalChapters?.let { "$it гл." },
+                                    isAdult = item.isAdult == true,
+                                )
+                            }
+                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
                 }
                 Spacer(Modifier.height(22.dp))
+
+                if (genres.isNotEmpty()) {
+                    SectionHead("Жанры", action = "Все жанры", onAction = onOpenCatalog)
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        genres.forEach { genre ->
+                            FilterChip(
+                                selected = false,
+                                onClick = { onOpenGenre(genre) },
+                                label = { Text(ru.tomilo.lib.mobile.core.GenreLabels.ru(genre)) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                }
 
                 SectionHead("Сейчас читают", onAction = onOpenCatalog)
                 PosterRow(
@@ -309,7 +324,12 @@ private fun ShortcutChip(label: String, icon: ImageVector, onClick: () -> Unit) 
         selected = false,
         onClick = onClick,
         label = { Text(label) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
+        leadingIcon = {
+            Box(
+                Modifier.size(28.dp).clip(RoundedCornerShape(10.dp)).background(TomiloPrimary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp), tint = TomiloPrimary) }
+        },
     )
 }
 
@@ -318,11 +338,13 @@ private fun SectionHead(title: String, action: String = "Все", onAction: () -
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-        TextButton(onClick = onAction) { Text(action, color = TomiloPrimary) }
+        Text(title, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        TextButton(onClick = onAction) {
+            Text("$action  ›", color = TomiloPrimary, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
@@ -350,18 +372,25 @@ private fun PosterRow(items: List<CatalogTitleDto>, onOpen: (CatalogTitleDto) ->
 }
 
 @Composable
-private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit) {
+private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val totalChapters = (item.titleId as? kotlinx.serialization.json.JsonObject)
+        ?.get("totalChapters")?.toString()?.trim('"')?.toFloatOrNull()
+    val currentChapter = item.lastChapter?.numberLabel()?.toFloatOrNull()
+    val progress = if (totalChapters != null && totalChapters > 0f && currentChapter != null) {
+        (currentChapter / totalChapters).coerceIn(0f, 1f)
+    } else null
     Column(
-        Modifier
-            .width(168.dp)
-            .background(TomiloSurface, RoundedCornerShape(18.dp))
+        modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(TomiloSurface)
+            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(22.dp))
             .clickable(onClick = onOpen),
     ) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .aspectRatio(3f / 4f)
-                .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+                .aspectRatio(0.72f)
+                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(TomiloSurface),
         ) {
             AsyncImage(
@@ -374,15 +403,24 @@ private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit) {
                 Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.94f))))
                     .padding(10.dp),
             ) {
-                Text(
-                    "Читать ${item.chapterLabel()}",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Column {
+                    Row {
+                        Text("Читать ", color = Color.White, style = MaterialTheme.typography.labelMedium)
+                        Text(item.chapterLabel(), color = TomiloPrimary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    }
+                    progress?.let {
+                        Spacer(Modifier.height(7.dp))
+                        LinearProgressIndicator(
+                            progress = { it },
+                            modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(99.dp)),
+                            color = TomiloPrimary,
+                            trackColor = Color.White.copy(alpha = 0.16f),
+                        )
+                    }
+                }
             }
         }
         Text(

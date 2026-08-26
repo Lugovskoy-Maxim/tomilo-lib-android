@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -146,7 +147,7 @@ fun LeadersScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Лидеры")
+                        Text("Лидеры", style = MaterialTheme.typography.headlineMedium)
                         Text(
                             "Рейтинг сообщества",
                             color = TomiloMuted,
@@ -171,7 +172,10 @@ fun LeadersScreen(
         Column(
             modifier = Modifier
                 .padding(padding)
-                .fillMaxSize(),
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(listOf(Gold.copy(alpha = 0.055f), TomiloBg, TomiloBg)),
+                ),
         ) {
             PageIntro(
                 title = "Лучшие читатели сообщества",
@@ -214,10 +218,11 @@ private fun PeriodSelector(selectedIndex: Int, onSelected: (Int) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(20.dp))
             .background(TomiloSurface)
-            .padding(4.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+            .padding(5.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         periods.forEachIndexed { index, period ->
@@ -225,16 +230,16 @@ private fun PeriodSelector(selectedIndex: Int, onSelected: (Int) -> Unit) {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selected) TomiloPrimary.copy(alpha = 0.18f) else Color.Transparent)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (selected) TomiloPrimary.copy(alpha = 0.20f) else Color.Transparent)
                     .clickable { onSelected(index) }
-                    .padding(vertical = 9.dp),
+                    .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     period.label,
                     color = if (selected) TomiloPrimary else TomiloMuted,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
                 )
@@ -287,25 +292,25 @@ private fun CategorySummary(category: LeaderCategory, period: LeaderPeriod) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clip(RoundedCornerShape(22.dp))
             .background(category.color.copy(alpha = 0.09f))
-            .border(1.dp, category.color.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
-            .padding(14.dp),
+            .border(1.dp, category.color.copy(alpha = 0.24f), RoundedCornerShape(22.dp))
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(13.dp))
+                .size(50.dp)
+                .clip(RoundedCornerShape(17.dp))
                 .background(category.color.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(category.icon, contentDescription = null, tint = category.color, modifier = Modifier.size(22.dp))
+            Icon(category.icon, contentDescription = null, tint = category.color, modifier = Modifier.size(26.dp))
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(category.title, style = MaterialTheme.typography.titleMedium)
+            Text(category.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(category.description, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
         }
         Text(
@@ -401,14 +406,14 @@ private fun WinnerCard(user: LeaderboardUserDto, category: LeaderCategory, onCli
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         color = Gold.copy(alpha = 0.10f),
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.38f)),
+        shape = RoundedCornerShape(26.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.52f)),
     ) {
         Row(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LeaderAvatar(user = user, size = 74, ringColor = Gold)
+            LeaderAvatar(user = user, size = 82, ringColor = Gold)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -438,11 +443,11 @@ private fun RunnerCard(
         onClick = onClick,
         modifier = modifier,
         color = TomiloSurface,
-        shape = RoundedCornerShape(18.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+        shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.38f)),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -451,7 +456,7 @@ private fun RunnerCard(
                 Text("$rank место", color = accent, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(9.dp))
-            LeaderAvatar(user = user, size = 58, ringColor = accent)
+            LeaderAvatar(user = user, size = 64, ringColor = accent)
             Spacer(Modifier.height(8.dp))
             PremiumName(user = user, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
             Text(
@@ -476,7 +481,8 @@ private fun LeaderRow(
         onClick = onClick,
         modifier = Modifier.padding(horizontal = 16.dp),
         color = TomiloSurface.copy(alpha = 0.78f),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.055f)),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),

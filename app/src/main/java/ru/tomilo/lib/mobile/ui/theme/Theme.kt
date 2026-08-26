@@ -32,8 +32,8 @@ private val DarkColors = darkColorScheme(
     surfaceContainerHighest = TomiloSurface3,
     surfaceContainerHigh = TomiloSurface2,
     surfaceContainer = TomiloSurface,
-    surfaceContainerLow = Color(0xFF12151C),
-    surfaceContainerLowest = Color(0xFF080A0E),
+    surfaceContainerLow = Color(0xFF0D0F11),
+    surfaceContainerLowest = Color(0xFF050607),
     inverseSurface = TomiloText,
     inverseOnSurface = TomiloBg,
     scrim = Color.Black,
@@ -55,11 +55,11 @@ private val LightColors = lightColorScheme(
 )
 
 private val TomiloShapes = Shapes(
-    extraSmall = RoundedCornerShape(9.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(18.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(30.dp),
 )
 
 @Composable

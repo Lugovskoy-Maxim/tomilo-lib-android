@@ -55,8 +55,8 @@ data class TomiloTabItem(
     val isMain: Boolean = false,
 )
 
-private val BarShape = RoundedCornerShape(22.dp)
-private val ItemShape = RoundedCornerShape(14.dp)
+private val BarShape = RoundedCornerShape(26.dp)
+private val ItemShape = RoundedCornerShape(18.dp)
 
 @Composable
 fun TomiloBottomBar(
@@ -70,11 +70,11 @@ fun TomiloBottomBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
-            .shadow(18.dp, BarShape, ambientColor = Color.Black.copy(alpha = 0.4f))
+            .shadow(22.dp, BarShape, ambientColor = Color.Black.copy(alpha = 0.68f))
             .clip(BarShape)
             .background(TomiloGlass)
             .border(1.dp, TomiloGlassBorder, BarShape)
-            .padding(horizontal = 4.dp, vertical = 6.dp),
+            .padding(horizontal = 5.dp, vertical = 7.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -108,11 +108,11 @@ private fun NavTabItem(
         label = "tabScale",
     )
     val bg by animateColorAsState(
-        targetValue = if (selected) TomiloActivePill else Color.Transparent,
+        targetValue = if (selected) TomiloActivePill.copy(alpha = 0.35f) else Color.Transparent,
         label = "tabBg",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) TomiloActiveBorder else Color.Transparent,
+        targetValue = if (selected) TomiloActiveBorder.copy(alpha = 0.28f) else Color.Transparent,
         label = "tabBorder",
     )
 
@@ -122,7 +122,7 @@ private fun NavTabItem(
             .background(bg)
             .border(1.dp, border, ItemShape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 2.dp, vertical = 8.dp),
+            .padding(horizontal = 2.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -130,7 +130,7 @@ private fun NavTabItem(
             imageVector = icon,
             contentDescription = label,
             tint = contentColor,
-            modifier = Modifier.size(22.dp).scale(scale),
+            modifier = Modifier.size(24.dp).scale(scale),
         )
         Spacer(Modifier.height(3.dp))
         Text(

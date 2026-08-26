@@ -599,14 +599,14 @@ fun PageIntro(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(9.dp, RoundedCornerShape(26.dp), ambientColor = accent.copy(alpha = 0.16f))
-            .clip(RoundedCornerShape(26.dp))
+            .shadow(14.dp, RoundedCornerShape(28.dp), ambientColor = accent.copy(alpha = 0.18f))
+            .clip(RoundedCornerShape(28.dp))
             .background(
                 Brush.linearGradient(
-                    listOf(accent.copy(alpha = 0.22f), TomiloSurface, TomiloSurface2),
+                    listOf(accent.copy(alpha = 0.20f), TomiloSurface.copy(alpha = 0.98f), TomiloSurface2),
                 ),
             )
-            .border(1.dp, accent.copy(alpha = 0.26f), RoundedCornerShape(26.dp)),
+            .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(28.dp)),
     ) {
         Box(
             Modifier
@@ -617,21 +617,21 @@ fun PageIntro(
                 ),
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(17.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 21.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 Modifier
-                    .size(50.dp)
-                    .shadow(7.dp, RoundedCornerShape(17.dp), ambientColor = accent.copy(alpha = 0.22f))
-                    .clip(RoundedCornerShape(17.dp))
+                    .size(58.dp)
+                    .shadow(10.dp, RoundedCornerShape(20.dp), ambientColor = accent.copy(alpha = 0.28f))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(accent.copy(alpha = 0.18f))
-                    .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(17.dp)),
+                    .border(1.dp, accent.copy(alpha = 0.34f), RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(25.dp)) }
-            Spacer(Modifier.width(14.dp))
+            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(29.dp)) }
+            Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(3.dp))
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
             }
