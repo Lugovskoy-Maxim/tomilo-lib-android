@@ -21,3 +21,4 @@ mapping.txt
 /keystores/
 /dist/
 !keystore.properties.example
+/app/google-services.json

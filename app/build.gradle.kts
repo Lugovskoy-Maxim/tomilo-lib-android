@@ -6,6 +6,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("com.google.devtools.ksp")
+    id("com.google.gms.google-services") apply false
+}
+
+/**
+ * FCM (push-уведомления). Применяем плагин только если google-services.json
+ * реально существует — иначе `nest build`/сборка падает у всех, у кого его
+ * ещё нет (проект без сконфигурированного Firebase). См. README для настройки.
+ */
+val hasGoogleServices = rootProject.file("app/google-services.json").exists()
+if (hasGoogleServices) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 /** Release-подпись: keystore.properties в корне проекта (не в git). */
@@ -43,6 +54,10 @@ android {
         buildConfigField("String", "S3_BASE_URL", "\"https://s3.regru.cloud/tomilolib\"")
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
         buildConfigField("String", "GITHUB_REPO", "\"Lugovskoy-Maxim/tomilo-lib-android\"")
+        buildConfigField("boolean", "HAS_FCM", hasGoogleServices.toString())
+        // ID проекта из RuStore Консоль → Push-уведомления → Проекты (пусто = SDK не инициализируется)
+        val rustorePushProjectId = prop("RUSTORE_PUSH_PROJECT_ID") ?: ""
+        buildConfigField("String", "RUSTORE_PUSH_PROJECT_ID", "\"$rustorePushProjectId\"")
         // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
         buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
         // Interstitial между главами (~1/10 мин), блок РСЯ «Межстраничная»
@@ -175,4 +190,13 @@ dependencies {
 
     // Яндекс РСЯ — rewarded (R-M-…)
     implementation("com.yandex.android:mobileads:8.3.0")
+
+    // FCM: push-уведомления (fallback — NotificationsPollWorker, для устройств
+    // без Google Play Services getToken() просто падает, ловим try/catch)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
+
+    // RuStore Push SDK: второй канал push (актуален для rustore-флейвора,
+    // где Google Play Services обычно нет). Тоже деградирует в polling.
+    implementation("ru.rustore.sdk:pushclient:7.4.0")
 }

@@ -317,6 +317,13 @@ interface TomiloApi {
     @DELETE("notifications/{id}")
     suspend fun deleteNotification(@Path("id") id: String): ApiResponse<JsonElement>
 
+    // ── Push (FCM device token) ─────────────────────────────────
+    @POST("users/profile/device-token")
+    suspend fun registerDeviceToken(@Body body: DeviceTokenRequest): ApiResponse<JsonElement>
+
+    @DELETE("users/profile/device-token")
+    suspend fun unregisterDeviceToken(@Body body: DeviceTokenUnregisterRequest): ApiResponse<JsonElement>
+
     // ── Reading history / progress ──────────────────────────────
     @GET("users/profile/history")
     suspend fun readingHistory(

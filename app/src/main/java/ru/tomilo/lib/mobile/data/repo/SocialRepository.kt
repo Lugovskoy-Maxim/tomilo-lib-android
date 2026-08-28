@@ -12,6 +12,8 @@ import ru.tomilo.lib.mobile.data.api.CommentReactionRequest
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
 import ru.tomilo.lib.mobile.data.api.CreateCommentRequest
 import ru.tomilo.lib.mobile.data.api.CreateConversationRequest
+import ru.tomilo.lib.mobile.data.api.DeviceTokenRequest
+import ru.tomilo.lib.mobile.data.api.DeviceTokenUnregisterRequest
 import ru.tomilo.lib.mobile.data.api.DirectMessageDto
 import ru.tomilo.lib.mobile.data.api.LeaderboardUserDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
@@ -470,6 +472,23 @@ class SocialRepository(private val api: TomiloApi) {
         if (id.isBlank()) error("Уведомление не найдено")
         val res = api.deleteNotification(id)
         if (!res.success) error(res.message ?: "Не удалось удалить уведомление")
+    }
+
+    // ── Push (device token: FCM/RuStore Push) ───────────────────────
+    suspend fun registerDeviceToken(
+        token: String,
+        appVersion: String? = null,
+        provider: String = "fcm",
+    ): Result<Unit> = runCatching {
+        val res = api.registerDeviceToken(
+            DeviceTokenRequest(token = token, appVersion = appVersion, provider = provider),
+        )
+        if (!res.success) error(res.message ?: "Не удалось зарегистрировать push-токен")
+    }
+
+    suspend fun unregisterDeviceToken(token: String): Result<Unit> = runCatching {
+        val res = api.unregisterDeviceToken(DeviceTokenUnregisterRequest(token = token))
+        if (!res.success) error(res.message ?: "Не удалось удалить push-токен")
     }
 
     private fun parseNotifications(data: JsonElement?): List<NotificationDto> {

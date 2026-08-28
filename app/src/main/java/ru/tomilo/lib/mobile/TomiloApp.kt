@@ -16,9 +16,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import ru.rustore.sdk.pushclient.RuStorePushClient
+import ru.rustore.sdk.pushclient.common.logger.DefaultLogger
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
+import ru.tomilo.lib.mobile.push.PushTokenSync
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
@@ -40,6 +43,15 @@ class TomiloApp : Application(), ImageLoaderFactory {
         container.rewardedAdManager.initialize()
         container.interstitialAdManager.initialize()
         NotificationHelper.ensureChannel(this)
+        if (BuildConfig.RUSTORE_PUSH_PROJECT_ID.isNotBlank()) {
+            runCatching {
+                RuStorePushClient.init(
+                    application = this,
+                    projectId = BuildConfig.RUSTORE_PUSH_PROJECT_ID,
+                    logger = DefaultLogger(),
+                )
+            }
+        }
         NotificationsPollWorker.schedule(this)
         AppUpdateCheckWorker.schedule(this)
         appScope.launch {
@@ -49,6 +61,7 @@ class TomiloApp : Application(), ImageLoaderFactory {
                 // network callback не придёт. Запускаем подписку сразу по токену.
                 if (!token.isNullOrBlank()) {
                     NotificationsPollWorker.schedule(this@TomiloApp)
+                    PushTokenSync.syncIfNeeded(this@TomiloApp)
                 }
             }
         }

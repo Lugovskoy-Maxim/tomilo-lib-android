@@ -23,6 +23,19 @@ data class LoginRequest(
 )
 
 @Serializable
+data class DeviceTokenRequest(
+    val token: String,
+    val platform: String = "android",
+    val appVersion: String? = null,
+    val provider: String = "fcm",
+)
+
+@Serializable
+data class DeviceTokenUnregisterRequest(
+    val token: String,
+)
+
+@Serializable
 data class YandexTokenRequest(
     @SerialName("access_token") val accessToken: String,
 )
