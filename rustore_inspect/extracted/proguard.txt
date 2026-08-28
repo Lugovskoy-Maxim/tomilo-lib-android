@@ -1,0 +1,2 @@
+# The client exposes no Parcelable data through Bundle or IPC beyond the contracts
+# kept by the transitive common and core consumer rules.

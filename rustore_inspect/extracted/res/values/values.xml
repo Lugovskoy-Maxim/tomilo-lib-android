@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="push_client_common_cancel" translatable="false">Отменить</string>
+    <string name="push_client_common_close" translatable="false">Закрыть</string>
+    <string name="push_client_common_not_now" translatable="false">Не сейчас</string>
+    <string name="push_client_common_ok" translatable="false">ОК</string>
+    <string name="push_client_default_open_error" translatable="false">Не удалось открыть приложение</string>
+    <string name="ru_store_push_client_background_work_unavailable_button" translatable="false">Настройки</string>
+    <string name="ru_store_push_client_background_work_unavailable_text" translatable="false">Чтобы вы могли получать push-уведомления от приложений, установленных из RuStore.</string>
+    <string name="ru_store_push_client_background_work_unavailable_title" translatable="false">Разрешите RuStore неограниченно работать в фоне</string>
+    <string name="ru_store_push_client_not_installed_button" translatable="false">Скачать</string>
+    <string name="ru_store_push_client_not_installed_text" translatable="false">И разрешите RuStore работать в фоновом режиме, чтобы получать уведомления от приложения.</string>
+    <string name="ru_store_push_client_not_installed_title" translatable="false">Скачайте RuStore, войдите в профиль</string>
+    <string name="ru_store_push_client_outdated_button" translatable="false">Обновить</string>
+    <string name="ru_store_push_client_outdated_text" translatable="false">Чтобы получать уведомления в приложении, необходимо установить последнюю версию RuStore.</string>
+    <string name="ru_store_push_client_outdated_title" translatable="false">Обновите приложение RuStore</string>
+    <string name="ru_store_push_client_unknown_feature_text" translatable="false">Что-то пошло не так.</string>
+    <string name="ru_store_push_client_unknown_feature_title" translatable="false">Функционал недоступен</string>
+    <string name="ru_store_push_client_user_unauthorized_button" translatable="false">Войти</string>
+    <string name="ru_store_push_client_user_unauthorized_text" translatable="false">И разрешите RuStore работать в фоновом режиме, чтобы получать уведомления от приложения</string>
+    <string name="ru_store_push_client_user_unauthorized_title" translatable="false">Войдите в профиль RuStore</string>
+    <string name="vkpns_default_notification_channel_name">Miscellaneous</string>
+</resources>

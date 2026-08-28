@@ -154,10 +154,7 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("TOMILO LIB", style = MaterialTheme.typography.titleLarge)
-                        Text(greeting, style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
-                    }
+                    Text("TOMILO LIB", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 },
                 actions = {
                     IconButton(onClick = onOpenSearch) {
@@ -192,6 +189,21 @@ fun HomeScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 110.dp),
             ) {
+                HomeHero(
+                    greeting = greeting,
+                    continueCount = continueItems.size,
+                    onOpenHistory = onOpenHistory,
+                )
+
+                HomeSearchBar(onClick = onOpenSearch)
+                ShortcutRow(
+                    onUpdates = onOpenUpdates,
+                    onQuests = onOpenQuests,
+                    onOffline = onOpenOffline,
+                    onFriends = onOpenFriends,
+                    onGames = onOpenGames,
+                )
+
                 if (continueItems.isNotEmpty()) {
                     SectionHead("Продолжить", action = "История", onAction = onOpenHistory)
                     Row(
@@ -212,15 +224,6 @@ fun HomeScreen(
                     }
                     Spacer(Modifier.height(22.dp))
                 }
-
-                HomeSearchBar(onClick = onOpenSearch)
-                ShortcutRow(
-                    onUpdates = onOpenUpdates,
-                    onQuests = onOpenQuests,
-                    onOffline = onOpenOffline,
-                    onFriends = onOpenFriends,
-                    onGames = onOpenGames,
-                )
 
                 SectionHead("Новые главы", action = "Каталог", onAction = onOpenUpdates.ifBlankAction(onOpenCatalog))
                 Column(
@@ -279,15 +282,69 @@ fun HomeScreen(
 private fun (() -> Unit).ifBlankAction(fallback: () -> Unit): () -> Unit = this
 
 @Composable
+private fun HomeHero(
+    greeting: String,
+    continueCount: Int,
+    onOpenHistory: () -> Unit,
+) {
+    Column(
+        Modifier
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        TomiloPrimary.copy(alpha = 0.22f),
+                        TomiloSurface2,
+                        TomiloSurface,
+                    ),
+                ),
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(26.dp))
+            .padding(horizontal = 18.dp, vertical = 17.dp),
+    ) {
+        Text(greeting, color = TomiloMuted, style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Что будем читать?",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(Modifier.height(6.dp))
+        val subtitle = if (continueCount > 0) {
+            "В истории $continueCount ${continueCount.readingItemsLabel()} — продолжите с того же места"
+        } else {
+            "Свежие главы и любимые тайтлы уже ждут вас"
+        }
+        Text(subtitle, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
+        if (continueCount > 0) {
+            Spacer(Modifier.height(12.dp))
+            TextButton(onClick = onOpenHistory, contentPadding = PaddingValues()) {
+                Text("Открыть историю  ›", color = TomiloPrimary, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+private fun Int.readingItemsLabel(): String = when {
+    this % 100 in 11..14 -> "тайтлов"
+    this % 10 == 1 -> "тайтл"
+    this % 10 in 2..4 -> "тайтла"
+    else -> "тайтлов"
+}
+
+@Composable
 private fun HomeSearchBar(onClick: () -> Unit) {
     Row(
         Modifier
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(TomiloSurface2)
+            .background(TomiloSurface2.copy(alpha = 0.92f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Default.Search, contentDescription = null, tint = TomiloMuted)

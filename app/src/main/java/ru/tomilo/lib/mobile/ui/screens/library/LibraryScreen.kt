@@ -1,14 +1,20 @@
 package ru.tomilo.lib.mobile.ui.screens.library
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +29,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -39,6 +47,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
@@ -57,6 +70,11 @@ import ru.tomilo.lib.mobile.ui.components.rememberSwipeRevealCoordinator
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
+import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private enum class ShelfTab(val label: String, val bookmarkCategory: String? = null) {
     Reading("Читаю", "reading"),
@@ -66,6 +84,69 @@ private enum class ShelfTab(val label: String, val bookmarkCategory: String? = n
     Dropped("Брошено", "dropped"),
     History("История"),
     Offline("Офлайн"),
+}
+
+@Composable
+private fun LibrarySummary(tab: ShelfTab, count: Int, isSearching: Boolean) {
+    val icon: ImageVector
+    val title: String
+    val subtitle: String
+    when (tab) {
+        ShelfTab.History -> {
+            icon = Icons.Outlined.History
+            title = "История чтения"
+            subtitle = "Вернитесь к тайтлу в один тап"
+        }
+        ShelfTab.Offline -> {
+            icon = Icons.Outlined.CloudOff
+            title = "Офлайн-библиотека"
+            subtitle = "Главы доступны без подключения"
+        }
+        else -> {
+            icon = Icons.Outlined.BookmarkBorder
+            title = tab.label
+            subtitle = "Свайпните карточку влево для действий"
+        }
+    }
+    val countLabel = if (isSearching) "Найдено: $count" else "$count ${count.libraryItemsLabel()}"
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(TomiloPrimary.copy(alpha = 0.14f), TomiloSurface2, TomiloSurface),
+                ),
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(22.dp))
+            .padding(14.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(TomiloPrimary.copy(alpha = 0.16f)),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.size(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+        }
+        Text(countLabel, color = TomiloText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+private fun Int.libraryItemsLabel(): String = when {
+    this % 100 in 11..14 -> "тайтлов"
+    this % 10 == 1 -> "тайтл"
+    this % 10 in 2..4 -> "тайтла"
+    else -> "тайтлов"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,7 +223,10 @@ fun LibraryScreen(
         containerColor = TomiloBg,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(title = { Text("Полка") }, colors = tomiloTopBarColors())
+            TopAppBar(
+                title = { Text("Полка", fontWeight = FontWeight.Bold) },
+                colors = tomiloTopBarColors(),
+            )
         },
     ) { padding ->
         LazyColumn(
@@ -155,7 +239,9 @@ fun LibraryScreen(
                     onValueChange = { query = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(TomiloSurface2.copy(alpha = 0.8f)),
                     singleLine = true,
                     placeholder = { Text("Поиск на полке") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -166,6 +252,13 @@ fun LibraryScreen(
                             }
                         }
                     },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TomiloPrimary,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                    ),
                 )
             }
             item(key = "library_tabs") {
@@ -222,16 +315,7 @@ fun LibraryScreen(
                     ShelfTab.Offline -> offlineGroups.size
                     else -> filteredBookmarks.size
                 }
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                ) {
-                    Text(tab.label, style = androidx.compose.material3.MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    Text(
-                        "$count · свайп влево для действий",
-                        color = ru.tomilo.lib.mobile.ui.theme.TomiloMuted,
-                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                    )
-                }
+                LibrarySummary(tab = tab, count = count, isSearching = needle.isNotBlank())
             }
 
             when {
