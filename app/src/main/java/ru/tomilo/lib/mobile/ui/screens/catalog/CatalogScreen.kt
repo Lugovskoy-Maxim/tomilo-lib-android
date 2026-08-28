@@ -63,13 +63,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
@@ -293,7 +291,7 @@ fun CatalogScreen(
         },
     ) { padding ->
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 110.dp),
+            columns = GridCells.Adaptive(minSize = 156.dp),
             state = gridState,
             contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 100.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -693,5 +691,6 @@ private fun CatalogCard(
         status = item.status,
         isAdult = item.isAdult == true,
         year = item.releaseYear,
+        compact = true,
     )
 }

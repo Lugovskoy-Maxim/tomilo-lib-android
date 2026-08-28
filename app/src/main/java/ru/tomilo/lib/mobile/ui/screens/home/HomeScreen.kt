@@ -55,8 +55,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
@@ -69,6 +67,7 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
+import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -230,7 +229,7 @@ fun HomeScreen(
                     Modifier.padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    updates.take(6).chunked(3).forEach { row ->
+                    updates.take(6).chunked(2).forEach { row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             row.forEach { item ->
                                 TitlePosterCard(
@@ -243,9 +242,10 @@ fun HomeScreen(
                                     rating = item.displayRating(),
                                     chapterBadge = item.chapterBadge() ?: item.totalChapters?.let { "$it гл." },
                                     isAdult = item.isAdult == true,
+                                    compact = true,
                                 )
                             }
-                            repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                            repeat(2 - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
                 }
@@ -450,8 +450,8 @@ private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit, modifier: Mo
                 .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
                 .background(TomiloSurface),
         ) {
-            AsyncImage(
-                model = MediaUrl.resolve(item.coverPath()),
+            TomiloCoverImage(
+                source = item.coverPath(),
                 contentDescription = item.displayTitle(),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

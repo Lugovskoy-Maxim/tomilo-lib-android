@@ -215,6 +215,7 @@ fun ReaderScreen(
     var effectiveTitleId by remember { mutableStateOf(titleId) }
     var hasScrolledThisChapter by remember { mutableStateOf(false) }
     var autoAdvanceFromChapter by remember { mutableStateOf<String?>(null) }
+    var currentChapterNumber by remember { mutableStateOf<Double?>(null) }
 
     LaunchedEffect(storedSettings) {
         val saved = storedSettings ?: return@LaunchedEffect
@@ -317,6 +318,7 @@ fun ReaderScreen(
             needsPremium = false
             needsLogin = false
             currentChapterId = id
+            currentChapterNumber = null
             autoScroll = false
             pages = emptyList()
             pageDimensions = emptyList()
@@ -373,6 +375,7 @@ fun ReaderScreen(
             }
 
             suspend fun applyChapter(chapter: ChapterDto, allowRetry: Boolean) {
+                currentChapterNumber = chapter.chapterNumberAsDouble()
                 title = chapter.name?.ifBlank { "Глава ${chapter.numberLabel()}" }
                     ?: "Глава ${chapter.numberLabel()}"
                 offline = false
@@ -387,10 +390,17 @@ fun ReaderScreen(
                     unlockedByActivityCoins = chapter.isUnlockedByActivityCoins,
                     subscriptionExpiresAt = subExpires,
                 )
-                val resolved = chapter.pagePaths().map { MediaUrl.resolve(it) }.filter { it.isNotBlank() }
+                val pagePaths = chapter.pagePaths()
+                val resolved = pagePaths.map { MediaUrl.resolve(it) }.filter { it.isNotBlank() }
                 when {
                     resolved.isNotEmpty() -> {
-                        pageDimensions = chapter.pageDimensions.orEmpty()
+                        // Плиточное чтение требует точного соответствия каждой
+                        // картинки её размерам. Если сервер вернул устаревший
+                        // или неполный массив, используем безопасный full-page
+                        // рендер: он сохраняет всю страницу без обрезания.
+                        pageDimensions = chapter.pageDimensions
+                            ?.takeIf { it.size == pagePaths.size }
+                            .orEmpty()
                         pages = resolved
                         val resolvedTitleId = chapter.titleKey().ifBlank { effectiveTitleId.orEmpty() }
                         if (resolvedTitleId.isNotBlank()) {
@@ -471,7 +481,7 @@ fun ReaderScreen(
             return
         }
         scope.launch {
-            catalogRepository.chapterPrev(currentChapterId)
+            catalogRepository.chapterPrev(currentChapterId, currentChapterNumber)
                 .onSuccess { ch -> goChapter(ch.stableId()) }
                 .onFailure { chapterNavMessage = "Предыдущей главы нет" }
         }
@@ -484,9 +494,9 @@ fun ReaderScreen(
             return
         }
         scope.launch {
-            catalogRepository.chapterNext(currentChapterId)
+            catalogRepository.chapterNext(currentChapterId, currentChapterNumber)
                 .onSuccess { ch -> goChapter(ch.stableId()) }
-                .onFailure { chapterNavMessage = "Следующей главы нет" }
+                .onFailure { chapterNavMessage = "Не удалось загрузить следующую главу" }
         }
     }
 

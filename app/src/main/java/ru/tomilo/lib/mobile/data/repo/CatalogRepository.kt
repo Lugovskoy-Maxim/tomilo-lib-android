@@ -116,14 +116,14 @@ class CatalogRepository(private val api: TomiloApi) {
      */
     suspend fun chapterForReading(chapterId: String): Result<ChapterDto> = chapter(chapterId)
 
-    suspend fun chapterNext(chapterId: String): Result<ChapterDto> = runCatching {
-        val res = api.chapterNext(chapterId)
+    suspend fun chapterNext(chapterId: String, currentChapter: Double? = null): Result<ChapterDto> = runCatching {
+        val res = api.chapterNext(chapterId, currentChapter)
         if (!res.success) error(res.message ?: "Нет следующей главы")
         res.data ?: error("Нет следующей главы")
     }
 
-    suspend fun chapterPrev(chapterId: String): Result<ChapterDto> = runCatching {
-        val res = api.chapterPrev(chapterId)
+    suspend fun chapterPrev(chapterId: String, currentChapter: Double? = null): Result<ChapterDto> = runCatching {
+        val res = api.chapterPrev(chapterId, currentChapter)
         if (!res.success) error(res.message ?: "Нет предыдущей главы")
         res.data ?: error("Нет предыдущей главы")
     }

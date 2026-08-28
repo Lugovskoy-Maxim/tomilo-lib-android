@@ -156,10 +156,16 @@ interface TomiloApi {
     suspend fun chapterById(@Path("id") id: String): ApiResponse<ChapterDto>
 
     @GET("chapters/{id}/next")
-    suspend fun chapterNext(@Path("id") id: String): ApiResponse<ChapterDto>
+    suspend fun chapterNext(
+        @Path("id") id: String,
+        @Query("currentChapter") currentChapter: Double? = null,
+    ): ApiResponse<ChapterDto>
 
     @GET("chapters/{id}/prev")
-    suspend fun chapterPrev(@Path("id") id: String): ApiResponse<ChapterDto>
+    suspend fun chapterPrev(
+        @Path("id") id: String,
+        @Query("currentChapter") currentChapter: Double? = null,
+    ): ApiResponse<ChapterDto>
 
     @GET("search/autocomplete")
     suspend fun searchAutocomplete(

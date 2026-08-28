@@ -25,6 +25,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +51,27 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
 private val CardRadius = 20.dp
 private val CoverShape = RoundedCornerShape(CardRadius)
+
+/** Обложка с автоматическим переключением между S3 и CDN, если один источник недоступен. */
+@Composable
+fun TomiloCoverImage(
+    source: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+) {
+    val candidates = remember(source) { MediaUrl.candidates(source) }
+    var attempt by remember(source) { mutableIntStateOf(0) }
+    AsyncImage(
+        model = candidates.getOrNull(attempt),
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        modifier = modifier,
+        onError = {
+            if (attempt < candidates.lastIndex) attempt++
+        },
+    )
+}
 
 @Composable
 fun MetaChip(
@@ -85,6 +110,7 @@ fun TitlePosterCard(
     status: String? = null,
     isAdult: Boolean = false,
     year: Int? = null,
+    compact: Boolean = false,
 ) {
     val base = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
     Column(
@@ -108,8 +134,8 @@ fun TitlePosterCard(
                 .background(TomiloSurface2)
                 .border(1.dp, Color.White.copy(alpha = 0.06f), CoverShape),
         ) {
-            AsyncImage(
-                model = MediaUrl.resolve(cover),
+            TomiloCoverImage(
+                source = cover,
                 contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -164,7 +190,7 @@ fun TitlePosterCard(
                     )
                 }
             }
-            val bottomLeft = chapterBadge ?: totalChapters?.let { "$it гл." }
+            val bottomLeft = if (compact) null else chapterBadge ?: totalChapters?.let { "$it гл." }
             if (!bottomLeft.isNullOrBlank()) {
                 MetaChip(
                     bottomLeft,
@@ -174,7 +200,7 @@ fun TitlePosterCard(
                     container = Color.Black.copy(alpha = 0.65f),
                 )
             }
-            if (!status.isNullOrBlank()) {
+            if (!compact && !status.isNullOrBlank()) {
                 MetaChip(
                     statusLabel(status),
                     modifier = Modifier
@@ -189,6 +215,7 @@ fun TitlePosterCard(
             text = title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
+            minLines = 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             lineHeight = 18.sp,
@@ -198,10 +225,10 @@ fun TitlePosterCard(
             year?.toString(),
             if (chapterBadge == null) totalChapters?.let { "$it гл." } else null,
         ).joinToString(" · ")
-        if (footer.isNotBlank()) {
-            Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(3.dp))
+        if (!compact) {
             Text(
-                footer,
+                footer.ifBlank { " " },
                 style = MaterialTheme.typography.labelSmall,
                 color = TomiloMuted,
                 maxLines = 1,
@@ -266,8 +293,8 @@ fun TitleSearchCard(
                     .background(TomiloSurface2)
                     .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(16.dp)),
             ) {
-                AsyncImage(
-                    model = MediaUrl.resolve(cover),
+                TomiloCoverImage(
+                    source = cover,
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
