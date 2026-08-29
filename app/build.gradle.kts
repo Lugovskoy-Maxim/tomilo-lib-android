@@ -199,4 +199,9 @@ dependencies {
     // RuStore Push SDK: второй канал push (актуален для rustore-флейвора,
     // где Google Play Services обычно нет). Тоже деградирует в polling.
     implementation("ru.rustore.sdk:pushclient:7.4.0")
+
+    // RuStore native store features. They are guarded by STORE_CHANNEL at runtime,
+    // so Play builds keep working while the rustore flavor receives native flows.
+    implementation("ru.rustore.sdk:appupdate:8.0.0")
+    implementation("ru.rustore.sdk:review:10.0.0")
 }

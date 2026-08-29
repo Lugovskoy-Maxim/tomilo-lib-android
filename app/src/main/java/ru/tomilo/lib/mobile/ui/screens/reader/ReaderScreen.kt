@@ -78,6 +78,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -354,6 +355,7 @@ fun ReaderScreen(
                             historyRepository.markRead(tid, id)
                                 .onSuccess { reward ->
                                     readingPrefs.markHistorySynced(tid, id)
+                                    RuStoreEngagement.onChapterRead(context)
                                     RewardNotifications.show(
                                         experience = reward.experienceGained,
                                         coins = reward.coinsGained,
@@ -408,9 +410,10 @@ fun ReaderScreen(
                             readingPrefs.markLocalRead(resolvedTitleId, id, queueSync = loggedIn)
                             if (loggedIn) {
                                 historyRepository.markRead(resolvedTitleId, id)
-                                    .onSuccess { reward ->
-                                        readingPrefs.markHistorySynced(resolvedTitleId, id)
-                                        RewardNotifications.show(
+                                .onSuccess { reward ->
+                                    readingPrefs.markHistorySynced(resolvedTitleId, id)
+                                    RuStoreEngagement.onChapterRead(context)
+                                    RewardNotifications.show(
                                             experience = reward.experienceGained,
                                             coins = reward.coinsGained,
                                             source = reward.reason ?: "Чтение главы",

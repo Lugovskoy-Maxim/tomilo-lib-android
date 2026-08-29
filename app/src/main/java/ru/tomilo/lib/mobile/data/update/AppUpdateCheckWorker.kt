@@ -12,6 +12,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import ru.tomilo.lib.mobile.TomiloApp
+import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import java.util.concurrent.TimeUnit
 
@@ -21,6 +22,9 @@ class AppUpdateCheckWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
+        // RuStore builds use the native store update flow from MainActivity.
+        // GitHub remains a fallback only for Play/direct installations.
+        if (BuildConfig.STORE_CHANNEL == "rustore") return Result.success()
         val prefs = applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val lastCheck = prefs.getLong(KEY_LAST_CHECK, 0L)

@@ -19,6 +19,7 @@ import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.ui.navigation.TomiloNavHost
 import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
+import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
 
 class MainActivity : ComponentActivity() {
     private val requestNotifications = registerForActivityResult(
@@ -53,8 +54,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        RuStoreEngagement.attach(this)
         NotificationsPollWorker.enqueueNow(this)
         AppUpdateCheckWorker.enqueueNow(this)
+    }
+
+    override fun onStop() {
+        RuStoreEngagement.detach(this)
+        super.onStop()
     }
 
     private fun handleNotificationIntent(intent: Intent?) {

@@ -14,8 +14,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // RuStore Push SDK
+        // RuStore SDKs: Push, in-app update and review.
         maven { url = uri("https://nexus-external.vkteam.ru/repository/maven/") }
+        maven { url = uri("https://artifactory-external.vkpartner.ru/artifactory/maven") }
     }
 }
 
