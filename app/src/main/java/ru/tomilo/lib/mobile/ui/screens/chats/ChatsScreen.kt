@@ -372,8 +372,18 @@ fun ChatsScreen(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            if (c.unreadCount > 0) {
-                                StatusPill(unreadLabel(c.unreadCount), TomiloPrimary)
+                            Column(horizontalAlignment = Alignment.End) {
+                                ru.tomilo.lib.mobile.core.ChatTime.label(c.lastMessageAt)?.let { time ->
+                                    Text(
+                                        time,
+                                        color = TomiloMuted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (c.unreadCount > 0) {
+                                    Spacer(Modifier.height(6.dp))
+                                    StatusPill(unreadLabel(c.unreadCount), TomiloPrimary)
+                                }
                             }
                         }
                     }

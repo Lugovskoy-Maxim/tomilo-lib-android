@@ -33,6 +33,16 @@ data class WebtoonTile(
     val height: Int,
 )
 
+data class SourceRect(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+) {
+    val width: Int get() = (right - left).coerceAtLeast(0)
+    val height: Int get() = (bottom - top).coerceAtLeast(0)
+}
+
 /**
  * Декодирует длинные страницы вебтуна регионами. Bitmap каждой плитки не выше
  * 4096 px, поэтому изображение не обрезается лимитом GPU и не требует держать
@@ -62,15 +72,44 @@ object WebtoonTiles {
         }
     }
 
+    /**
+     * Серверные pageDimensions могут не совпасть с файлом (сжатие при загрузке,
+     * webp). Без пересчёта соседние плитки захватывают чужие пиксели и наплывают.
+     */
+    fun mapTileToSource(
+        tile: WebtoonTile,
+        claimed: PageDimensions,
+        sourceWidth: Int,
+        sourceHeight: Int,
+    ): SourceRect {
+        val srcW = sourceWidth.coerceAtLeast(1)
+        val srcH = sourceHeight.coerceAtLeast(1)
+        val claimW = if (claimed.width > 0) claimed.width else tile.width.coerceAtLeast(1)
+        val claimH = if (claimed.height > 0) claimed.height else (tile.top + tile.height).coerceAtLeast(1)
+        val top = scale(tile.top, claimH, srcH).coerceIn(0, srcH - 1)
+        val bottom = scale(tile.top + tile.height, claimH, srcH).coerceIn(top + 1, srcH)
+        val right = scale(tile.width.coerceAtLeast(1), claimW, srcW).coerceIn(1, srcW)
+        return SourceRect(left = 0, top = top, right = right, bottom = bottom)
+    }
+
     suspend fun decode(
         context: Context,
         source: String,
         tile: WebtoonTile,
+        claimed: PageDimensions,
         retry: Int = 0,
     ): Bitmap = withContext(Dispatchers.IO) {
         val file = sourceFile(context.applicationContext, source, retry)
-        decodeRegion(file, tile)
+        decodeRegion(file, tile, claimed)
     }
+
+    suspend fun measureSource(context: Context, source: String, retry: Int = 0): PageDimensions =
+        withContext(Dispatchers.IO) {
+            val file = sourceFile(context.applicationContext, source, retry)
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(file.absolutePath, options)
+            PageDimensions(options.outWidth.coerceAtLeast(0), options.outHeight.coerceAtLeast(0))
+        }
 
     suspend fun measureLocalSources(sources: List<String>): List<PageDimensions> =
         withContext(Dispatchers.IO) {
@@ -84,28 +123,45 @@ object WebtoonTiles {
         }
 
     @Suppress("DEPRECATION")
-    private fun decodeRegion(file: File, tile: WebtoonTile): Bitmap {
+    private fun decodeRegion(file: File, tile: WebtoonTile, claimed: PageDimensions): Bitmap {
         val decoder = BitmapRegionDecoder.newInstance(file.absolutePath, false)
             ?: error("Формат страницы не поддерживает плиточное чтение")
         return try {
             val sourceWidth = decoder.width.coerceAtLeast(1)
             val sourceHeight = decoder.height.coerceAtLeast(1)
-            val left = 0
-            val top = tile.top.coerceIn(0, sourceHeight - 1)
-            val right = minOf(tile.width.coerceAtLeast(1), sourceWidth)
-            val bottom = minOf(top + tile.height.coerceAtLeast(1), sourceHeight)
+            val region = mapTileToSource(tile, claimed, sourceWidth, sourceHeight)
             var sample = 1
             while (sourceWidth / sample > MAX_DECODE_WIDTH) sample *= 2
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sample
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             }
-            decoder.decodeRegion(Rect(left, top, right, bottom), options)
-                ?: error("Не удалось декодировать фрагмент страницы")
+            val decoded = decoder.decodeRegion(
+                Rect(region.left, region.top, region.right, region.bottom),
+                options,
+            ) ?: error("Не удалось декодировать фрагмент страницы")
+            cropToRequested(decoded, region.width, region.height, sample)
         } finally {
             decoder.recycle()
             file.setLastModified(System.currentTimeMillis())
         }
+    }
+
+    /** JPEG/WebP MCU может отдать пиксели соседней плитки — без обрезки куски наплывают. */
+    private fun cropToRequested(bitmap: Bitmap, regionWidth: Int, regionHeight: Int, sample: Int): Bitmap {
+        val expectedW = (regionWidth / sample).coerceAtLeast(1)
+        val expectedH = (regionHeight / sample).coerceAtLeast(1)
+        if (bitmap.width <= expectedW && bitmap.height <= expectedH) return bitmap
+        val width = minOf(expectedW, bitmap.width)
+        val height = minOf(expectedH, bitmap.height)
+        val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+        if (cropped != bitmap) bitmap.recycle()
+        return cropped
+    }
+
+    private fun scale(value: Int, from: Int, to: Int): Int {
+        if (from <= 0 || from == to) return value
+        return ((value.toLong() * to) / from).toInt()
     }
 
     private suspend fun sourceFile(context: Context, source: String, retry: Int): File {

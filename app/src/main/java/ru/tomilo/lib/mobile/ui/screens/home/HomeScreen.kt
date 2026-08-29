@@ -304,10 +304,8 @@ private fun HomeHero(
             .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(26.dp))
             .padding(horizontal = 18.dp, vertical = 17.dp),
     ) {
-        Text(greeting, color = TomiloMuted, style = MaterialTheme.typography.labelLarge)
-        Spacer(Modifier.height(4.dp))
         Text(
-            "Что будем читать?",
+            greeting,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
         )

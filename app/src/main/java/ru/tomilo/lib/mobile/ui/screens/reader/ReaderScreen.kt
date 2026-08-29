@@ -1485,14 +1485,24 @@ private fun TiledWebtoonPage(
     attempt: Int,
     onTap: () -> Unit,
 ) {
-    val tiles = remember(dimensions) { WebtoonTiles.split(dimensions) }
-    Column(Modifier.fillMaxWidth().background(Color.Black)) {
+    val context = LocalContext.current
+    var splitDims by remember(page, dimensions) { mutableStateOf(dimensions) }
+    LaunchedEffect(page, dimensions, attempt) {
+        val measured = runCatching { WebtoonTiles.measureSource(context, page, retry = attempt) }
+            .getOrNull()
+        if (measured != null && measured.isValid() && measured != splitDims) {
+            splitDims = measured
+        }
+    }
+    val tiles = remember(splitDims) { WebtoonTiles.split(splitDims) }
+    Column(Modifier.fillMaxWidth().background(Color.Black).clipToBounds()) {
         tiles.forEach { tile ->
             WebtoonTileImage(
                 page = page,
                 pageIndex = index,
                 totalPages = total,
                 tile = tile,
+                claimed = splitDims,
                 eager = tile.index == 0,
                 attempt = attempt,
                 onTap = onTap,
@@ -1507,20 +1517,22 @@ private fun WebtoonTileImage(
     pageIndex: Int,
     totalPages: Int,
     tile: WebtoonTile,
+    claimed: PageDimensions,
     eager: Boolean,
     attempt: Int,
     onTap: () -> Unit,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val tileKey = "${page}-${tile.index}-${tile.top}-${tile.height}-${claimed.height}"
     // Верх страницы должен начать загрузку до первого события прокрутки.
-    var active by remember(page, tile.index) { mutableStateOf(eager) }
-    var bitmap by remember(page, tile.index, attempt) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    var loading by remember(page, tile.index, attempt) { mutableStateOf(false) }
-    var error by remember(page, tile.index, attempt) { mutableStateOf<String?>(null) }
-    var localRetry by remember(page, tile.index, attempt) { mutableIntStateOf(0) }
+    var active by remember(tileKey) { mutableStateOf(eager) }
+    var bitmap by remember(tileKey, attempt) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var loading by remember(tileKey, attempt) { mutableStateOf(false) }
+    var error by remember(tileKey, attempt) { mutableStateOf<String?>(null) }
+    var localRetry by remember(tileKey, attempt) { mutableIntStateOf(0) }
 
-    LaunchedEffect(active, page, tile, attempt, localRetry) {
+    LaunchedEffect(active, tileKey, claimed, attempt, localRetry) {
         if (!active) {
             delay(900)
             if (!active) bitmap = null
@@ -1532,7 +1544,13 @@ private fun WebtoonTileImage(
         var lastFailure: Throwable? = null
         repeat(PageImages.MAX_ATTEMPTS) { retry ->
             val result = runCatching {
-                WebtoonTiles.decode(context, page, tile, retry = attempt + localRetry + retry)
+                WebtoonTiles.decode(
+                    context,
+                    page,
+                    tile,
+                    claimed = claimed,
+                    retry = attempt + localRetry + retry,
+                )
             }
             result.onSuccess {
                 bitmap = it
@@ -1549,6 +1567,7 @@ private fun WebtoonTileImage(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(tile.width.toFloat() / tile.height.toFloat())
+            .clipToBounds()
             .background(Color.Black)
             .onGloballyPositioned { coordinates ->
                 val top = coordinates.positionInWindow().y

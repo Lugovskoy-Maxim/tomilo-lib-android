@@ -290,9 +290,7 @@ fun ChatThreadScreen(
                                 conversationId = convId,
                                 senderId = if (myId.isNotBlank()) JsonPrimitive(myId) else null,
                                 body = text,
-                                createdAt = JsonPrimitive(
-                                    java.time.Instant.now().toString(),
-                                ),
+                                createdAt = JsonPrimitive(ru.tomilo.lib.mobile.core.ChatTime.nowIso()),
                             )
                             messages = messages + optimistic
                             draft = ""

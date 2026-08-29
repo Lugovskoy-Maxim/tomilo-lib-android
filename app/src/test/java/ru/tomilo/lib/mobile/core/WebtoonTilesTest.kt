@@ -20,6 +20,31 @@ class WebtoonTilesTest {
     }
 
     @Test
+    fun resizedImageMapsTilesWithoutOverlapOrGap() {
+        val claimed = PageDimensions(width = 1800, height = 10_000)
+        val tiles = WebtoonTiles.split(claimed)
+        val sourceWidth = 1600
+        val sourceHeight = 8888
+        val rects = tiles.map { WebtoonTiles.mapTileToSource(it, claimed, sourceWidth, sourceHeight) }
+
+        assertEquals(0, rects.first().top)
+        assertEquals(sourceHeight, rects.last().bottom)
+        assertTrue(rects.zipWithNext().all { (left, right) -> left.bottom == right.top })
+        assertEquals(sourceHeight, rects.sumOf { it.height })
+        assertTrue(rects.all { it.left == 0 && it.right == sourceWidth })
+    }
+
+    @Test
+    fun matchingSourceKeepsOriginalTileBounds() {
+        val claimed = PageDimensions(width = 1200, height = 10_100)
+        val tiles = WebtoonTiles.split(claimed)
+        val last = WebtoonTiles.mapTileToSource(tiles.last(), claimed, 1200, 10_100)
+        assertEquals(tiles.last().top, last.top)
+        assertEquals(10_100, last.bottom)
+        assertEquals(1200, last.right)
+    }
+
+    @Test
     fun chapterReadsPageDimensionsFromCurrentApi() {
         val chapter = NetworkModule.json.decodeFromString<ChapterDto>(
             """

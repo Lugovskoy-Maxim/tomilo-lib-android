@@ -347,17 +347,20 @@ data class DirectMessageDto(
 
     fun senderKey(): String = jsonElementId(senderId)
 
-    fun createdAtLabel(): String? {
+    fun createdAtLabel(): String? = ru.tomilo.lib.mobile.core.ChatTime.label(createdAtRaw())
+
+    fun createdAtRaw(): String? {
         val el = createdAt ?: return null
         return when (el) {
-            is JsonPrimitive -> el.contentOrNull?.take(19)?.replace('T', ' ')
+            is JsonPrimitive -> el.contentOrNull
             is JsonObject -> {
-                el["\$date"]?.let { d ->
-                    when (d) {
-                        is JsonPrimitive -> d.contentOrNull?.take(19)?.replace('T', ' ')
-                        else -> null
-                    }
-                } ?: el.toString().take(19)
+                val date = el["\$date"]
+                when (date) {
+                    is JsonPrimitive -> date.contentOrNull
+                    is JsonObject ->
+                        (date["\$numberLong"] as? JsonPrimitive)?.contentOrNull
+                    else -> null
+                }
             }
             else -> null
         }
