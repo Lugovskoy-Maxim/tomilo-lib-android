@@ -7,7 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -190,8 +189,6 @@ fun HomeScreen(
             ) {
                 HomeHero(
                     greeting = greeting,
-                    continueCount = continueItems.size,
-                    onOpenHistory = onOpenHistory,
                 )
 
                 HomeSearchBar(onClick = onOpenSearch)
@@ -284,52 +281,30 @@ private fun (() -> Unit).ifBlankAction(fallback: () -> Unit): () -> Unit = this
 @Composable
 private fun HomeHero(
     greeting: String,
-    continueCount: Int,
-    onOpenHistory: () -> Unit,
 ) {
-    Column(
+    Row(
         Modifier
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(
                 Brush.linearGradient(
                     listOf(
-                        TomiloPrimary.copy(alpha = 0.22f),
+                        TomiloPrimary.copy(alpha = 0.14f),
                         TomiloSurface2,
-                        TomiloSurface,
                     ),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(26.dp))
-            .padding(horizontal = 18.dp, vertical = 17.dp),
+            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             greeting,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
         )
-        Spacer(Modifier.height(6.dp))
-        val subtitle = if (continueCount > 0) {
-            "В истории $continueCount ${continueCount.readingItemsLabel()} — продолжите с того же места"
-        } else {
-            "Свежие главы и любимые тайтлы уже ждут вас"
-        }
-        Text(subtitle, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
-        if (continueCount > 0) {
-            Spacer(Modifier.height(12.dp))
-            TextButton(onClick = onOpenHistory, contentPadding = PaddingValues()) {
-                Text("Открыть историю  ›", color = TomiloPrimary, fontWeight = FontWeight.SemiBold)
-            }
-        }
     }
-}
-
-private fun Int.readingItemsLabel(): String = when {
-    this % 100 in 11..14 -> "тайтлов"
-    this % 10 == 1 -> "тайтл"
-    this % 10 in 2..4 -> "тайтла"
-    else -> "тайтлов"
 }
 
 @Composable
@@ -431,8 +406,9 @@ private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit, modifier: Mo
     val totalChapters = (item.titleId as? kotlinx.serialization.json.JsonObject)
         ?.get("totalChapters")?.toString()?.trim('"')?.toFloatOrNull()
     val currentChapter = item.lastChapter?.numberLabel()?.toFloatOrNull()
-    val progress = if (totalChapters != null && totalChapters > 0f && currentChapter != null) {
-        (currentChapter / totalChapters).coerceIn(0f, 1f)
+    val completedChapters = (item.chaptersCount?.toFloat() ?: currentChapter ?: 0f).coerceAtLeast(0f)
+    val progress = if (totalChapters != null && totalChapters > 0f) {
+        (completedChapters / totalChapters).coerceIn(0f, 1f)
     } else null
     Column(
         modifier
@@ -462,19 +438,7 @@ private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit, modifier: Mo
                     .padding(10.dp),
             ) {
                 Column {
-                    Row {
-                        Text("Читать ", color = Color.White, style = MaterialTheme.typography.labelMedium)
-                        Text(item.chapterLabel(), color = TomiloPrimary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                    }
-                    progress?.let {
-                        Spacer(Modifier.height(7.dp))
-                        LinearProgressIndicator(
-                            progress = { it },
-                            modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(99.dp)),
-                            color = TomiloPrimary,
-                            trackColor = Color.White.copy(alpha = 0.16f),
-                        )
-                    }
+                    Text("Продолжить · глава ${item.chapterLabel()}", color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -486,13 +450,25 @@ private fun ContinueCard(item: HistoryEntryDto, onOpen: () -> Unit, modifier: Mo
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp),
         )
-        item.chaptersCount?.takeIf { it > 0 }?.let { count ->
-            Text(
-                "Прочитано $count гл.",
-                color = TomiloMuted,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 12.dp),
-            )
-        } ?: Spacer(Modifier.height(12.dp))
+        Column(Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val progressLabel = when {
+                    totalChapters != null && totalChapters > 0f -> "Прочитано ${completedChapters.toInt()} из ${totalChapters.toInt()} глав"
+                    completedChapters > 0f -> "Прочитано ${completedChapters.toInt()} глав"
+                    else -> "Открыть и продолжить чтение"
+                }
+                Text(progressLabel, color = TomiloMuted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                progress?.let { Text("${(it * 100).toInt()}%", color = TomiloPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold) }
+            }
+            progress?.let {
+                Spacer(Modifier.height(7.dp))
+                LinearProgressIndicator(
+                    progress = { it },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(99.dp)),
+                    color = TomiloPrimary,
+                    trackColor = TomiloSurface2,
+                )
+            }
+        }
     }
 }
