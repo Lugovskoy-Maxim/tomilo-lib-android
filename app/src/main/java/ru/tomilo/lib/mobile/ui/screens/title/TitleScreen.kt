@@ -153,7 +153,9 @@ fun TitleScreen(
     var selected by remember { mutableStateOf(setOf<String>()) }
     var showDownloadSheet by remember { mutableStateOf(false) }
     var minimizedDownloadBatch by remember { mutableStateOf<String?>(null) }
-    var sort by remember { mutableStateOf(ChapterSort.NumberAsc) }
+    // Новые главы должны быть сразу перед глазами; остальные варианты
+    // сортировки остаются доступны через чипы под заголовком списка.
+    var sort by remember { mutableStateOf(ChapterSort.NumberDesc) }
     var myRating by remember { mutableIntStateOf(0) }
     var readChapterIds by remember { mutableStateOf(setOf<String>()) }
     var continueChapterId by remember { mutableStateOf<String?>(null) }
