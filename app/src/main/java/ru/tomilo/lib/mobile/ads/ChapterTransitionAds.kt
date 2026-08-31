@@ -48,10 +48,10 @@ class ChapterTransitionAds(
 
             withContext(Dispatchers.Main) {
                 when {
-                    interstitialAdManager.enabled && interstitialAdManager.isReady -> {
-                        Log.i(TAG, "Show interstitial between chapters")
-                        interstitialAdManager.show(activity) {
-                            scope.launch { frequencyStore.markInterChapterShown() }
+                    interstitialAdManager.enabled -> {
+                        Log.i(TAG, "Wait briefly for interstitial between chapters")
+                        interstitialAdManager.showWhenReady(activity) { shown ->
+                            if (shown) scope.launch { frequencyStore.markInterChapterShown() }
                             proceed()
                         }
                     }

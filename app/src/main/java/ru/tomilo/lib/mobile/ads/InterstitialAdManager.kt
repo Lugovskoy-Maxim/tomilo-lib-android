@@ -29,6 +29,8 @@ class InterstitialAdManager(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var loader: InterstitialAdLoader? = null
     private var loadedAd: InterstitialAd? = null
+    private var retryAttempt = 0
+    private var retryRunnable: Runnable? = null
     private val sdkReady = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
 
@@ -78,6 +80,9 @@ class InterstitialAdManager(
                         loadedAd = ad
                         loading.set(false)
                         isReady = true
+                        retryAttempt = 0
+                        retryRunnable?.let(mainHandler::removeCallbacks)
+                        retryRunnable = null
                         Log.i(TAG, "Interstitial loaded")
                     }
 
@@ -86,10 +91,57 @@ class InterstitialAdManager(
                         isReady = false
                         loadedAd = null
                         Log.w(TAG, "Interstitial fail: ${error.code} ${error.description}")
+                        scheduleRetry()
                     }
                 },
             )
         }
+    }
+
+    /**
+     * Первый переход часто случается раньше, чем SDK успевает получить
+     * interstitial. Ждём короткое время вместо молчаливого пропуска рекламы.
+     * [onFinished] получает true, только если был готовый рекламный объект.
+     */
+    fun showWhenReady(
+        activity: Activity,
+        maxWaitMs: Long = INITIAL_AD_WAIT_MS,
+        onFinished: (shown: Boolean) -> Unit,
+    ) {
+        mainHandler.post {
+            if (!enabled || activity.isFinishing) {
+                onFinished(false)
+                return@post
+            }
+            val deadline = System.currentTimeMillis() + maxWaitMs
+            fun waitForAd() {
+                if (activity.isFinishing) {
+                    onFinished(false)
+                    return
+                }
+                if (loadedAd != null) {
+                    show(activity) { onFinished(true) }
+                    return
+                }
+                preload()
+                if (System.currentTimeMillis() >= deadline) {
+                    onFinished(false)
+                } else {
+                    mainHandler.postDelayed({ waitForAd() }, AD_POLL_INTERVAL_MS)
+                }
+            }
+            waitForAd()
+        }
+    }
+
+    private fun scheduleRetry() {
+        if (!enabled || retryRunnable != null) return
+        val delay = (RETRY_BASE_MS * (1L shl retryAttempt.coerceAtMost(4))).coerceAtMost(RETRY_MAX_MS)
+        retryAttempt = (retryAttempt + 1).coerceAtMost(5)
+        retryRunnable = Runnable {
+            retryRunnable = null
+            preload()
+        }.also { mainHandler.postDelayed(it, delay) }
     }
 
     /**
@@ -153,6 +205,8 @@ class InterstitialAdManager(
             loadedAd = null
             loader?.cancelLoading()
             loader = null
+            retryRunnable?.let(mainHandler::removeCallbacks)
+            retryRunnable = null
             isReady = false
             loading.set(false)
         }
@@ -160,5 +214,9 @@ class InterstitialAdManager(
 
     companion object {
         private const val TAG = "TomiloInterstitial"
+        private const val INITIAL_AD_WAIT_MS = 2_000L
+        private const val AD_POLL_INTERVAL_MS = 200L
+        private const val RETRY_BASE_MS = 5_000L
+        private const val RETRY_MAX_MS = 60_000L
     }
 }
