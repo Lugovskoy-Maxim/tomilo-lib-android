@@ -591,6 +591,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                     onOpenPremium = { navController.navigate(Routes.Premium) },
                     onLogin = { goLogin() },
+                    onOpenOffline = { navController.navigate(Routes.Offline) },
                 )
             }
             composable(

@@ -107,6 +107,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -120,8 +121,11 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
+import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.isNetworkAvailable
+import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.core.PageImages
 import ru.tomilo.lib.mobile.core.PageDimensions
 import ru.tomilo.lib.mobile.core.Premium
@@ -166,6 +170,7 @@ fun ReaderScreen(
     onOpenUser: (userId: String) -> Unit = {},
     onOpenPremium: () -> Unit = {},
     onLogin: () -> Unit = {},
+    onOpenOffline: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -175,6 +180,8 @@ fun ReaderScreen(
     val storedSettings: ReadingSettings? by readingPrefs.settingsFlow.collectAsState(initial = null)
     val settings = storedSettings ?: ReadingSettings()
     val scope = rememberCoroutineScope()
+    val connectivityFlow = remember(context) { context.networkAvailabilityFlow() }
+    val online by connectivityFlow.collectAsState(initial = context.isNetworkAvailable())
     var currentChapterId by rememberSaveable { mutableStateOf(chapterId) }
     val listState = rememberSaveable(currentChapterId, saver = LazyListState.Saver) {
         LazyListState(0, 0)
@@ -695,7 +702,15 @@ fun ReaderScreen(
                 onPremium = onOpenPremium,
                 onRetry = { loadChapter(currentChapterId) },
             )
+            error != null && !online -> OfflineConnectionState(
+                onRetry = { loadChapter(currentChapterId) },
+                onOpenOffline = onOpenOffline,
+            )
             error != null -> ReaderError(error ?: "Ошибка") { loadChapter(currentChapterId) }
+            pages.isEmpty() && !online -> OfflineConnectionState(
+                onRetry = { loadChapter(currentChapterId) },
+                onOpenOffline = onOpenOffline,
+            )
             pages.isEmpty() -> ReaderError("Нет страниц") { loadChapter(currentChapterId) }
             layout == ReaderLayout.PAGER -> PagerReader(
                 pages = pages,
@@ -1342,6 +1357,53 @@ private fun ReaderError(message: String, onRetry: () -> Unit) {
                     Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(7.dp))
                     Text("Попробовать снова")
+                }
+            }
+        }
+    }
+}
+
+/** Экран для запроса онлайн-главы без сети; сохранённые главы остаются доступны в библиотеке. */
+@Composable
+private fun OfflineConnectionState(
+    onRetry: () -> Unit,
+    onOpenOffline: () -> Unit,
+) {
+    Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            color = Color(0xFF17171D),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.illust_offline_mascot),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(142.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                Text("Нет соединения", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Не удалось загрузить главу. Проверьте интернет или откройте сохранённые главы.",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(18.dp))
+                Button(onClick = onRetry, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(7.dp))
+                    Text("Повторить")
+                }
+                Spacer(Modifier.height(9.dp))
+                OutlinedButton(onClick = onOpenOffline, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(7.dp))
+                    Text("Читать офлайн")
                 }
             }
         }
