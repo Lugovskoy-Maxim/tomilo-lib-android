@@ -507,7 +507,7 @@ fun PremiumScreen(
             }
 
             Text(
-                text = "Premium не продлевается автоматически. Вы сами решаете, когда оформить следующий период.\nОплата: самозанятый Луговской М. Ю., ИНН $SELLER_INN. Чек приходит на email аккаунта.",
+                text = "Premium не продлевается автоматически. Вы сами решаете, когда оформить следующий период.\nОплата: самозанятый Луговской М. Ю., ИНН $SELLER_INN.",
                 color = TomiloMuted,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
