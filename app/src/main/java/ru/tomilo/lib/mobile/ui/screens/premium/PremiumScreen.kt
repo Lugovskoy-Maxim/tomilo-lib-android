@@ -132,6 +132,7 @@ fun PremiumScreen(
     var paying by remember { mutableStateOf(false) }
     var pendingInvId by rememberSaveable { mutableStateOf<String?>(null) }
     var waitingPayment by rememberSaveable { mutableStateOf(false) }
+    var showOtherPaymentMethods by rememberSaveable { mutableStateOf(false) }
     var confirmCoins by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf<List<PremiumPaymentHistoryItemDto>>(emptyList()) }
 
@@ -163,7 +164,7 @@ fun PremiumScreen(
                 delay(2_000)
             }
             waitingPayment = false
-            notify("Платёж ещё обрабатывается. Статус обновится после подтверждения Robokassa.")
+                    notify("Платёж ещё обрабатывается. Статус обновится после подтверждения Т‑Банка.")
             reloadHistory()
         }
     }
@@ -182,7 +183,7 @@ fun PremiumScreen(
         }
     }
 
-    fun openRobokassa(form: ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto) {
+    fun openTbank(form: ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto) {
         val fieldsJson = NetworkModule.json.encodeToString(form.fields)
         checkoutLauncher.launch(
             RobokassaCheckoutActivity.intent(
@@ -194,7 +195,7 @@ fun PremiumScreen(
         )
     }
 
-    fun startRobokassa(adminTest: Boolean = false) {
+    fun startTbank(adminTest: Boolean = false) {
         if (user == null) {
             onLogin()
             return
@@ -205,11 +206,11 @@ fun PremiumScreen(
             val result = if (adminTest) {
                 paymentsRepository.createAdminTestPayment()
             } else {
-                paymentsRepository.createRobokassaPayment(selectedPlan.id)
+                paymentsRepository.createTbankPayment(selectedPlan.id)
             }
             paying = false
             result.fold(
-                onSuccess = { openRobokassa(it) },
+                onSuccess = { openTbank(it) },
                 onFailure = { notify(PaymentsRepository.userMessage(it)) },
             )
         }
@@ -299,11 +300,11 @@ fun PremiumScreen(
             Spacer(Modifier.height(22.dp))
             PaymentMethodCard(
                 index = "1",
-                title = "Оплата через Robokassa",
+                title = "Оплата через Т‑Банк",
                 subtitle = "Карта, СБП и другие способы. Подписка начисляется автоматически.",
             ) {
                 Text(
-                    "Вы перейдёте на защищённую страницу Robokassa. Данные карты Tomilo не получает и не хранит.",
+                    "Вы перейдёте на защищённую страницу Т‑Банка. Данные карты Tomilo не получает и не хранит.",
                     color = TomiloMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -314,7 +315,7 @@ fun PremiumScreen(
                     }
                 } else {
                     Button(
-                        onClick = { startRobokassa() },
+                        onClick = { startTbank() },
                         enabled = !paying,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -346,7 +347,7 @@ fun PremiumScreen(
                 if (user?.isAdmin() == true) {
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
-                        onClick = { startRobokassa(adminTest = true) },
+                        onClick = { startTbank(adminTest = true) },
                         enabled = !paying,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -361,6 +362,14 @@ fun PremiumScreen(
                 )
             }
 
+            TextButton(
+                onClick = { showOtherPaymentMethods = !showOtherPaymentMethods },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (showOtherPaymentMethods) "Скрыть другие варианты" else "Другие варианты оплаты")
+            }
+
+            if (showOtherPaymentMethods) {
             Spacer(Modifier.height(12.dp))
             PaymentMethodCard(
                 index = "2",
@@ -483,11 +492,12 @@ fun PremiumScreen(
                     Text("Открыть Boosty")
                 }
             }
+            }
 
             if (history.isNotEmpty()) {
                 SectionHeading(
                     title = "История оплат",
-                    subtitle = "Счета Robokassa и покупки за монеты.",
+                    subtitle = "Счета Т‑Банка и покупки за монеты.",
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     history.take(12).forEach { item ->

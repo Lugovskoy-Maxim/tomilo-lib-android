@@ -31,7 +31,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 
 /**
- * Открывает платёжную форму Robokassa (POST) и ловит возврат
+ * Открывает платёжную форму T-Банка и ловит возврат
  * на tomilo-lib.ru/premium?payment=success|failed.
  */
 class RobokassaCheckoutActivity : ComponentActivity() {
@@ -48,7 +48,7 @@ class RobokassaCheckoutActivity : ComponentActivity() {
         val fieldsJson = intent.getStringExtra(EXTRA_FIELDS_JSON).orEmpty()
         val fields = parseFields(fieldsJson)
 
-        if (paymentUrl.isBlank() || fields.isEmpty()) {
+        if (paymentUrl.isBlank()) {
             finishWith(RESULT_FAILED, invId)
             return
         }
@@ -102,13 +102,19 @@ class RobokassaCheckoutActivity : ComponentActivity() {
                                         url?.let { handleReturn(it, invId) }
                                     }
                                 }
-                                loadDataWithBaseURL(
-                                    paymentUrl,
-                                    buildAutoSubmitHtml(paymentUrl, fields),
-                                    "text/html",
-                                    Charsets.UTF_8.name(),
-                                    null,
-                                )
+                                if (fields.isEmpty()) {
+                                    // T-Банк возвращает готовый PaymentURL: POST-форма не нужна.
+                                    loadUrl(paymentUrl)
+                                } else {
+                                    // Совместимость со старыми счетами, созданными до перехода.
+                                    loadDataWithBaseURL(
+                                        paymentUrl,
+                                        buildAutoSubmitHtml(paymentUrl, fields),
+                                        "text/html",
+                                        Charsets.UTF_8.name(),
+                                        null,
+                                    )
+                                }
                             }
                         },
                     )
@@ -122,7 +128,7 @@ class RobokassaCheckoutActivity : ComponentActivity() {
         val host = uri.host.orEmpty()
         val path = uri.path.orEmpty()
         if (host != "tomilo-lib.ru" && host != "www.tomilo-lib.ru") return false
-        if (!path.startsWith("/premium") && !path.contains("/payments/robokassa/")) return false
+        if (!path.startsWith("/premium") && !path.contains("/payments/tbank/")) return false
 
         val payment = uri.getQueryParameter("payment")
         val invoice = uri.getQueryParameter("invoice")
@@ -137,10 +143,10 @@ class RobokassaCheckoutActivity : ComponentActivity() {
                 finishWith(RESULT_FAILED, invoice)
                 true
             }
-            else -> if (path.contains("/payments/robokassa/fail")) {
+            else -> if (path.contains("/payments/tbank/fail")) {
                 finishWith(RESULT_FAILED, invoice)
                 true
-            } else if (path.contains("/payments/robokassa/success")) {
+            } else if (path.contains("/payments/tbank/success")) {
                 finishWith(RESULT_SUCCESS, invoice)
                 true
             } else {

@@ -879,7 +879,11 @@ data class SearchHitDto(
 }
 
 @Serializable
-data class CreateRobokassaPaymentRequest(val planId: String)
+data class CreateTbankPaymentRequest(
+    val planId: String,
+    val gift: Boolean = false,
+    val email: String? = null,
+)
 
 @Serializable
 data class RobokassaPaymentFormDto(

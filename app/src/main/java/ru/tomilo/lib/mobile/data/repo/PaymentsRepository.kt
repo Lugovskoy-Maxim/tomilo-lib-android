@@ -4,7 +4,7 @@ import retrofit2.HttpException
 import ru.tomilo.lib.mobile.data.api.ApiResponse
 import ru.tomilo.lib.mobile.data.api.CoinPremiumPurchaseRequest
 import ru.tomilo.lib.mobile.data.api.CoinPremiumPurchaseResultDto
-import ru.tomilo.lib.mobile.data.api.CreateRobokassaPaymentRequest
+import ru.tomilo.lib.mobile.data.api.CreateTbankPaymentRequest
 import ru.tomilo.lib.mobile.data.api.PremiumPaymentHistoryItemDto
 import ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto
 import ru.tomilo.lib.mobile.data.api.RobokassaPaymentStatusDto
@@ -13,9 +13,9 @@ import java.util.UUID
 
 class PaymentsRepository(private val api: TomiloApi) {
 
-    suspend fun createRobokassaPayment(planId: String): Result<RobokassaPaymentFormDto> =
+    suspend fun createTbankPayment(planId: String): Result<RobokassaPaymentFormDto> =
         runCatching {
-            unwrap(api.createRobokassaPayment(CreateRobokassaPaymentRequest(planId)))
+            unwrap(api.createTbankPayment(CreateTbankPaymentRequest(planId)))
         }
 
     suspend fun createAdminTestPayment(): Result<RobokassaPaymentFormDto> = runCatching {

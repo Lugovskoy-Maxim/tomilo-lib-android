@@ -520,10 +520,10 @@ interface TomiloApi {
     @GET("manga-parser/supported-sites")
     suspend fun mangaParserSites(): JsonElement
 
-    // ── Payments / Robokassa ────────────────────────────────────
-    @POST("payments/robokassa")
-    suspend fun createRobokassaPayment(
-        @Body body: CreateRobokassaPaymentRequest,
+    // ── Payments / T-Bank ───────────────────────────────────────
+    @POST("payments/checkout")
+    suspend fun createTbankPayment(
+        @Body body: CreateTbankPaymentRequest,
     ): ApiResponse<RobokassaPaymentFormDto>
 
     @POST("payments/robokassa/admin/test")
