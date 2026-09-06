@@ -8,16 +8,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -126,32 +126,32 @@ fun TomiloNavHost(container: AppContainer) {
         TomiloTabItem(
             route = Routes.Home,
             label = "Лента",
-            icon = Icons.Outlined.AutoStories,
-            selectedIcon = Icons.Filled.AutoStories,
-        ),
-        TomiloTabItem(
-            route = Routes.Catalog,
-            label = "Каталог",
             icon = Icons.Outlined.Explore,
             selectedIcon = Icons.Filled.Explore,
         ),
         TomiloTabItem(
+            route = Routes.Catalog,
+            label = "Каталог",
+            icon = Icons.Outlined.AutoStories,
+            selectedIcon = Icons.Filled.AutoStories,
+        ),
+        TomiloTabItem(
             route = Routes.Library,
             label = "Полка",
-            icon = Icons.AutoMirrored.Outlined.MenuBook,
-            selectedIcon = Icons.AutoMirrored.Filled.MenuBook,
+            icon = Icons.Outlined.Bookmarks,
+            selectedIcon = Icons.Filled.Bookmarks,
         ),
         TomiloTabItem(
             route = Routes.Chats,
             label = "Чаты",
-            icon = Icons.AutoMirrored.Outlined.Chat,
-            selectedIcon = Icons.AutoMirrored.Filled.Chat,
+            icon = Icons.Outlined.Forum,
+            selectedIcon = Icons.Filled.Forum,
         ),
         TomiloTabItem(
             route = Routes.Profile,
-            label = "Я",
-            icon = Icons.Outlined.Person,
-            selectedIcon = Icons.Filled.Person,
+            label = "Профиль",
+            icon = Icons.Outlined.AccountCircle,
+            selectedIcon = Icons.Filled.AccountCircle,
         ),
     )
     val tabRoutes = tabs.map { it.route }.toSet()
@@ -291,6 +291,9 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenFriends = { navController.navigate(Routes.Friends) },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenGames = { navController.navigate(Routes.Games) },
+                    onOpenWheel = { navController.navigate(Routes.Wheel) },
+                    onOpenLeaders = { navController.navigate(Routes.Leaders) },
+                    onOpenPremium = { navController.navigate(Routes.Premium) },
                     onContinueReading = { titleId, chapterId ->
                         navController.navigate(Routes.reader(chapterId, offline = false, titleId = titleId))
                     },
@@ -373,6 +376,7 @@ fun TomiloNavHost(container: AppContainer) {
                     socialRepository = container.socialRepository,
                     offlineRepository = container.offlineRepository,
                     contentPrefs = container.contentPrefs,
+                    readingPrefs = container.readingPrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },

@@ -123,6 +123,7 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.core.ChapterAccess
+import ru.tomilo.lib.mobile.core.formatChapterTitle
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.isNetworkAvailable
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
@@ -385,8 +386,7 @@ fun ReaderScreen(
 
             suspend fun applyChapter(chapter: ChapterDto, allowRetry: Boolean) {
                 currentChapterNumber = chapter.chapterNumberAsDouble()
-                title = chapter.name?.ifBlank { "Глава ${chapter.numberLabel()}" }
-                    ?: "Глава ${chapter.numberLabel()}"
+                title = formatChapterTitle(chapter.numberLabel(), chapter.name)
                 offline = false
                 chapter.titleKey().takeIf { it.isNotBlank() }?.let { effectiveTitleId = it }
                 if (chapter.isWithdrawn()) {
@@ -1226,8 +1226,7 @@ fun ReaderScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "Глава ${ch.numberLabel()}" +
-                                    (ch.name?.takeIf { n -> n.isNotBlank() && !n.startsWith("Глава") }?.let { " — $it" } ?: "") +
+                                formatChapterTitle(ch.numberLabel(), ch.name) +
                                     if (selected) "  · сейчас" else "",
                                 color = if (selected) TomiloPrimary else Color.White,
                                 style = if (selected) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,

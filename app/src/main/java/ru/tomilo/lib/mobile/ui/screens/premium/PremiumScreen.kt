@@ -29,11 +29,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -267,19 +269,29 @@ fun PremiumScreen(
             )
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 BenefitCard(
-                    icon = Icons.Default.LockOpen,
-                    title = "Премиум-главы без ожидания",
-                    text = "Читайте закрытые главы сразу после публикации.",
+                    icon = Icons.Default.VisibilityOff,
+                    title = "Чтение без рекламы",
+                    text = "Никаких рекламных блоков, баннеров и пауз между главами во всём приложении.",
                 )
                 BenefitCard(
                     icon = Icons.Default.Download,
-                    title = "Полный офлайн-доступ",
-                    text = "Загружайте главы и читайте без интернета и лимитов.",
+                    title = "Безграничный офлайн-доступ",
+                    text = "Скачивайте любые тайтлы и главы целиком без лимитов и читайте в пути без интернета.",
                 )
                 BenefitCard(
-                    icon = Icons.Default.VisibilityOff,
-                    title = "Чтение без рекламы",
-                    text = "Никаких рекламных блоков и пауз между главами.",
+                    icon = Icons.Default.AutoAwesome,
+                    title = "Кастомизация профиля",
+                    text = "Эксклюзивные рамки для аватарки, эффекты профиля, значки и золотой статус PRO.",
+                )
+                BenefitCard(
+                    icon = Icons.Default.ShoppingBag,
+                    title = "Скидка 20% в магазине",
+                    text = "Постоянная скидка 20% на весь каталог декораций, фонов и элементов профиля.",
+                )
+                BenefitCard(
+                    icon = Icons.Default.LockOpen,
+                    title = "Премиум-главы без ожидания",
+                    text = "Читайте платные и закрытые главы сразу в день публикации без ожидания.",
                 )
             }
 

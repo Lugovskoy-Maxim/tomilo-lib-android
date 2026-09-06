@@ -83,6 +83,7 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.ChapterAccess
+import ru.tomilo.lib.mobile.core.formatChapterTitle
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
@@ -753,13 +754,7 @@ fun TitleScreen(
                             Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
                                 Text(
                                     buildString {
-                                        append("Глава ${chapter.numberLabel()}")
-                                        chapter.name
-                                            ?.takeIf {
-                                                it.isNotBlank() &&
-                                                    !it.equals("Глава ${chapter.numberLabel()}", ignoreCase = true)
-                                            }
-                                            ?.let { append(" · $it") }
+                                        append(formatChapterTitle(chapter.numberLabel(), chapter.name))
                                         if (isRead) append("  ✓")
                                         if (paidLocked) append("  · закрыта")
                                         else if (chapter.isPaid == true && (isPremium || canOpenPaid)) {

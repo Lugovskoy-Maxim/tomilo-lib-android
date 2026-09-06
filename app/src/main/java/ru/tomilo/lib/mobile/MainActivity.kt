@@ -11,7 +11,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationOpen
@@ -38,7 +42,20 @@ class MainActivity : ComponentActivity() {
         val app = application as TomiloApp
         handleNotificationIntent(intent)
         setContent {
-            TomiloTheme {
+            val themePrefs = app.container.themePrefs
+            val accentHex by themePrefs.accentHexFlow.collectAsState(initial = null)
+            val user by app.container.authStore.userFlow.collectAsState(initial = null)
+            val isPremium = ru.tomilo.lib.mobile.core.Premium.isActive(user?.subscriptionExpiresAt)
+            val activeAccent = remember(accentHex, isPremium) {
+                if (isPremium && !accentHex.isNullOrBlank()) {
+                    try {
+                        Color(android.graphics.Color.parseColor(accentHex))
+                    } catch (_: Exception) {
+                        null
+                    }
+                } else null
+            }
+            TomiloTheme(accentColor = activeAccent) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TomiloNavHost(container = app.container)
                 }

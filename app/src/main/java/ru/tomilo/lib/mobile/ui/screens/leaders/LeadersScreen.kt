@@ -60,13 +60,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.LeaderboardUserDto
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.LeaderboardSkeleton
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
@@ -196,7 +199,7 @@ fun LeadersScreen(
             CategorySummary(category = category, period = period)
 
             when {
-                loading -> LoadingBox(message = "Обновляем рейтинг…")
+                loading -> LeaderboardSkeleton()
                 error != null -> ErrorBox(error ?: "Не удалось загрузить рейтинг") { reload += 1 }
                 users.isEmpty() -> EmptyState(
                     title = "Рейтинг пока пуст",
@@ -371,101 +374,206 @@ private fun Podium(
     category: LeaderCategory,
     onOpenUser: (String) -> Unit,
 ) {
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-        top.firstOrNull()?.let { winner ->
-            WinnerCard(
-                user = winner,
-                category = category,
-                onClick = { winner.stableId().takeIf(String::isNotBlank)?.let(onOpenUser) },
-            )
-        }
-        if (top.size > 1) {
-            Spacer(Modifier.height(10.dp))
+    if (top.isEmpty()) return
+
+    val first = top.getOrNull(0)
+    val second = top.getOrNull(1)
+    val third = top.getOrNull(2)
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        color = TomiloSurface.copy(alpha = 0.65f),
+        shape = RoundedCornerShape(26.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Gold.copy(alpha = 0.12f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.35f),
+                        ),
+                    ),
+                )
+                .padding(top = 16.dp, bottom = 14.dp, start = 8.dp, end = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Gold, modifier = Modifier.size(17.dp))
+                Text(
+                    "ПЬЕДЕСТАЛ ПОЧЁТА",
+                    color = Gold,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.8.sp,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Olympic Podium: [2nd Silver] [1st Gold Center] [3rd Bronze]
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
-                top.drop(1).forEachIndexed { index, user ->
-                    RunnerCard(
-                        rank = index + 2,
-                        user = user,
+                if (second != null) {
+                    PodiumPillar(
+                        rank = 2,
+                        user = second,
                         category = category,
-                        onClick = { user.stableId().takeIf(String::isNotBlank)?.let(onOpenUser) },
+                        accentColor = Silver,
+                        pedestalHeight = 68.dp,
+                        avatarSize = 58,
+                        onClick = { second.stableId().takeIf(String::isNotBlank)?.let(onOpenUser) },
                         modifier = Modifier.weight(1f),
                     )
+                } else {
+                    Spacer(Modifier.weight(1f))
                 }
-                if (top.size == 2) Spacer(Modifier.weight(1f))
+
+                if (first != null) {
+                    PodiumPillar(
+                        rank = 1,
+                        user = first,
+                        category = category,
+                        accentColor = Gold,
+                        pedestalHeight = 96.dp,
+                        avatarSize = 74,
+                        isWinner = true,
+                        onClick = { first.stableId().takeIf(String::isNotBlank)?.let(onOpenUser) },
+                        modifier = Modifier.weight(1.18f),
+                    )
+                }
+
+                if (third != null) {
+                    PodiumPillar(
+                        rank = 3,
+                        user = third,
+                        category = category,
+                        accentColor = Bronze,
+                        pedestalHeight = 52.dp,
+                        avatarSize = 54,
+                        onClick = { third.stableId().takeIf(String::isNotBlank)?.let(onOpenUser) },
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun WinnerCard(user: LeaderboardUserDto, category: LeaderCategory, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        color = Gold.copy(alpha = 0.10f),
-        shape = RoundedCornerShape(26.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Gold.copy(alpha = 0.52f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LeaderAvatar(user = user, size = 82, ringColor = Gold)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Gold, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("1 место", color = Gold, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(5.dp))
-                PremiumName(user = user, style = MaterialTheme.typography.titleLarge)
-                Text(metricLine(category.id, user), color = category.color, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-            }
-            Text("Lv ${user.level ?: 0}", color = TomiloMuted, style = MaterialTheme.typography.labelMedium)
-        }
-    }
-}
-
-@Composable
-private fun RunnerCard(
+private fun PodiumPillar(
     rank: Int,
     user: LeaderboardUserDto,
     category: LeaderCategory,
+    accentColor: Color,
+    pedestalHeight: Dp,
+    avatarSize: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isWinner: Boolean = false,
 ) {
-    val accent = if (rank == 2) Silver else Bronze
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        color = TomiloSurface,
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.38f)),
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = accent, modifier = Modifier.size(17.dp))
-                Spacer(Modifier.width(3.dp))
-                Text("$rank место", color = accent, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        if (isWinner) {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(Brush.horizontalGradient(listOf(Color(0xFFFFDF00), Color(0xFFD4AF37))))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Color(0xFF261800), modifier = Modifier.size(11.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("ТОП 1", color = Color(0xFF261800), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                }
             }
-            Spacer(Modifier.height(9.dp))
-            LeaderAvatar(user = user, size = 64, ringColor = accent)
-            Spacer(Modifier.height(8.dp))
-            PremiumName(user = user, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-            Text(
-                metricLine(category.id, user),
-                color = category.color,
-                style = MaterialTheme.typography.labelSmall,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
+            Spacer(Modifier.height(4.dp))
+        } else {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(accentColor.copy(alpha = 0.22f))
+                    .border(0.8.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(99.dp))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+            ) {
+                Text("#$rank", color = accentColor, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+
+        LeaderAvatar(user = user, size = avatarSize, ringColor = accentColor)
+        Spacer(Modifier.height(6.dp))
+
+        PremiumName(
+            user = user,
+            style = if (isWinner) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+
+        Text(
+            text = metricLine(category.id, user),
+            color = if (isWinner) Gold else category.color,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        val pedestalGradient = when (rank) {
+            1 -> Brush.verticalGradient(listOf(Color(0xFF8A6508), Color(0xFF382700)))
+            2 -> Brush.verticalGradient(listOf(Color(0xFF4B5563), Color(0xFF1F2937)))
+            else -> Brush.verticalGradient(listOf(Color(0xFF6E3917), Color(0xFF291508)))
+        }
+        val pedestalBorder = when (rank) {
+            1 -> Color(0xFFFFD700).copy(alpha = 0.65f)
+            2 -> Color(0xFFD1D5DB).copy(alpha = 0.45f)
+            else -> Color(0xFFCD7F32).copy(alpha = 0.45f)
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(pedestalHeight)
+                .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
+                .background(pedestalGradient)
+                .border(1.dp, pedestalBorder, RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "$rank",
+                    fontSize = if (isWinner) 28.sp else 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = accentColor,
+                )
+                Text(
+                    text = "Lv ${user.level ?: 1}",
+                    fontSize = 10.sp,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Medium,
+                )
+            }
         }
     }
 }
@@ -477,39 +585,90 @@ private fun LeaderRow(
     category: LeaderCategory,
     onClick: () -> Unit,
 ) {
+    val isTopTen = rank in 4..10
+    val isPremium = Premium.isActive(user.subscriptionExpiresAt)
+
     Surface(
         onClick = onClick,
         modifier = Modifier.padding(horizontal = 16.dp),
-        color = TomiloSurface.copy(alpha = 0.78f),
+        color = if (isTopTen) TomiloSurface else TomiloSurface.copy(alpha = 0.75f),
         shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.055f)),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isTopTen) TomiloPrimary.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.055f),
+        ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(TomiloSurface2),
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (isTopTen) TomiloPrimary.copy(alpha = 0.15f) else TomiloSurface2)
+                    .border(
+                        1.dp,
+                        if (isTopTen) TomiloPrimary.copy(alpha = 0.35f) else Color.Transparent,
+                        RoundedCornerShape(11.dp),
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(rank.toString(), color = TomiloMuted, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "#$rank",
+                    color = if (isTopTen) TomiloPrimary else TomiloMuted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                )
             }
-            Spacer(Modifier.width(10.dp))
-            LeaderAvatar(user = user, size = 46, ringColor = TomiloBorder)
-            Spacer(Modifier.width(11.dp))
+            Spacer(Modifier.width(12.dp))
+            LeaderAvatar(
+                user = user,
+                size = 48,
+                ringColor = if (isPremium) TomiloPremium else if (isTopTen) TomiloPrimary.copy(alpha = 0.6f) else TomiloBorder,
+            )
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                PremiumName(user = user, style = MaterialTheme.typography.titleMedium)
-                Text("Уровень ${user.level ?: 0}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PremiumName(user = user, style = MaterialTheme.typography.titleSmall)
+                    if (isPremium) {
+                        Spacer(Modifier.width(5.dp))
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(TomiloPremium)
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                        ) {
+                            Text("PRO", color = Color.Black, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(TomiloSurface2)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            "Ур. ${user.level ?: 1}",
+                            color = TomiloMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     metricValue(category.id, user),
                     color = category.color,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                 )
                 Text(metricUnit(category.id), color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
             }

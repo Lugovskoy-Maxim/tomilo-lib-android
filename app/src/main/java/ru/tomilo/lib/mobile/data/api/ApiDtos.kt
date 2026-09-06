@@ -369,13 +369,11 @@ data class HistoryEntryDto(
 
     fun chapterLabel(): String {
         lastChapter?.let {
-            val title = it.chapterTitle
-            return if (!title.isNullOrBlank()) "Глава ${it.numberLabel()} · $title"
-            else "Глава ${it.numberLabel()}"
+            return ru.tomilo.lib.mobile.core.formatChapterTitle(it.numberLabel(), it.chapterTitle)
         }
         val n = chapterNumber?.toString()?.trim('"')
         return when {
-            !chapterName.isNullOrBlank() -> chapterName
+            !chapterName.isNullOrBlank() -> ru.tomilo.lib.mobile.core.formatChapterTitle(n ?: "?", chapterName)
             !n.isNullOrBlank() -> "Глава $n"
             else -> chaptersCount?.let { "Прочитано: $it гл." } ?: "История"
         }

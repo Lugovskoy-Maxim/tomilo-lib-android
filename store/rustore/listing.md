@@ -19,7 +19,7 @@
 | Email поддержки | support@tomilo-lib.ru |
 | Политика конфиденциальности | https://tomilo-lib.ru/privacy-policy |
 | Условия использования | https://tomilo-lib.ru/terms-of-use |
-| Telegram | https://t.me/tomilolib |
+| Telegram | https://t.me/tomilo_lib_ru |
 
 Почему `18+`: приложение позволяет совершеннолетнему пользователю включить скрытый по умолчанию взрослый раздел каталога. Возрастной фильтр внутри приложения не заменяет возрастную маркировку карточки RuStore.
 

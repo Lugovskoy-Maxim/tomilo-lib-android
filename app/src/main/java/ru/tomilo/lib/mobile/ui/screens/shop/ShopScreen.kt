@@ -58,9 +58,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.EquippedDecorationsDto
 import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -126,6 +128,7 @@ fun ShopScreen(
     val equippedIds = remember(owned) {
         owned.filter { it.isEquipped == true }.map { it.stableId() }.toSet()
     }
+    val isPremium = Premium.isActive(user?.subscriptionExpiresAt)
 
     fun reloadShop(message: String? = null) {
         reload += 1
@@ -210,6 +213,37 @@ fun ShopScreen(
                     }
                 }
             }
+            if (isPremium) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = TomiloPremium.copy(alpha = 0.12f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, TomiloPremium.copy(alpha = 0.35f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("👑", fontSize = 16.sp)
+                        Spacer(Modifier.size(8.dp))
+                        Column {
+                            Text(
+                                "Скидка 20% на все товары активна!",
+                                color = TomiloPremium,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                            )
+                            Text(
+                                "Ваша привилегия по подписке Tomilo Premium",
+                                color = TomiloMuted,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                }
+            }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -246,6 +280,7 @@ fun ShopScreen(
                             previewAvatar = user?.avatar,
                             previewUsername = user?.username,
                             equippedDecorations = user?.decorations(),
+                            isPremium = isPremium,
                             onAction = {
                                 when {
                                     user == null -> onLogin()
@@ -262,14 +297,29 @@ fun ShopScreen(
     }
 
     purchaseRequest?.let { item ->
+        val finalPrice = if (isPremium && item.price > 0) (item.price * 0.80).toInt().coerceAtLeast(1) else item.price
         AlertDialog(
             onDismissRequest = { purchaseRequest = null },
             title = { Text("Купить «${item.name}»?") },
             text = {
-                Text(
-                    "Стоимость: ${item.price} монет. На балансе: ${user?.balance ?: 0}. " +
-                        "Украшение останется в общем инвентаре сайта и приложения.",
-                )
+                Column {
+                    if (isPremium && item.price > 0) {
+                        Text(
+                            "Стоимость: $finalPrice монет (-20% скидка Premium, было ${item.price}).",
+                            fontWeight = FontWeight.SemiBold,
+                            color = TomiloPremium,
+                        )
+                    } else {
+                        Text("Стоимость: ${item.price} монет.")
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "На балансе: ${user?.balance ?: 0} монет. " +
+                            "Украшение останется в общем инвентаре сайта и приложения.",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -277,8 +327,8 @@ fun ShopScreen(
                         purchaseRequest = null
                         purchase(item)
                     },
-                    enabled = (user?.balance ?: 0) >= item.price,
-                ) { Text("Купить") }
+                    enabled = (user?.balance ?: 0) >= finalPrice,
+                ) { Text("Купить за $finalPrice") }
             },
             dismissButton = { TextButton(onClick = { purchaseRequest = null }) { Text("Отмена") } },
         )
@@ -295,6 +345,7 @@ private fun ShopDecorationCard(
     previewAvatar: String?,
     previewUsername: String?,
     equippedDecorations: EquippedDecorationsDto?,
+    isPremium: Boolean = false,
     onAction: () -> Unit,
 ) {
     val rarityColor = when (item.rarity.lowercase()) {
@@ -392,21 +443,51 @@ private fun ShopDecorationCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!owned) {
-                    item.originalPrice?.takeIf { it > item.price }?.let {
+                    val finalPrice = if (isPremium && item.price > 0) (item.price * 0.80).toInt().coerceAtLeast(1) else item.price
+                    if (isPremium && item.price > 0) {
                         Text(
-                            "$it",
+                            "${item.price}",
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
                             textDecoration = TextDecoration.LineThrough,
                         )
-                        Spacer(Modifier.size(5.dp))
+                        Spacer(Modifier.size(4.dp))
+                        Text(
+                            "$finalPrice монет",
+                            color = TomiloPremium,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.size(6.dp))
+                        Surface(
+                            color = TomiloPremium.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(6.dp),
+                        ) {
+                            Text(
+                                "-20%",
+                                color = TomiloPremium,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                        }
+                    } else {
+                        item.originalPrice?.takeIf { it > item.price }?.let {
+                            Text(
+                                "$it",
+                                color = TomiloMuted,
+                                style = MaterialTheme.typography.labelSmall,
+                                textDecoration = TextDecoration.LineThrough,
+                            )
+                            Spacer(Modifier.size(5.dp))
+                        }
+                        Text(
+                            if (item.price == 0) "Бесплатно" else "${item.price} монет",
+                            color = TomiloPremium,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
-                    Text(
-                        if (item.price == 0) "Бесплатно" else "${item.price} монет",
-                        color = TomiloPremium,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
                 } else {
                     StatusPill(if (equipped) "Надето" else "В инвентаре")
                 }

@@ -33,6 +33,7 @@ class AppContainer(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val authStore = AuthStore(appContext)
+    val themePrefs = ru.tomilo.lib.mobile.data.local.AppThemePrefs(appContext)
     val readingPrefs = ReadingPrefs(appContext)
     val contentPrefs = ContentPrefs(appContext)
     val searchHistoryPrefs = SearchHistoryPrefs(appContext)

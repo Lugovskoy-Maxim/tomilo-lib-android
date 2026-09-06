@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +51,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private val CardRadius = 20.dp
 private val CoverShape = RoundedCornerShape(CardRadius)
@@ -111,6 +115,7 @@ fun TitlePosterCard(
     isAdult: Boolean = false,
     year: Int? = null,
     compact: Boolean = false,
+    rank: Int? = null,
 ) {
     val base = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
     Column(
@@ -152,17 +157,77 @@ fun TitlePosterCard(
                         ),
                     ),
             )
-            Row(
-                Modifier
-                    .align(Alignment.TopStart)
-                    .padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                if (!type.isNullOrBlank()) {
-                    MetaChip(typeLabel(type), container = TomiloPrimary.copy(alpha = 0.9f))
+            if (rank != null) {
+                // Премиальный бейдж ранга в топе
+                val rankBrush = when (rank) {
+                    1 -> Brush.linearGradient(listOf(Color(0xFFFFE066), Color(0xFFE5A60D), Color(0xFFB8860B)))
+                    2 -> Brush.linearGradient(listOf(Color(0xFFFFFFFF), Color(0xFFD4D8E2), Color(0xFFA6ADBB)))
+                    3 -> Brush.linearGradient(listOf(Color(0xFFFFB076), Color(0xFFD97706), Color(0xFF8C3E00)))
+                    else -> Brush.linearGradient(listOf(Color.Black.copy(alpha = 0.82f), Color.Black.copy(alpha = 0.92f)))
                 }
-                if (isAdult) {
-                    MetaChip("18+", container = Color(0xFFB33A3A).copy(alpha = 0.92f))
+                val rankTextColor = when (rank) {
+                    1 -> Color(0xFF241500)
+                    2 -> Color(0xFF141923)
+                    3 -> Color(0xFF260F00)
+                    else -> Color.White
+                }
+                val rankBorder = when (rank) {
+                    1 -> Color(0xFFFFDF70)
+                    2 -> Color(0xFFE2E8F0)
+                    3 -> Color(0xFFFFC08A)
+                    else -> Color.White.copy(alpha = 0.25f)
+                }
+                Row(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(rankBrush)
+                        .border(0.8.dp, rankBorder, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    when (rank) {
+                        1 -> {
+                            Icon(
+                                Icons.Default.EmojiEvents,
+                                contentDescription = null,
+                                tint = rankTextColor,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(3.dp))
+                        }
+                        2, 3 -> {
+                            Icon(
+                                Icons.Default.MilitaryTech,
+                                contentDescription = null,
+                                tint = rankTextColor,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(3.dp))
+                        }
+                    }
+                    Text(
+                        "#$rank",
+                        color = rankTextColor,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Black,
+                        lineHeight = 12.sp,
+                    )
+                }
+            } else {
+                Row(
+                    Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (!type.isNullOrBlank()) {
+                        MetaChip(typeLabel(type), container = TomiloPrimary.copy(alpha = 0.9f))
+                    }
+                    if (isAdult) {
+                        MetaChip("18+", container = Color(0xFFB33A3A).copy(alpha = 0.92f))
+                    }
                 }
             }
             if (rating != null && rating > 0) {
@@ -171,46 +236,67 @@ fun TitlePosterCard(
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.62f))
+                        .background(Color.Black.copy(alpha = 0.76f))
+                        .border(0.8.dp, TomiloPremium.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.Default.Star,
-                        contentDescription = null,
+                        contentDescription = "Рейтинг",
                         tint = TomiloPremium,
                         modifier = Modifier.size(12.dp),
                     )
-                    Spacer(Modifier.width(2.dp))
+                    Spacer(Modifier.width(3.dp))
                     Text(
                         "%.1f".format(rating),
                         color = Color.White,
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            // Индикатор статуса на карточке (например 'Онгоинг' с зелёной точкой или 'Завершено' с синей)
+            if (!status.isNullOrBlank()) {
+                val sLabel = statusLabel(status)
+                val sColor = statusColor(status)
+                Row(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.82f))
+                        .border(0.8.dp, sColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(sColor),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = sLabel,
+                        color = Color.White,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
-            val bottomLeft = if (compact) null else chapterBadge ?: totalChapters?.let { "$it гл." }
-            if (!bottomLeft.isNullOrBlank()) {
+            val bottomEnd = chapterBadge ?: totalChapters?.let { "$it гл." }
+            if (!bottomEnd.isNullOrBlank()) {
                 MetaChip(
-                    bottomLeft,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(6.dp),
-                    container = Color.Black.copy(alpha = 0.65f),
-                )
-            }
-            if (!compact && !status.isNullOrBlank()) {
-                MetaChip(
-                    statusLabel(status),
+                    bottomEnd,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(6.dp),
-                    container = statusColor(status).copy(alpha = 0.88f),
+                    container = Color.Black.copy(alpha = 0.68f),
                 )
             }
         }
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.bodyMedium,
@@ -221,19 +307,68 @@ fun TitlePosterCard(
             lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 10.dp),
         )
-        val footer = listOfNotNull(
-            year?.toString(),
-            if (chapterBadge == null) totalChapters?.let { "$it гл." } else null,
-        ).joinToString(" · ")
-        Spacer(Modifier.height(3.dp))
-        if (!compact) {
+        Spacer(Modifier.height(4.dp))
+        // Строка метаданных под обложкой (тип, год и рейтинг) - статус отображается только на обложке
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            val leftMeta = listOfNotNull(
+                type?.let { typeLabel(it) },
+                year?.toString(),
+            ).joinToString(" · ")
             Text(
-                footer.ifBlank { " " },
+                text = leftMeta.ifBlank { " " },
                 style = MaterialTheme.typography.labelSmall,
                 color = TomiloMuted,
                 maxLines = 1,
-                modifier = Modifier.padding(horizontal = 10.dp),
+                fontSize = 11.sp,
+                modifier = Modifier.weight(1f, fill = false),
             )
+
+            val rightMeta = chapterBadge
+                ?: totalChapters?.let { "$it гл." }
+                ?: year?.toString()
+                ?: ""
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (rating != null && rating > 0) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = TomiloPremium,
+                        modifier = Modifier.size(11.dp),
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Text(
+                        "%.1f".format(rating),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TomiloPremium,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                    )
+                    if (rightMeta.isNotBlank()) {
+                        Text(
+                            " · ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TomiloMuted,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+                if (rightMeta.isNotBlank()) {
+                    Text(
+                        text = rightMeta,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TomiloMuted,
+                        maxLines = 1,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
         }
     }
 }
@@ -450,12 +585,32 @@ fun TitleListRow(
 
 private fun typeLabel(raw: String): String = ru.tomilo.lib.mobile.core.GenreLabels.type(raw)
 
-private fun statusLabel(raw: String): String = ru.tomilo.lib.mobile.core.GenreLabels.status(raw)
+fun statusLabel(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    return when (raw.trim().lowercase()) {
+        "ongoing", "publishing", "выходит", "онгоинг" -> "Онгоинг"
+        "completed", "finished", "complete", "завершено", "завершён" -> "Завершено"
+        "pause", "hiatus", "paused", "пауза" -> "Пауза"
+        "cancelled", "canceled", "dropped", "отменён", "отменен" -> "Отменён"
+        "announced", "анонс" -> "Анонс"
+        else -> ru.tomilo.lib.mobile.core.GenreLabels.status(raw).let {
+            when (it.lowercase()) {
+                "выходит" -> "Онгоинг"
+                "завершён", "завершено" -> "Завершено"
+                else -> it.ifBlank { raw }
+            }
+        }
+    }
+}
 
-private fun statusColor(raw: String): Color = when (raw.lowercase()) {
-    "ongoing" -> Color(0xFF3D9A6A)
-    "completed" -> Color(0xFF4A7FD4)
-    "pause" -> Color(0xFFC49A3C)
-    "cancelled" -> Color(0xFF9A4A4A)
-    else -> Color.Gray
+fun statusColor(raw: String?): Color {
+    if (raw.isNullOrBlank()) return Color(0xFF8E8E93)
+    return when (raw.trim().lowercase()) {
+        "ongoing", "publishing", "выходит", "онгоинг" -> Color(0xFF34C759) // Vibrant Green
+        "completed", "finished", "complete", "завершено", "завершён" -> Color(0xFF3897F0) // Vibrant Blue
+        "pause", "hiatus", "paused", "пауза" -> Color(0xFFFF9500) // Amber
+        "cancelled", "canceled", "dropped", "отменён", "отменен" -> Color(0xFFFF3B30) // Red
+        "announced", "анонс" -> Color(0xFFAF52DE) // Purple
+        else -> Color(0xFF8E8E93)
+    }
 }

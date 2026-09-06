@@ -226,7 +226,8 @@ class NotificationsPollWorker(
             prefs.getInt(bookmarkCountKey(id), -1)
         }.filterValues { it >= 0 }
         val ready = prefs.getBoolean(KEY_BOOKMARK_SNAPSHOT_READY, false)
-        val updates = if (ready) {
+        val shelfEnabled = app.container.themePrefs.shelfNotificationsEnabled()
+        val updates = if (ready && shelfEnabled) {
             findBookmarkChapterUpdates(previous, current, alreadyDeliveredTitleIds)
         } else {
             emptyList()

@@ -47,6 +47,9 @@ jobs:
       - name: Assemble rustore debug
         run: ./gradlew :app:assembleRustoreDebug --stacktrace --no-daemon
 
+      - name: Run unit tests
+        run: ./gradlew :app:testRustoreDebugUnitTest --no-daemon
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

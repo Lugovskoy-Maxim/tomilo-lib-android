@@ -7,6 +7,9 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
@@ -62,16 +65,31 @@ private val TomiloShapes = Shapes(
     extraLarge = RoundedCornerShape(30.dp),
 )
 
+val LocalTomiloAccent = compositionLocalOf { TomiloPrimary }
+
 @Composable
 fun TomiloTheme(
+    accentColor: Color? = null,
     darkTheme: Boolean = true, // Ink: тёмная читалка по умолчанию
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme || isSystemInDarkTheme()) DarkColors else LightColors
-    MaterialTheme(
-        colorScheme = colors,
-        typography = TomiloTypography,
-        shapes = TomiloShapes,
-        content = content,
-    )
+    val activePrimary = accentColor ?: TomiloPrimary
+    val baseColors = if (darkTheme || isSystemInDarkTheme()) DarkColors else LightColors
+    val colors = remember(baseColors, activePrimary) {
+        baseColors.copy(
+            primary = activePrimary,
+            primaryContainer = activePrimary.copy(alpha = 0.25f),
+            onPrimaryContainer = Color.White,
+        )
+    }
+    CompositionLocalProvider(
+        LocalTomiloAccent provides activePrimary,
+    ) {
+        MaterialTheme(
+            colorScheme = colors,
+            typography = TomiloTypography,
+            shapes = TomiloShapes,
+            content = content,
+        )
+    }
 }
