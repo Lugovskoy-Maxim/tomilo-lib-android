@@ -1,0 +1,13 @@
+services:
+  catalog:
+    build: ./server
+    ports:
+      - "127.0.0.1:3100:3100"
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN in .env}
+      SYNC_INTERVAL_MINUTES: 60
+    volumes:
+      - catalog-data:/data
+    restart: unless-stopped
+volumes:
+  catalog-data:

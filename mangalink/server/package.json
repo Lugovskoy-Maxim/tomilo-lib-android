@@ -1,0 +1,19 @@
+{
+  "name": "mangalink-server",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "npm run build && node --test test/*.test.cjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.1.6",
+    "axios": "1.13.2",
+    "cheerio": "1.1.2",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": { "@types/node": "22.10.7", "typescript": "5.7.3" }
+}
