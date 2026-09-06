@@ -16,6 +16,7 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
+    @Volatile private var mediaClient: OkHttpClient? = null
     val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -54,11 +55,13 @@ object NetworkModule {
             var lastResponse: Response? = null
 
             for (attempt in 0 until maxAttempts) {
+                if (chain.call().isCanceled()) throw java.io.IOException("Canceled")
                 if (attempt > 0) {
                     try {
                         Thread.sleep(300L * attempt)
                     } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
+                        throw java.io.InterruptedIOException("Request interrupted")
                     }
                 }
                 val request = if (attempt == 0) original else {
@@ -69,7 +72,8 @@ object NetworkModule {
                 }
                 try {
                     val response = chain.proceed(request)
-                    val retryable = response.code in setOf(408, 425, 429, 500, 502, 503, 504)
+                    val retryable = response.code in setOf(408, 425, 429, 500, 502, 503, 504) &&
+                        isNetworkAvailable(context) && !chain.call().isCanceled()
                     if (!retryable || attempt == maxAttempts - 1) return@Interceptor response
                     response.close()
                     lastResponse = response
@@ -124,9 +128,10 @@ object NetworkModule {
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(45, TimeUnit.SECONDS)
+            .addInterceptor(authInterceptor)
             .addInterceptor(offlineCacheInterceptor)
             .addInterceptor(retryGetInterceptor)
-            .addInterceptor(authInterceptor)
             .addNetworkInterceptor(cacheInterceptor)
             .addInterceptor(logging)
             .build()
@@ -141,7 +146,9 @@ object NetworkModule {
     }
 
     /** Shared client for image/page downloads (disk cache). */
+    @Synchronized
     fun createMediaClient(context: Context): OkHttpClient {
+        mediaClient?.let { return it }
         val cache = Cache(File(context.cacheDir, "media_cache"), 200L * 1024L * 1024L)
         // Карточки и читалка используют один клиент. Ограничение не даёт одному
         // устройству открыть десятки соединений к сайту/CDN при быстром скролле.
@@ -163,7 +170,7 @@ object NetworkModule {
                     .build()
                 chain.proceed(request)
             }
-            .build()
+            .build().also { mediaClient = it }
     }
 
     private fun isNetworkAvailable(context: Context): Boolean {

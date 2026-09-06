@@ -320,10 +320,12 @@ fun LibraryScreen(
 
             when {
                 user == null && tab != ShelfTab.Offline -> item(key = "library_guest") {
-                    ErrorBox(
-                        "Войдите, чтобы видеть полку",
+                    EmptyState(
+                        title = "Ваша читательская полка",
+                        message = "Войдите, чтобы видеть закладки и историю чтения. Скачанные главы доступны без входа во вкладке «Офлайн».",
                         modifier = Modifier.fillMaxWidth().height(380.dp),
-                        onRetry = onLogin,
+                        actionLabel = "Войти в аккаунт",
+                        onAction = onLogin,
                     )
                 }
                 loading && tab != ShelfTab.Offline -> item(key = "library_loading") {

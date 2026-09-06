@@ -7,6 +7,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,6 +71,7 @@ fun TomiloBottomBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .selectableGroup()
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 10.dp)
             .shadow(22.dp, BarShape, ambientColor = Color.Black.copy(alpha = 0.68f))
@@ -121,7 +125,7 @@ private fun NavTabItem(
             .clip(ItemShape)
             .background(bg)
             .border(1.dp, border, ItemShape)
-            .clickable(onClick = onClick)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 2.dp, vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

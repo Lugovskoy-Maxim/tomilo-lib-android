@@ -2,6 +2,10 @@ package ru.tomilo.lib.mobile.data.repo
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -65,12 +69,17 @@ class OfflineRepository(
             val detail = runCatching { api.titleById(titleId) }.getOrNull()
                 ?.takeIf { it.success }?.data
             // серверный MAX_LIST_LIMIT = 200 — грузим все страницы
+            var catalogComplete = true
             val chapters = buildList {
                 var page = 1
                 while (page <= 100) {
                     val res = runCatching {
                         api.chaptersByTitle(titleId, page = page, limit = 200, sortOrder = "asc")
-                    }.getOrNull()?.takeIf { it.success }?.data ?: break
+                    }.getOrNull()?.takeIf { it.success }?.data
+                    if (res == null) {
+                        catalogComplete = false
+                        break
+                    }
                     addAll(res.chapters)
                     val pag = res.pagination
                     val hasMore = pag?.hasMore == true ||
@@ -107,12 +116,12 @@ class OfflineRepository(
                     ?: existing?.totalChapters,
                 averageRating = detail?.averageRating ?: existing?.averageRating,
                 releaseYear = detail?.releaseYear ?: existing?.releaseYear,
-                chaptersJson = if (metaList.isNotEmpty()) {
+                chaptersJson = if (catalogComplete && metaList.isNotEmpty()) {
                     json.encodeToString(metaList)
                 } else {
                     existing?.chaptersJson.orEmpty()
                 },
-                lastSyncedAt = System.currentTimeMillis(),
+                lastSyncedAt = if (catalogComplete) System.currentTimeMillis() else existing?.lastSyncedAt ?: 0L,
             )
             dao.upsertTitle(entity)
             entity
@@ -141,18 +150,18 @@ class OfflineRepository(
             updated
         }
 
-    suspend fun getLocalPages(chapterId: String): List<String>? {
-        val entity = dao.get(chapterId) ?: return null
+    suspend fun getLocalPages(chapterId: String): List<String>? = withContext(Dispatchers.IO) {
+        val entity = dao.get(chapterId) ?: return@withContext null
         val dir = File(entity.localDir)
-        if (!dir.isDirectory) return null
+        if (!dir.isDirectory) return@withContext null
         val pages = dir.listFiles()
             ?.filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }
             ?.sortedBy { it.name }
             ?.filter { ImageIntegrity.isValidFile(it) }
             ?.map { it.absolutePath }
             .orEmpty()
-        if (pages.size != entity.pageCount || pages.isEmpty()) return null
-        return pages
+        if (pages.size != entity.pageCount || pages.isEmpty()) return@withContext null
+        pages
     }
 
     suspend fun downloadedChapters(titleId: String): List<OfflineChapterEntity> =
@@ -237,10 +246,12 @@ class OfflineRepository(
                 }
             }
             try {
-                // Всегда обновляем метаданные тайтла (список глав для офлайн-UI)
-                runCatching {
+                // Один снимок каталога на тайтл вместо двух запросов на каждую главу.
+                val cachedTitle = dao.getTitle(titleId)
+                if (cachedTitle == null || System.currentTimeMillis() - cachedTitle.lastSyncedAt > 6 * 60 * 60 * 1000L) {
                     syncTitleCatalog(titleId, titleName, titleSlug, titleCover)
                 }
+                currentCoroutineContext().ensureActive()
 
                 if (getLocalPages(chapterId)?.isNotEmpty() == true) {
                     // уже есть — вернём кредит, если списывали
@@ -261,6 +272,7 @@ class OfflineRepository(
 
                 var bytes = root.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
                 pages.forEachIndexed { index, path ->
+                    currentCoroutineContext().ensureActive()
                     val url = MediaUrl.resolve(path)
                     val cleanPath = runCatching { java.net.URI(url).path }.getOrDefault(path)
                     val ext = cleanPath.substringAfterLast('.', "jpg").filter { it.isLetterOrDigit() }.take(5)
@@ -300,14 +312,13 @@ class OfflineRepository(
                 )
                 dao.upsert(entity)
                 File(root, ".complete").writeText(pages.size.toString())
-                runCatching { syncTitleCatalog(titleId, titleName, titleSlug, titleCover) }
                 onStage(DownloadStage.Completed, pages.size, pages.size, null)
                 entity
             } catch (e: Throwable) {
-                if (usedAdCredit) adRewardStore?.refundOfflineCredit()
+                if (usedAdCredit) withContext(NonCancellable) { adRewardStore?.refundOfflineCredit() }
                 throw e
             }
-        }
+        }.onFailure { if (it is CancellationException) throw it }
     }
 
     private suspend fun downloadPageWithRetry(url: String, dest: File, pageIndex: Int) {
@@ -315,6 +326,7 @@ class OfflineRepository(
         var lastError: Throwable? = null
         val candidates = MediaUrl.candidates(url).ifEmpty { listOf(url) }
         repeat(4) { attempt ->
+            currentCoroutineContext().ensureActive()
             part.delete()
             dest.delete()
             try {
@@ -333,7 +345,15 @@ class OfflineRepository(
                     }
                     val body = response.body ?: error("Пустой ответ страницы ${pageIndex + 1}")
                     body.byteStream().use { input ->
-                        part.outputStream().use { output -> input.copyTo(output) }
+                        part.outputStream().use { output ->
+                            val buffer = ByteArray(32 * 1024)
+                            while (true) {
+                                currentCoroutineContext().ensureActive()
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                output.write(buffer, 0, count)
+                            }
+                        }
                     }
                 }
                 if (!ImageIntegrity.isValidFile(part) || !part.renameTo(dest) || !ImageIntegrity.isValidFile(dest)) {
@@ -343,6 +363,7 @@ class OfflineRepository(
                 }
                 return
             } catch (e: Throwable) {
+                if (e is CancellationException) throw e
                 lastError = e
                 part.delete()
                 dest.delete()

@@ -31,6 +31,8 @@ class DownloadManager(
     val state: StateFlow<BatchDownloadState> = _state.asStateFlow()
 
     private var job: Job? = null
+    @Volatile
+    private var generation = 0L
 
     @Volatile
     private var pendingRequest: DownloadBatchRequest? = null
@@ -49,15 +51,16 @@ class DownloadManager(
         titleCover: String?,
         chapters: List<ChapterDto>,
     ) {
-        if (chapters.isEmpty()) return
+        if (chapters.isEmpty() || isBusy()) return
         job?.cancel()
 
-        val refs = chapters.map {
+        val refs = chapters.filter { it.stableId().isNotBlank() }.distinctBy { it.stableId() }.map {
             DownloadChapterRef(
                 chapterId = it.stableId(),
                 chapterLabel = "Глава ${it.numberLabel()}",
             )
         }
+        if (refs.isEmpty()) return
         val request = DownloadBatchRequest(
             titleId = titleId,
             titleName = titleName,
@@ -88,21 +91,27 @@ class DownloadManager(
 
     /** Вызывается сервисом после startForeground. */
     fun runPendingFromService(onProgressNotify: (BatchDownloadState) -> Unit) {
+        if (pendingRequest == null && job?.isActive == true) return
         val request = pendingRequest ?: run {
             onProgressNotify(_state.value.copy(finished = true, runningInBackground = false))
             return
         }
         pendingRequest = null
-        job?.cancel()
+        val previousJob = job
+        previousJob?.cancel()
+        val batchGeneration = ++generation
         job = scope.launch {
+            previousJob?.join()
             try {
                 executeBatch(request) { state ->
-                    onProgressNotify(state)
+                    if (generation == batchGeneration) onProgressNotify(state)
                 }
             } finally {
-                _state.update { it.copy(finished = true, activeIndex = -1, runningInBackground = false) }
-                onProgressNotify(_state.value)
-                DownloadForegroundService.stop(appContext)
+                if (generation == batchGeneration) {
+                    _state.update { it.copy(finished = true, activeIndex = -1, runningInBackground = false) }
+                    onProgressNotify(_state.value)
+                    DownloadForegroundService.stop(appContext)
+                }
             }
         }
     }
@@ -168,6 +177,7 @@ class DownloadManager(
     }
 
     fun cancel() {
+        generation++
         job?.cancel()
         pendingRequest = null
         _state.update { s ->

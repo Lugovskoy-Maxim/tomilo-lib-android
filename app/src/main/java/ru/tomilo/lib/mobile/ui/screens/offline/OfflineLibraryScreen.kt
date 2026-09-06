@@ -49,6 +49,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -138,15 +140,13 @@ fun OfflineLibraryScreen(
     var repairing by remember { mutableStateOf(false) }
     var confirmClearAll by remember { mutableStateOf(false) }
     var storageVerified by remember { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
 
     // При открытии — обновить устаревшие каталоги (новые главы)
     LaunchedEffect(online) {
         if (!storageVerified) {
             repairing = true
-            val report = offlineRepository.verifyAndRepair()
-            if (report.removedEntries > 0 || report.orphanDirectories > 0) {
-                refreshMsg = "Исправлено повреждённых загрузок: ${report.removedEntries + report.orphanDirectories}"
-            }
+            // Открытие библиотеки не должно удалять незавершённые загрузки.
             repairing = false
             storageVerified = true
         }
@@ -176,7 +176,7 @@ fun OfflineLibraryScreen(
         buildGroups(flat, titlesMeta, readByTitle, offlineRepository)
     }
 
-    LaunchedEffect(groups.map { it.titleId }, user?.stableId()) {
+    LaunchedEffect(groups.map { it.titleId }, user?.stableId(), online) {
         if (expanded.isEmpty() && groups.isNotEmpty()) {
             expanded = setOf(groups.first().titleId)
         }
@@ -227,6 +227,7 @@ fun OfflineLibraryScreen(
                 },
                 actions = {
                     IconButton(
+                        enabled = !downloadManager.isBusy() && !repairing,
                         onClick = {
                             scope.launch {
                                 repairing = true
@@ -308,7 +309,22 @@ fun OfflineLibraryScreen(
                         onClearAll = { confirmClearAll = true },
                     )
                 }
-                items(groups, key = { it.titleId }) { group ->
+                item(key = "offline_search") {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Найти скачанный тайтл") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    )
+                }
+                val visibleGroups = groups.filter { it.titleName.contains(searchQuery.trim(), ignoreCase = true) }
+                if (visibleGroups.isEmpty()) {
+                    item(key = "offline_no_results") {
+                        Text("Ничего не найдено. Попробуйте другое название.", modifier = Modifier.padding(16.dp))
+                    }
+                }
+                items(visibleGroups, key = { it.titleId }) { group ->
                     val isOpen = group.titleId in expanded
                     val readIds = readByTitle[group.titleId] ?: emptySet()
                     OfflineTitleBlock(
@@ -383,7 +399,10 @@ fun OfflineLibraryScreen(
             confirmLabel = "Удалить всё",
             onConfirm = {
                 confirmClearAll = false
-                scope.launch { offlineRepository.clearAllOffline() }
+                scope.launch {
+                    if (!downloadManager.isBusy()) offlineRepository.clearAllOffline()
+                    else refreshMsg = "Сначала остановите загрузку"
+                }
             },
             onDismiss = { confirmClearAll = false },
         )

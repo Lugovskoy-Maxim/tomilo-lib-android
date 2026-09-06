@@ -26,7 +26,7 @@ data class ChapterDownloadProgress(
             DownloadStage.FetchingChapter -> 0.12f
             DownloadStage.DownloadingPages -> {
                 if (pagesTotal <= 0) 0.15f
-                else 0.15f + 0.8f * (pagesDone.toFloat() / pagesTotal)
+                else 0.15f + 0.8f * (pagesDone.toFloat() / pagesTotal).coerceIn(0f, 1f)
             }
             DownloadStage.Saving -> 0.96f
             DownloadStage.Completed -> 1f
@@ -65,6 +65,7 @@ data class BatchDownloadState(
 
     val completedCount: Int get() = items.count { it.stage == DownloadStage.Completed }
     val failedCount: Int get() = items.count { it.stage == DownloadStage.Failed }
+    val cancelledCount: Int get() = items.count { it.stage == DownloadStage.Cancelled }
     val activeItem: ChapterDownloadProgress?
         get() = items.getOrNull(activeIndex)
 
@@ -75,11 +76,11 @@ data class BatchDownloadState(
                 return buildString {
                     append("Готово: $completedCount из ${items.size}")
                     if (failedCount > 0) append(" · ошибок $failedCount")
+                    if (cancelledCount > 0) append(" · остановлено $cancelledCount")
                 }
             }
             val active = activeItem
             return buildString {
-                append("${completedCount + if (active?.stage == DownloadStage.Completed) 0 else 0}")
                 // current index is 1-based for user
                 val n = (activeIndex + 1).coerceAtLeast(1)
                 append("Глава $n из ${items.size}")

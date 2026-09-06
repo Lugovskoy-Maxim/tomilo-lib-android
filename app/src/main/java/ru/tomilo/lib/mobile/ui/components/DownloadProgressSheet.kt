@@ -58,7 +58,10 @@ fun DownloadProgressSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    if (state.finished) "Загрузка завершена" else "Скачивание офлайн",
+                    if (!state.finished) "Скачивание офлайн"
+                    else if (state.cancelledCount > 0) "Загрузка остановлена"
+                    else if (state.failedCount > 0) "Не все главы скачаны"
+                    else "Готово к чтению",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
@@ -176,7 +179,7 @@ fun DownloadProgressSheet(
                     Text("Отменить загрузку")
                 }
             } else {
-                if (state.failedCount > 0 && onRetryFailed != null) {
+                if ((state.failedCount > 0 || state.cancelledCount > 0) && onRetryFailed != null) {
                     Button(
                         onClick = onRetryFailed,
                         modifier = Modifier.fillMaxWidth(),
