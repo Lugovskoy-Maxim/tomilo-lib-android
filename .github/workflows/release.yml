@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   release:
-    name: Build signed APK and publish
+    name: Build signed APK and Play App Bundle
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -64,7 +64,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install Android platforms
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Read version from Gradle
         id: version
@@ -100,6 +100,14 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew :app:assembleRustoreRelease --no-daemon
 
+      - name: Build signed Google Play App Bundle
+        env:
+          STORE_FILE: keystores/upload.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew :app:bundlePlayRelease --no-daemon
+
       - name: Package release artifacts
         run: |
           set -euo pipefail
@@ -110,9 +118,14 @@ jobs:
           test -n "$APK_SRC" && test -f "$APK_SRC"
           APK_DST="$OUT/tomilo-lib-${VER}.apk"
           cp -f "$APK_SRC" "$APK_DST"
+          AAB_SRC="$(find app/build/outputs/bundle/playRelease -name '*.aab' | head -1)"
+          test -n "$AAB_SRC" && test -f "$AAB_SRC"
+          AAB_DST="$OUT/tomilo-lib-${VER}.aab"
+          cp -f "$AAB_SRC" "$AAB_DST"
           APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner | sort | tail -1)"
           "$APKSIGNER" verify "$APK_DST"
           (cd "$OUT" && sha256sum "tomilo-lib-${VER}.apk" > "tomilo-lib-${VER}.sha256")
+          (cd "$OUT" && sha256sum "tomilo-lib-${VER}.aab" > "tomilo-lib-${VER}.aab.sha256")
           ls -lh "$OUT"
 
       - name: Build release notes
@@ -128,8 +141,8 @@ jobs:
               f"{body}"
               f"## Сборка\n\n"
               f"- Версия **{ver}** (`versionCode {code}`)\n"
-              f"- Flavor: `rustore` · package: `ru.tomilo.lib.mobile`\n"
-              f"- Подписанный release APK для установки с GitHub Releases\n\n"
+              f"- Play AAB (`playRelease`) для загрузки в Google Play Console\n"
+              f"- RuStore APK (`rustoreRelease`) для установки с GitHub Releases\n\n"
               f"## Установка\n\n"
               f"1. Скачайте `tomilo-lib-{ver}.apk`\n"
               f"2. Разрешите установку из браузера или файлового менеджера\n"
@@ -144,7 +157,12 @@ jobs:
           VER: ${{ steps.version.outputs.name }}
         run: |
           set -euo pipefail
-          ASSETS=(dist/github/tomilo-lib-${VER}.apk dist/github/tomilo-lib-${VER}.sha256)
+          ASSETS=(
+            dist/github/tomilo-lib-${VER}.apk
+            dist/github/tomilo-lib-${VER}.sha256
+            dist/github/tomilo-lib-${VER}.aab
+            dist/github/tomilo-lib-${VER}.aab.sha256
+          )
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${ASSETS[@]}" --clobber
             gh release edit "$TAG" --title "tomilo-lib ${VER}" --notes-file dist/github/RELEASE_NOTES.md

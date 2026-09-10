@@ -39,15 +39,17 @@ val hasReleaseSigning =
 
 android {
     namespace = "ru.tomilo.lib.mobile"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "ru.tomilo.lib.mobile"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // RuStore / production consumer release
-        versionCode = 37
-        versionName = "1.3.1"
+        // 37 уже был загружен в Play Console с targetSdk 35; исправленная сборка
+        // должна иметь новый versionCode, так как Play не заменяет загруженный bundle.
+        versionCode = 38
+        versionName = "1.3.2"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -70,8 +72,8 @@ android {
     /**
      * Каналы магазинов.
      * - rustore — обычные пользователи, RuStore (APK/AAB, isDefault)
-     * - play — Google Play
-     * Один applicationId, один signing key → единая линейка обновлений.
+     * - play — Google Play. Консоль Play уже зарегистрирована на
+     *   `ru.tomilolib.mobile`, поэтому applicationId этого flavor задан явно.
      */
     flavorDimensions += "store"
     productFlavors {
@@ -85,6 +87,7 @@ android {
         }
         create("play") {
             dimension = "store"
+            applicationId = "ru.tomilolib.mobile"
             buildConfigField("String", "STORE_CHANNEL", "\"play\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
             resValue("string", "app_name", "TOMILO LIB")

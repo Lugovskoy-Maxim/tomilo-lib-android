@@ -12,11 +12,11 @@ APK: `app/build/outputs/apk/rustore/debug/`
 
 ## Релиз GitHub
 
-Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.3.1** (`versionCode 37`).
+Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.3.2** (`versionCode 38`).
 
 ```bash
-git tag v1.3.1
-git push origin v1.3.1
+git tag v1.3.2
+git push origin v1.3.2
 ```
 
 Либо Actions → **Release**. Подробности: [`.github/RELEASE.md`](.github/RELEASE.md).
@@ -38,12 +38,13 @@ git push origin v1.3.1
 ./scripts/build-release.sh
 ```
 
-Один keystore на RuStore и Play (`applicationId` общий).  
+Для Google Play используется package `ru.tomilolib.mobile`; для существующего RuStore
+остался `ru.tomilo.lib.mobile`. Один upload keystore можно использовать для обоих.
 `keystores/tomilo-upload.jks` и `keystore.properties` в git не класть.
 
 ## Push-уведомления
 
-1. Firebase Console → создать проект → Android-приложение с package `ru.tomilo.lib.mobile`.
+1. Firebase Console → создать отдельное Android-приложение для Google Play с package `ru.tomilolib.mobile`.
 2. Скачать `google-services.json`, положить в `app/google-services.json` (без него плагин не применяется, сборка идёт как раньше — уведомления только через фоновый polling).
 3. Project Settings → Service Accounts → Generate new private key → JSON одной строкой в `FIREBASE_SERVICE_ACCOUNT_JSON` на сервере (`server/.env`).
 

@@ -80,6 +80,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.ads.OfflineAdLimits
+import ru.tomilo.lib.mobile.ads.OfflineAdStatus
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.ChapterAccess
@@ -140,7 +142,8 @@ fun TitleScreen(
     onOpenPremium: () -> Unit = {},
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
-    val offlineCredits by adRewardStore.offlineCreditsFlow.collectAsState(initial = 0)
+    val adStatus by adRewardStore.statusFlow.collectAsState(initial = OfflineAdStatus())
+    val offlineCredits = adStatus.credits
     val isPremium = Premium.isActive(user?.subscriptionExpiresAt)
     val context = LocalContext.current
     val activity = context as? Activity
@@ -237,6 +240,10 @@ fun TitleScreen(
             startDownload(chaptersToDl)
             return
         }
+        if (offlineCredits == 0 && adStatus.dailyRemaining <= 0) {
+            scope.launch { snackbar.showSnackbar(OfflineAdLimits.DAILY_CAP_MESSAGE) }
+            return
+        }
         // Одна глава без кредитов — предложить рекламу; несколько — скачать сколько есть или ad+1
         if (chaptersToDl.size == 1 && offlineCredits == 0) {
             pendingAdChapters = chaptersToDl
@@ -263,16 +270,27 @@ fun TitleScreen(
             pendingAdChapters = null
             return
         }
+        if (adStatus.dailyRemaining <= 0) {
+            scope.launch { snackbar.showSnackbar(OfflineAdLimits.DAILY_CAP_MESSAGE) }
+            pendingAdChapters = null
+            return
+        }
         adBusy = true
         rewardedAdManager.show(
             activity = act,
-            onRewarded = { amount, _ ->
+            onRewarded = { _, _ ->
                 scope.launch {
-                    val granted = amount.coerceAtLeast(1)
-                    adRewardStore.addOfflineCredits(granted)
-                    snackbar.showSnackbar("Награда: +$granted офлайн-глава")
+                    val grant = adRewardStore.grantRewarded()
+                    if (!grant.ok) {
+                        snackbar.showSnackbar(grant.reason ?: OfflineAdLimits.DAILY_CAP_MESSAGE)
+                        adBusy = false
+                        return@launch
+                    }
+                    snackbar.showSnackbar(
+                        "Награда: +${grant.creditsAdded} глава, чтение ${OfflineAdLimits.READ_PASS_MINUTES} мин",
+                    )
                     // кредит начислен — OfflineRepository спишет при скачивании
-                    startDownload(pending.take(granted.coerceAtLeast(1)))
+                    startDownload(pending.take(1))
                     pendingAdChapters = null
                     adBusy = false
                 }
@@ -563,10 +581,9 @@ fun TitleScreen(
                                 Text(
                                     when {
                                         isPremium -> "□ — выбор глав для офлайн (Premium)"
-                                        offlineCredits > 0 ->
-                                            "□ — офлайн: $offlineCredits кредит(ов) за рекламу"
                                         else ->
-                                            "□ — офлайн: Premium или реклама (+1 глава)"
+                                            "□ — офлайн: $offlineCredits/${OfflineAdLimits.MAX_STORED_CREDITS} кр. · " +
+                                                "реклама ${adStatus.dailyRemaining}/${OfflineAdLimits.MAX_REWARDED_PER_DAY} сегодня"
                                     },
                                     color = TomiloMuted,
                                     style = MaterialTheme.typography.bodySmall,
@@ -757,7 +774,7 @@ fun TitleScreen(
                                         append(formatChapterTitle(chapter.numberLabel(), chapter.name))
                                         if (isRead) append("  ✓")
                                         if (paidLocked) append("  · закрыта")
-                                        else if (chapter.isPaid == true && (isPremium || canOpenPaid)) {
+                                        else if (chapter.isPaid == true && (isPremium || canOpenPaid) && ChapterAccess.isPremiumOnly(chapter.isPaid, chapter.freeAt, chapter.isUnlockedByActivityCoins)) {
                                             append("  · Premium")
                                         }
                                     },
@@ -868,13 +885,15 @@ fun TitleScreen(
             text = {
                 Text(
                     "Скачать главу ${pending.firstOrNull()?.numberLabel() ?: ""} можно после " +
-                        "просмотра рекламы (+1 кредит) или с подпиской Premium (безлимит).",
+                        "просмотра рекламы (+1 кредит, чтение ${OfflineAdLimits.READ_PASS_MINUTES} мин). " +
+                        "Сегодня ещё ${adStatus.dailyRemaining} из ${OfflineAdLimits.MAX_REWARDED_PER_DAY}. " +
+                        "Premium — без лимитов.",
                 )
             },
             confirmButton = {
                 Button(
                     onClick = { showRewardedForPending() },
-                    enabled = !adBusy,
+                    enabled = !adBusy && adStatus.dailyRemaining > 0,
                 ) {
                     Text(if (adBusy) "Загрузка…" else "Смотреть рекламу")
                 }

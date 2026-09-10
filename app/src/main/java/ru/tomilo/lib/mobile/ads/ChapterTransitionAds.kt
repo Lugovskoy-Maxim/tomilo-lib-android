@@ -13,7 +13,8 @@ import ru.tomilo.lib.mobile.data.local.AdRewardStore
 
 /**
  * Реклама при переходе между главами: не чаще 1 раза в 10 минут.
- * Premium — без рекламы. Приоритет: interstitial → fallback rewarded (кредит офлайн).
+ * Premium — без рекламы. Приоритет: interstitial → fallback rewarded
+ * (1 кредит + пропуск офлайн-чтения, с дневным лимитом).
  */
 class ChapterTransitionAds(
     private val frequencyStore: AdFrequencyStore,
@@ -40,11 +41,11 @@ class ChapterTransitionAds(
         }
 
         scope.launch {
-            val canShow = frequencyStore.canShowInterChapter()
-            if (!canShow) {
+            if (!shouldPrompt(user, alreadyCheckedPremium = true)) {
                 withContext(Dispatchers.Main) { proceed() }
                 return@launch
             }
+            val canReward = adRewardStore.canGrantRewarded()
 
             withContext(Dispatchers.Main) {
                 when {
@@ -55,8 +56,8 @@ class ChapterTransitionAds(
                             proceed()
                         }
                     }
-                    // Fallback: rewarded-блок, если interstitial unit ещё не создан
-                    rewardedAdManager.isReady -> {
+                    // Fallback: rewarded, если interstitial unit ещё не создан
+                    rewardedAdManager.isReady && canReward -> {
                         Log.i(TAG, "Show rewarded fallback between chapters")
                         var finished = false
                         fun done() {
@@ -67,17 +68,15 @@ class ChapterTransitionAds(
                         }
                         rewardedAdManager.show(
                             activity = activity,
-                            onRewarded = { amount, _ ->
-                                scope.launch {
-                                    adRewardStore.addOfflineCredits(amount.coerceAtLeast(1))
-                                }
+                            onRewarded = { _, _ ->
+                                scope.launch { adRewardStore.grantRewarded() }
                             },
                             onFailed = { done() },
                             onDismissed = { done() },
                         )
                     }
                     else -> {
-                        // реклама не готова — не блокируем чтение, кулдаун не ставим
+                        // реклама не готова / дневной лимит — не блокируем чтение
                         interstitialAdManager.preload()
                         rewardedAdManager.preload()
                         proceed()
@@ -87,7 +86,20 @@ class ChapterTransitionAds(
         }
     }
 
+    /**
+     * Будет ли попытка показать рекламу. Таймер 5–1 только в этом случае.
+     */
+    suspend fun shouldPrompt(user: UserDto?, alreadyCheckedPremium: Boolean = false): Boolean {
+        if (!alreadyCheckedPremium && Premium.isActive(user?.subscriptionExpiresAt)) return false
+        if (!frequencyStore.canShowInterChapter()) return false
+        if (interstitialAdManager.enabled) return true
+        return rewardedAdManager.isReady && adRewardStore.canGrantRewarded()
+    }
+
     companion object {
         private const val TAG = "ChapterTransitionAds"
+        const val COUNTDOWN_SECONDS = 5
+
+        fun countdownTicks(): IntProgression = COUNTDOWN_SECONDS downTo 1
     }
 }

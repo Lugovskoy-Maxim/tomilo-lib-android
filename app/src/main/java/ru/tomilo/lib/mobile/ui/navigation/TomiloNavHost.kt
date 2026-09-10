@@ -590,6 +590,8 @@ fun TomiloNavHost(container: AppContainer) {
                     readingPrefs = container.readingPrefs,
                     authRepository = container.authRepository,
                     chapterTransitionAds = container.chapterTransitionAds,
+                    rewardedAdManager = container.rewardedAdManager,
+                    adRewardStore = container.adRewardStore,
                     onBack = { navController.popBackStack() },
                     onOpenTitle = { id -> navigateTitleRoot(id) },
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },

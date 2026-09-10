@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -116,11 +117,16 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
+import ru.tomilo.lib.mobile.ads.OfflineAdLimits
+import ru.tomilo.lib.mobile.ads.OfflineAdStatus
+import ru.tomilo.lib.mobile.ads.RewardedAdManager
 import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.formatChapterTitle
@@ -136,6 +142,7 @@ import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.core.WebtoonTile
 import ru.tomilo.lib.mobile.core.WebtoonTiles
 import ru.tomilo.lib.mobile.data.api.ChapterDto
+import ru.tomilo.lib.mobile.data.local.AdRewardStore
 import ru.tomilo.lib.mobile.data.local.ReadingPosition
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.local.ReadingSettings
@@ -166,6 +173,8 @@ fun ReaderScreen(
     readingPrefs: ReadingPrefs,
     authRepository: AuthRepository,
     chapterTransitionAds: ChapterTransitionAds,
+    rewardedAdManager: RewardedAdManager,
+    adRewardStore: AdRewardStore,
     onBack: () -> Unit,
     onOpenTitle: (titleId: String) -> Unit = {},
     onOpenUser: (userId: String) -> Unit = {},
@@ -183,6 +192,7 @@ fun ReaderScreen(
     val scope = rememberCoroutineScope()
     val connectivityFlow = remember(context) { context.networkAvailabilityFlow() }
     val online by connectivityFlow.collectAsState(initial = context.isNetworkAvailable())
+    val adStatus by adRewardStore.statusFlow.collectAsState(initial = OfflineAdStatus())
     var currentChapterId by rememberSaveable { mutableStateOf(chapterId) }
     val listState = rememberSaveable(currentChapterId, saver = LazyListState.Saver) {
         LazyListState(0, 0)
@@ -193,6 +203,11 @@ fun ReaderScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var needsPremium by remember { mutableStateOf(false) }
     var needsLogin by remember { mutableStateOf(false) }
+    var needsOfflineAd by remember { mutableStateOf(false) }
+    var adBusy by remember { mutableStateOf(false) }
+    var adCountdown by remember { mutableIntStateOf(0) }
+    var adCountdownTarget by remember { mutableStateOf<String?>(null) }
+    var adCountdownJob by remember { mutableStateOf<Job?>(null) }
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var pageDimensions by remember { mutableStateOf<List<PageDimensions>>(emptyList()) }
     val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
@@ -326,6 +341,7 @@ fun ReaderScreen(
             error = null
             needsPremium = false
             needsLogin = false
+            needsOfflineAd = false
             currentChapterId = id
             currentChapterNumber = null
             autoScroll = false
@@ -350,6 +366,17 @@ fun ReaderScreen(
                     val entity = offlineRepository.getEntity(id)
                     effectiveTitleId = titleId ?: entity?.titleId
                     title = entity?.let { "Глава ${it.chapterNumber}" } ?: "Глава (офлайн)"
+                    val gateRead = OfflineAdLimits.requiresAdForOfflineRead(
+                        isPremium = isPremium,
+                        online = context.isNetworkAvailable(),
+                        hasReadPass = adRewardStore.hasOfflineReadAccess(),
+                    )
+                    if (gateRead) {
+                        needsOfflineAd = true
+                        offline = true
+                        loading = false
+                        return@launch
+                    }
                     val localSources = local.map { File(it).toURI().toString() }
                     pageDimensions = WebtoonTiles.measureLocalSources(localSources)
                     pages = localSources
@@ -475,13 +502,75 @@ fun ReaderScreen(
         restoredChapterId = currentChapterId
     }
 
+    fun showRewardedForOfflineRead() {
+        val act = activity
+        if (act == null || act.isFinishing) {
+            chapterNavMessage = "Не удалось открыть рекламу"
+            return
+        }
+        if (!online) {
+            chapterNavMessage = "Нужен интернет, чтобы посмотреть рекламу"
+            return
+        }
+        if (adStatus.dailyRemaining <= 0) {
+            chapterNavMessage = OfflineAdLimits.DAILY_CAP_MESSAGE
+            return
+        }
+        adBusy = true
+        rewardedAdManager.show(
+            activity = act,
+            onRewarded = { _, _ ->
+                scope.launch {
+                    val grant = adRewardStore.grantRewarded()
+                    adBusy = false
+                    if (grant.ok) {
+                        needsOfflineAd = false
+                        loadChapter(currentChapterId)
+                    } else {
+                        chapterNavMessage = grant.reason ?: OfflineAdLimits.DAILY_CAP_MESSAGE
+                    }
+                }
+            },
+            onFailed = { msg ->
+                adBusy = false
+                chapterNavMessage = msg
+            },
+            onDismissed = { adBusy = false },
+        )
+    }
+
     fun goChapter(nextId: String, restorePosition: Boolean = false) {
         if (nextId.isBlank() || nextId == currentChapterId || loading) return
-        chapterTransitionAds.maybeShowThen(
-            activity = activity,
-            user = user,
-            proceed = { loadChapter(nextId, restorePosition = restorePosition) },
-        )
+        if (offline) {
+            adCountdownJob?.cancel()
+            adCountdown = 0
+            loadChapter(nextId, restorePosition = restorePosition)
+            return
+        }
+        if (adCountdownJob?.isActive == true && adCountdownTarget == nextId) return
+        adCountdownTarget = nextId
+        adCountdownJob?.cancel()
+        adCountdownJob = scope.launch {
+            try {
+                val prompt = chapterTransitionAds.shouldPrompt(user)
+                if (prompt) {
+                    autoScroll = false
+                    for (n in ChapterTransitionAds.countdownTicks()) {
+                        adCountdown = n
+                        delay(1_000)
+                    }
+                }
+                ensureActive()
+                adCountdown = 0
+                chapterTransitionAds.maybeShowThen(
+                    activity = activity,
+                    user = user,
+                    proceed = { loadChapter(nextId, restorePosition = restorePosition) },
+                )
+            } finally {
+                adCountdown = 0
+            }
+        }
     }
 
     fun goPrev() {
@@ -545,6 +634,10 @@ fun ReaderScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        rewardedAdManager.preload()
+    }
+
     LaunchedEffect(chapterId) {
         if (chapterId.isNotBlank()) {
             loadChapter(currentChapterId.ifBlank { chapterId })
@@ -552,7 +645,13 @@ fun ReaderScreen(
     }
 
     LaunchedEffect(user?.stableId(), user?.subscriptionExpiresAt) {
-        if (pages.isEmpty() && !loading && (needsPremium || error != null)) {
+        if (pages.isEmpty() && !loading && (needsPremium || needsOfflineAd || error != null)) {
+            loadChapter(currentChapterId)
+        }
+    }
+
+    LaunchedEffect(online) {
+        if (!online && needsOfflineAd && !loading) {
             loadChapter(currentChapterId)
         }
     }
@@ -661,7 +760,10 @@ fun ReaderScreen(
     }
 
     BackHandler {
-        if (showChapters) showChapters = false
+        if (adCountdown > 0) {
+            adCountdownJob?.cancel()
+            adCountdown = 0
+        } else if (showChapters) showChapters = false
         else if (!chromeVisible) chromeVisible = true
         else openParentTitle()
     }
@@ -695,6 +797,14 @@ fun ReaderScreen(
     ) {
         when {
             loading -> ReaderLoading()
+            needsOfflineAd -> OfflineAdGate(
+                online = online,
+                adBusy = adBusy,
+                dailyRemaining = adStatus.dailyRemaining,
+                onWatchAd = { showRewardedForOfflineRead() },
+                onPremium = onOpenPremium,
+                onOpenOffline = onOpenOffline,
+            )
             error != null && needsPremium -> PremiumGate(
                 message = error,
                 needsLogin = needsLogin,
@@ -1003,6 +1113,10 @@ fun ReaderScreen(
                     }
                 }
             }
+        }
+
+        if (adCountdown > 0) {
+            AdCountdownOverlay(secondsLeft = adCountdown)
         }
     }
 
@@ -1356,6 +1470,113 @@ private fun ReaderError(message: String, onRetry: () -> Unit) {
                     Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(7.dp))
                     Text("Попробовать снова")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdCountdownOverlay(secondsLeft: Int) {
+    val secondsWord = when (secondsLeft) {
+        1 -> "секунду"
+        in 2..4 -> "секунды"
+        else -> "секунд"
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.78f))
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent()
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "Реклама через",
+                color = TomiloMuted,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                secondsLeft.toString(),
+                color = Color.White,
+                style = MaterialTheme.typography.displayLarge,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                secondsWord,
+                color = TomiloMuted,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun OfflineAdGate(
+    online: Boolean,
+    adBusy: Boolean,
+    dailyRemaining: Int,
+    onWatchAd: () -> Unit,
+    onPremium: () -> Unit,
+    onOpenOffline: () -> Unit,
+) {
+    val canWatch = online && !adBusy && dailyRemaining > 0
+    val message = when {
+        !online ->
+            "Офлайн-чтение без Premium открывается после рекламы. Подключитесь к сети или оформите Premium."
+        dailyRemaining <= 0 ->
+            OfflineAdLimits.DAILY_CAP_MESSAGE
+        else ->
+            "Посмотрите рекламу — доступ на ${OfflineAdLimits.READ_PASS_MINUTES} минут " +
+                "(сегодня ещё $dailyRemaining из ${OfflineAdLimits.MAX_REWARDED_PER_DAY})."
+    }
+    Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            color = Color(0xFF17171D),
+            shape = RoundedCornerShape(28.dp),
+            border = BorderStroke(1.dp, Color(0xFFE4B85D).copy(alpha = 0.30f)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.size(68.dp).clip(RoundedCornerShape(23.dp)).background(Color(0xFFE4B85D).copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.CloudDownload, null, tint = Color(0xFFE4B85D), modifier = Modifier.size(32.dp))
+                }
+                Spacer(Modifier.height(15.dp))
+                Text("Офлайн-глава за рекламу", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(5.dp))
+                Text(message, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = onWatchAd,
+                    enabled = canWatch,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        when {
+                            adBusy -> "Загрузка…"
+                            !online -> "Нужен интернет"
+                            dailyRemaining <= 0 -> "Лимит на сегодня"
+                            else -> "Смотреть рекламу"
+                        },
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onPremium, modifier = Modifier.fillMaxWidth()) {
+                    Text("Оформить Premium")
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = onOpenOffline, modifier = Modifier.fillMaxWidth()) {
+                    Text("К офлайн-библиотеке")
                 }
             }
         }
