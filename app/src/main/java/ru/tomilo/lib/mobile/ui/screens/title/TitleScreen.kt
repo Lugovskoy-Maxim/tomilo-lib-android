@@ -10,16 +10,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,9 +48,11 @@ import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
@@ -53,11 +60,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -71,14 +75,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.ads.OfflineAdLimits
 import ru.tomilo.lib.mobile.ads.OfflineAdStatus
@@ -86,7 +91,6 @@ import ru.tomilo.lib.mobile.ads.RewardedAdManager
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.formatChapterTitle
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
@@ -101,10 +105,14 @@ import ru.tomilo.lib.mobile.ui.components.CommentsSection
 import ru.tomilo.lib.mobile.ui.components.DownloadProgressSheet
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
-import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
+import ru.tomilo.lib.mobile.ui.components.formatRating
+import ru.tomilo.lib.mobile.ui.components.statusColor
+import ru.tomilo.lib.mobile.ui.components.statusLabel
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
+import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import java.util.Locale
@@ -390,90 +398,8 @@ fun TitleScreen(
 
     Scaffold(
         containerColor = TomiloBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        if (selectMode) "Выбрано: ${selected.size}"
-                        else title?.name ?: "Тайтл",
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (selectMode) {
-                            selectMode = false
-                            selected = emptySet()
-                        } else onOpenHome()
-                    }) {
-                        Icon(
-                            if (selectMode) Icons.Default.Close else Icons.Default.Home,
-                            contentDescription = if (selectMode) "Закрыть выбор" else "На главную",
-                        )
-                    }
-                },
-                actions = {
-                    if (selectMode) {
-                        IconButton(onClick = {
-                            val allIds = sortedChapters.map { it.stableId() }.filter { it !in downloadedIds }
-                            selected = if (selected.size >= allIds.size) emptySet() else allIds.toSet()
-                        }) {
-                            Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
-                        }
-                    } else {
-                        IconButton(
-                            onClick = {
-                                val t = title ?: return@IconButton
-                                val key = t.slug?.takeIf { it.isNotBlank() } ?: t.stableId()
-                                val url = "${BuildConfig.SITE_URL}/titles/$key"
-                                val send = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, t.name ?: "Тайтл в tomilo-lib")
-                                    putExtra(Intent.EXTRA_TEXT, "${t.name ?: "Смотрите в tomilo-lib"}\n$url")
-                                }
-                                context.startActivity(Intent.createChooser(send, "Поделиться тайтлом"))
-                            },
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = "Поделиться")
-                        }
-                        IconButton(onClick = { selectMode = true }) {
-                            Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Выбор загрузки")
-                        }
-                        IconButton(
-                            onClick = {
-                                val tid = title?.stableId().orEmpty()
-                                if (tid.isBlank()) return@IconButton
-                                if (user == null) {
-                                    onLogin()
-                                    return@IconButton
-                                }
-                                scope.launch {
-                                if (bookmarked) {
-                                        showBookmarkCategories = true
-                                    } else {
-                                        socialRepository.addBookmark(tid, "reading")
-                                            .onSuccess {
-                                                bookmarked = true
-                                                bookmarkCategory = "reading"
-                                                snackbar.showSnackbar("В закладках")
-                                            }
-                                    }
-                                }
-                            },
-                        ) {
-                            Icon(
-                                if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                                contentDescription = "Закладка",
-                                tint = if (bookmarked) MaterialTheme.colorScheme.primary else TomiloMuted,
-                            )
-                        }
-                    }
-                },
-                colors = tomiloTopBarColors(),
-            )
-        },
         bottomBar = {
             if (selectMode) {
                 Row(
@@ -483,10 +409,14 @@ fun TitleScreen(
                         .padding(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    TextButton(onClick = {
-                        selectMode = false
-                        selected = emptySet()
-                    }, modifier = Modifier.weight(1f)) { Text("Отмена") }
+                    TextButton(
+                        onClick = {
+                            selectMode = false
+                            selected = emptySet()
+                        },
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                    ) { Text("Отмена") }
                     Button(
                         onClick = {
                             val toDownload = sortedChapters.filter {
@@ -494,7 +424,9 @@ fun TitleScreen(
                             }
                             requestDownload(toDownload)
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
                         enabled = selected.isNotEmpty() && !downloadManager.isBusy() && !adBusy,
                     ) {
                         Text(
@@ -526,13 +458,16 @@ fun TitleScreen(
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
+                            .height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
+                        contentPadding = PaddingValues(horizontal = 18.dp),
                     ) {
                         Text(
-                            if (readChapterIds.isEmpty()) "Читать"
+                            if (readChapterIds.isEmpty()) "Читать сейчас"
                             else "Продолжить",
-                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
                         )
                     }
                 }
@@ -540,97 +475,97 @@ fun TitleScreen(
         },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding))
-            error != null && title == null -> ErrorBox(error ?: "Ошибка")
+            loading -> LoadingBox(Modifier.padding(padding).statusBarsPadding())
+            error != null && title == null -> ErrorBox(error ?: "Ошибка", Modifier.padding(padding).statusBarsPadding())
             title != null -> {
                 val t = title!!
                 LazyColumn(
                     Modifier.padding(padding).fillMaxSize(),
                 ) {
                     item {
-                        Row(
-                            Modifier.padding(12.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp))
-                                .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f), TomiloSurface2.copy(alpha = 0.78f))))
-                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.20f), RoundedCornerShape(24.dp))
-                                .padding(16.dp),
-                        ) {
-                            AsyncImage(
-                                model = MediaUrl.resolve(t.coverImage),
-                                contentDescription = t.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .width(110.dp)
-                                    .aspectRatio(2f / 3f)
-                                    .shadow(12.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black.copy(alpha = 0.35f))
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(TomiloSurface2),
-                            )
-                            Spacer(Modifier.width(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(t.name.orEmpty(), style = MaterialTheme.typography.headlineSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                Spacer(Modifier.height(6.dp))
-                                val meta = listOfNotNull(
-                                    t.type?.let(::titleTypeLabel),
-                                    t.status?.let(::titleStatusLabel),
-                                    t.releaseYear?.toString(),
-                                    t.averageRating?.let { "★ %.1f".format(it) },
-                                    t.totalChapters?.let { "$it гл." },
-                                ).joinToString(" · ")
-                                Text(meta, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    when {
-                                        isPremium -> "□ — выбор глав для офлайн (Premium)"
-                                        else ->
-                                            "□ — офлайн: $offlineCredits/${OfflineAdLimits.MAX_STORED_CREDITS} кр. · " +
-                                                "реклама ${adStatus.dailyRemaining}/${OfflineAdLimits.MAX_REWARDED_PER_DAY} сегодня"
-                                    },
-                                    color = TomiloMuted,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                if (user != null && readChapterIds.isNotEmpty()) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "Прочитано: ${readChapterIds.size}" +
-                                            (t.totalChapters?.let { " / $it" } ?: ""),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
+                        TitleHero(
+                            title = t,
+                            selectMode = selectMode,
+                            selectedCount = selected.size,
+                            bookmarked = bookmarked,
+                            continueChapterId = continueChapterId,
+                            hasStarted = readChapterIds.isNotEmpty(),
+                            onBack = {
+                                if (selectMode) {
+                                    selectMode = false
+                                    selected = emptySet()
+                                } else onOpenHome()
+                            },
+                            onSelectAll = {
+                                val allIds = sortedChapters.map { it.stableId() }.filter { it !in downloadedIds }
+                                selected = if (selected.size >= allIds.size) emptySet() else allIds.toSet()
+                            },
+                            onShare = {
+                                val key = t.slug?.takeIf { it.isNotBlank() } ?: t.stableId()
+                                val url = "${BuildConfig.SITE_URL}/titles/$key"
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, t.name ?: "Тайтл в tomilo-lib")
+                                    putExtra(Intent.EXTRA_TEXT, "${t.name ?: "Смотрите в tomilo-lib"}\n$url")
                                 }
-                                if (continueChapterId != null) {
-                                    Spacer(Modifier.height(12.dp))
-                                    Button(
-                                        onClick = {
-                                            onOpenChapter(
-                                                t.stableId(),
-                                                continueChapterId!!,
-                                                continueChapterId in downloadedIds,
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(48.dp),
-                                        shape = RoundedCornerShape(14.dp),
-                                    ) {
-                                        Text(
-                                            if (readChapterIds.isEmpty()) "Читать"
-                                            else "Продолжить чтение",
-                                            style = MaterialTheme.typography.titleMedium,
-                                        )
+                                context.startActivity(Intent.createChooser(send, "Поделиться тайтлом"))
+                            },
+                            onToggleSelectMode = { selectMode = true },
+                            onBookmark = {
+                                val tid = t.stableId()
+                                if (tid.isBlank()) return@TitleHero
+                                if (user == null) {
+                                    onLogin()
+                                    return@TitleHero
+                                }
+                                scope.launch {
+                                    if (bookmarked) {
+                                        showBookmarkCategories = true
+                                    } else {
+                                        socialRepository.addBookmark(tid, "reading")
+                                            .onSuccess {
+                                                bookmarked = true
+                                                bookmarkCategory = "reading"
+                                                snackbar.showSnackbar("В закладках")
+                                            }
                                     }
                                 }
-                            }
-                        }
-                        TabRow(
-                            selectedTabIndex = pageTab.ordinal,
-                            containerColor = Color.Transparent,
-                            modifier = Modifier.padding(top = 4.dp),
+                            },
+                            onRead = {
+                                val chapterId = continueChapterId ?: return@TitleHero
+                                onOpenChapter(t.stableId(), chapterId, chapterId in downloadedIds)
+                            },
+                        )
+                        Row(
+                            Modifier
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             TitlePageTab.entries.forEach { tab ->
-                                Tab(
-                                    selected = pageTab == tab,
+                                val selectedTab = pageTab == tab
+                                FilterChip(
+                                    selected = selectedTab,
                                     onClick = { pageTab = tab },
-                                    text = { Text(tab.label) },
+                                    label = {
+                                        Text(
+                                            tab.label,
+                                            fontWeight = if (selectedTab) FontWeight.Bold else FontWeight.Medium,
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = TomiloPrimary,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = Color(0xFF1A1C20),
+                                        labelColor = Color.White,
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = selectedTab,
+                                        borderColor = Color.White.copy(alpha = 0.08f),
+                                        selectedBorderColor = TomiloPrimary,
+                                    ),
+                                    shape = RoundedCornerShape(20.dp),
                                 )
                             }
                         }
@@ -704,14 +639,33 @@ fun TitleScreen(
                         Row(
                             Modifier
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             ChapterSort.entries.forEach { option ->
+                                val selectedSort = sort == option
                                 FilterChip(
-                                    selected = sort == option,
+                                    selected = selectedSort,
                                     onClick = { sort = option },
-                                    label = { Text(option.label) },
-                                    modifier = Modifier.padding(horizontal = 3.dp),
+                                    label = {
+                                        Text(
+                                            option.label,
+                                            fontWeight = if (selectedSort) FontWeight.Bold else FontWeight.Medium,
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = TomiloPrimary,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = Color(0xFF1A1C20),
+                                        labelColor = Color.White,
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = selectedSort,
+                                        borderColor = Color.White.copy(alpha = 0.08f),
+                                        selectedBorderColor = TomiloPrimary,
+                                    ),
+                                    shape = RoundedCornerShape(20.dp),
                                 )
                             }
                         }
@@ -966,6 +920,266 @@ fun TitleScreen(
             },
         )
     }
+}
+
+@Composable
+private fun TitleHero(
+    title: TitleDetailDto,
+    selectMode: Boolean,
+    selectedCount: Int,
+    bookmarked: Boolean,
+    continueChapterId: String?,
+    hasStarted: Boolean,
+    onBack: () -> Unit,
+    onSelectAll: () -> Unit,
+    onShare: () -> Unit,
+    onToggleSelectMode: () -> Unit,
+    onBookmark: () -> Unit,
+    onRead: () -> Unit,
+) {
+    val screenH = LocalConfiguration.current.screenHeightDp.dp
+    val heroHeight = (screenH * 0.58f).coerceIn(420.dp, 560.dp)
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(heroHeight)
+            .background(TomiloBg),
+    ) {
+        TomiloCoverImage(
+            source = title.coverImage,
+            contentDescription = title.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.28f),
+                            Color.Black.copy(alpha = 0.12f),
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.Black.copy(alpha = 0.88f),
+                        ),
+                    ),
+                ),
+        )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OverlayCapsule(onClick = onBack) {
+                    Icon(
+                        if (selectMode) Icons.Default.Close else Icons.Default.Home,
+                        contentDescription = if (selectMode) "Закрыть выбор" else "На главную",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    if (selectMode) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Выбрано: $selectedCount",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                OverlayCapsule {
+                    if (selectMode) {
+                        OverlayIcon(Icons.Default.SelectAll, "Выбрать все", onSelectAll)
+                    } else {
+                        OverlayIcon(Icons.Default.Share, "Поделиться", onShare)
+                        Spacer(Modifier.width(4.dp))
+                        OverlayIcon(Icons.Default.CheckBoxOutlineBlank, "Выбор загрузки", onToggleSelectMode)
+                        Spacer(Modifier.width(4.dp))
+                        OverlayIcon(
+                            if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            "Закладка",
+                            onBookmark,
+                            tint = if (bookmarked) TomiloPrimary else Color.White,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            title.averageRating?.takeIf { it > 0 }?.let { rating ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = TomiloPremium,
+                        modifier = Modifier.size(13.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        formatRating(rating),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            if (continueChapterId != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = onRead,
+                        modifier = Modifier.height(44.dp),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
+                        contentPadding = PaddingValues(horizontal = 18.dp),
+                    ) {
+                        Text(
+                            if (hasStarted) "Продолжить" else "Читать сейчас",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                        )
+                    }
+                    Row(
+                        Modifier
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(Color(0xCC2A2A2E))
+                            .clickable(onClick = onBookmark)
+                            .padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            contentDescription = null,
+                            tint = if (bookmarked) TomiloPrimary else TomiloPremium,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (bookmarked) "В закладках" else "В закладки",
+                            color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title.name.orEmpty(),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        Modifier.padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        title.type?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                titleTypeLabel(it),
+                                color = TomiloPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        title.releaseYear?.let {
+                            Text("$it", color = TomiloMuted, fontSize = 12.sp)
+                        }
+                        title.totalChapters?.let {
+                            Text("·  $it глав", color = TomiloMuted, fontSize = 12.sp)
+                        }
+                    }
+                }
+                title.status?.takeIf { it.isNotBlank() }?.let { status ->
+                    val color = statusColor(status)
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(color),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            statusLabel(status),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverlayCapsule(
+    onClick: (() -> Unit)? = null,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(Color.Black.copy(alpha = 0.62f))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+@Composable
+private fun OverlayIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    tint: Color = Color.White,
+) {
+    Icon(
+        icon,
+        contentDescription = description,
+        tint = tint,
+        modifier = Modifier
+            .size(22.dp)
+            .clickable(onClick = onClick),
+    )
 }
 
 @Composable

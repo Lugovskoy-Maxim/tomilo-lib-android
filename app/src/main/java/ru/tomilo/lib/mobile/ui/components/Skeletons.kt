@@ -173,16 +173,15 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .padding(bottom = 110.dp),
     ) {
-        // Search bar skeleton
         SkeletonBox(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .height(48.dp),
-            radius = 16.dp,
+                .height(460.dp),
+            radius = 0.dp,
         )
 
-        // Filter chips skeleton
+        Spacer(Modifier.height(14.dp))
+
         Row(
             Modifier
                 .fillMaxWidth()
@@ -194,34 +193,21 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
             }
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
 
-        // Hero Spotlight banner skeleton
-        SkeletonBox(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .height(190.dp),
-            radius = 24.dp,
-        )
-
-        Spacer(Modifier.height(22.dp))
-
-        // Quick Hub Row skeleton
         Row(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            repeat(4) {
-                SkeletonBox(Modifier.weight(1f).height(62.dp), radius = 16.dp)
+            repeat(3) {
+                SkeletonBox(Modifier.width(110.dp).height(34.dp), radius = 10.dp)
             }
         }
 
         Spacer(Modifier.height(24.dp))
 
-        // Section header skeleton
         Row(
             Modifier
                 .fillMaxWidth()
@@ -234,7 +220,6 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(12.dp))
 
-        // Grid of 2x2 posters
         Column(
             Modifier.padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

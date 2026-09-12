@@ -1690,29 +1690,31 @@ private fun WebtoonReader(
 ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(pages, key = { i, _ -> "$chapterId-$i" }) { index, page ->
-            val dimensions = pageDimensions.getOrNull(index)
-            if (dimensions?.isValid() == true) {
-                TiledWebtoonPage(
-                    page = page,
-                    index = index,
-                    total = pages.size,
-                    dimensions = dimensions,
-                    attempt = pageRetryNonce[index] ?: 0,
-                    onTap = onToggleChrome,
-                )
-            } else {
-                ReaderPage(
-                    page = page,
-                    index = index,
-                    total = pages.size,
-                    failed = index in failedPages,
-                    loaded = index in loadedPages,
-                    attempt = pageRetryNonce[index] ?: 0,
-                    fillHeight = false,
-                    onRetry = { onRetry(index, page) },
-                    onState = { success, attempt -> onState(index, success, attempt, page) },
-                    onTap = onToggleChrome,
-                )
+            Box(Modifier.fillMaxWidth().clipToBounds()) {
+                val dimensions = pageDimensions.getOrNull(index)
+                if (dimensions?.isValid() == true) {
+                    TiledWebtoonPage(
+                        page = page,
+                        index = index,
+                        total = pages.size,
+                        dimensions = dimensions,
+                        attempt = pageRetryNonce[index] ?: 0,
+                        onTap = onToggleChrome,
+                    )
+                } else {
+                    ReaderPage(
+                        page = page,
+                        index = index,
+                        total = pages.size,
+                        failed = index in failedPages,
+                        loaded = index in loadedPages,
+                        attempt = pageRetryNonce[index] ?: 0,
+                        fillHeight = false,
+                        onRetry = { onRetry(index, page) },
+                        onState = { success, attempt -> onState(index, success, attempt, page) },
+                        onTap = onToggleChrome,
+                    )
+                }
             }
         }
         item {
@@ -1771,27 +1773,56 @@ private fun TiledWebtoonPage(
     onTap: () -> Unit,
 ) {
     val context = LocalContext.current
-    var splitDims by remember(page, dimensions) { mutableStateOf(dimensions) }
-    LaunchedEffect(page, dimensions, attempt) {
+    // Серверные pageDimensions часто расходятся с файлом (сжатие, webp).
+    // Нарезка до measure даёт некратные MCU границы: декодер захватывает
+    // пиксели соседней плитки, и страницы наезжают. Офлайн меряет файл сразу —
+    // онлайн ждём тот же размер и только потом split/decode.
+    var sourceDims by remember(page, attempt) { mutableStateOf<PageDimensions?>(null) }
+    LaunchedEffect(page, attempt) {
         val measured = runCatching { WebtoonTiles.measureSource(context, page, retry = attempt) }
             .getOrNull()
-        if (measured != null && measured.isValid() && measured != splitDims) {
-            splitDims = measured
+            ?.takeIf { it.isValid() }
+        sourceDims = measured ?: dimensions.takeIf { it.isValid() }
+    }
+    val splitDims = sourceDims
+    if (splitDims == null) {
+        val placeholder = if (dimensions.isValid()) {
+            Modifier.aspectRatio(dimensions.width.toFloat() / dimensions.height.toFloat())
+        } else {
+            Modifier.heightIn(min = 280.dp)
         }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(placeholder)
+                .background(Color.Black)
+                .clipToBounds()
+                .pointerInput(page) { detectTapGestures(onTap = { onTap() }) },
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.material3.CircularProgressIndicator(
+                modifier = Modifier.size(25.dp),
+                color = TomiloPrimary,
+                strokeWidth = 2.dp,
+            )
+        }
+        return
     }
     val tiles = remember(splitDims) { WebtoonTiles.split(splitDims) }
     Column(Modifier.fillMaxWidth().background(Color.Black).clipToBounds()) {
         tiles.forEach { tile ->
-            WebtoonTileImage(
-                page = page,
-                pageIndex = index,
-                totalPages = total,
-                tile = tile,
-                claimed = splitDims,
-                eager = tile.index == 0,
-                attempt = attempt,
-                onTap = onTap,
-            )
+            key("${page}-${tile.index}-${tile.top}-${tile.height}-${splitDims.height}") {
+                WebtoonTileImage(
+                    page = page,
+                    pageIndex = index,
+                    totalPages = total,
+                    tile = tile,
+                    claimed = splitDims,
+                    eager = tile.index == 0,
+                    attempt = attempt,
+                    onTap = onTap,
+                )
+            }
         }
     }
 }

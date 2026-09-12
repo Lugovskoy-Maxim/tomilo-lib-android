@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.screens.home
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -10,25 +11,27 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.SportsEsports
@@ -39,15 +42,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -60,20 +59,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ru.tomilo.lib.mobile.core.GenreLabels
+import ru.tomilo.lib.mobile.core.ChatTime
+import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
-import ru.tomilo.lib.mobile.data.api.LeaderboardUserDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -85,14 +84,14 @@ import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
-import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.formatRating
+import ru.tomilo.lib.mobile.ui.components.statusColor
+import ru.tomilo.lib.mobile.ui.components.statusLabel
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
-import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
-import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 enum class FeedFilter(val label: String) {
@@ -124,6 +123,7 @@ fun HomeScreen(
     onOpenWheel: () -> Unit = {},
     onOpenLeaders: () -> Unit = {},
     onOpenPremium: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
     onContinueReading: (titleId: String, chapterId: String) -> Unit = { _, _ -> },
 ) {
     val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
@@ -133,8 +133,6 @@ fun HomeScreen(
     var updates by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var continueItems by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
-    var genres by remember { mutableStateOf<List<String>>(emptyList()) }
-    var leaders by remember { mutableStateOf<List<LeaderboardUserDto>>(emptyList()) }
     var reloadToken by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(FeedFilter.ALL) }
@@ -144,16 +142,6 @@ fun HomeScreen(
             emptyList()
         } else {
             historyRepository.history().getOrDefault(emptyList()).take(10)
-        }
-    }
-
-    LaunchedEffect(reloadToken) {
-        socialRepository.leaderboard("level", "week").onSuccess {
-            leaders = it.take(5)
-        }.onFailure {
-            socialRepository.leaderboard("exp", "all").onSuccess {
-                leaders = it.take(5)
-            }
         }
     }
 
@@ -171,29 +159,10 @@ fun HomeScreen(
         fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
         updates = u.getOrDefault(emptyList()).filterAdult()
         popular = p.getOrDefault(emptyList()).filterAdult()
-        if (genres.isEmpty()) {
-            val fetchedGenres = catalogRepository.filterOptions().getOrNull()?.genres.orEmpty()
-            genres = if (fetchedGenres.isNotEmpty()) {
-                fetchedGenres.take(16)
-            } else {
-                listOf("shounen", "romance", "fantasy", "action", "isekai", "adventure", "drama", "comedy")
-            }
-        }
         loading = false
         refreshing = false
     }
 
-    val greeting = remember(user) {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        when (hour) {
-            in 5..11 -> "Доброе утро"
-            in 12..17 -> "Добрый день"
-            in 18..22 -> "Добрый вечер"
-            else -> "Доброй ночи"
-        }
-    }
-
-    // Filtered lists based on active category
     val filteredUpdates = remember(updates, selectedFilter) {
         when (selectedFilter) {
             FeedFilter.ALL -> updates
@@ -214,33 +183,15 @@ fun HomeScreen(
         }
     }
 
-    // Spotlight title to feature in the hero section
-    val featuredTitle = remember(popular, updates) {
-        popular.firstOrNull() ?: updates.firstOrNull()
+    val featured = remember(popular, updates) {
+        (popular + updates).distinctBy { it.stableId() }.filter { it.coverPath() != null }.take(6)
     }
+
+    val isPremiumUser = Premium.isActive(user?.subscriptionExpiresAt)
 
     Scaffold(
         containerColor = TomiloBg,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "TOMILO LIB",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = TomiloText,
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onOpenSearch) {
-                        Icon(Icons.Default.Search, contentDescription = "Поиск", tint = TomiloText)
-                    }
-                },
-                colors = tomiloTopBarColors(),
-            )
-        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
         when {
             loading && updates.isEmpty() && popular.isEmpty() -> HomeFeedSkeleton(Modifier.padding(padding))
@@ -258,53 +209,39 @@ fun HomeScreen(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    TomiloPrimary.copy(alpha = 0.06f),
-                                    TomiloBg,
-                                    TomiloBg,
-                                ),
-                            ),
-                        )
+                        .background(TomiloBg)
                         .verticalScroll(rememberScrollState())
                         .padding(bottom = 110.dp),
                 ) {
-                    // Header Greeting & User Stats Pill
-                    HomeHeaderGreeting(
-                        greeting = greeting,
-                        username = user?.username,
-                        streak = user?.currentStreak,
-                        coins = user?.balance,
-                    )
-
-                    // Hero Featured Title Spotlight (Featured Banner)
-                    featuredTitle?.let { hero ->
-                        HomeSpotlightBanner(
-                            item = hero,
-                            onOpen = { onOpenTitle(hero.stableId(), hero.slug) },
+                    if (featured.isNotEmpty()) {
+                        HomeHeroCarousel(
+                            items = featured,
+                            username = user?.username,
+                            avatar = user?.avatar,
+                            coins = user?.balance ?: 0,
+                            decorations = user?.decorations(),
+                            onOpen = { item -> onOpenTitle(item.stableId(), item.slug) },
                             onLuckyRandom = {
                                 val pool = (popular + updates).distinctBy { it.stableId() }
                                 if (pool.isNotEmpty()) {
-                                    val randomPick = pool.random()
-                                    onOpenTitle(randomPick.stableId(), randomPick.slug)
+                                    val pick = pool.random()
+                                    onOpenTitle(pick.stableId(), pick.slug)
                                 }
                             },
+                            onOpenProfile = onOpenProfile,
                         )
                     }
 
-                    // Modern Quick Search Field
-                    HomeSearchBar(onClick = onOpenSearch)
+                    Spacer(Modifier.height(14.dp))
 
-                    // Quick Format Filter Chips
                     HomeFilterRow(
                         selected = selectedFilter,
                         onSelect = { selectedFilter = it },
                     )
 
-                    // Fast Actions & Shortcuts Row
                     ShortcutRow(
                         onUpdates = onOpenUpdates,
+                        onSearch = onOpenSearch,
                         onQuests = onOpenQuests,
                         onWheel = onOpenWheel,
                         onOffline = onOpenOffline,
@@ -312,7 +249,6 @@ fun HomeScreen(
                         onGames = onOpenGames,
                     )
 
-                    // "Продолжить чтение" Horizontal Gallery
                     if (continueItems.isNotEmpty()) {
                         SectionHead(
                             title = "Продолжить чтение",
@@ -323,233 +259,133 @@ fun HomeScreen(
                             Modifier
                                 .horizontalScroll(rememberScrollState())
                                 .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
                             continueItems.forEach { item ->
-                                ContinueReadingCard(
-                                    item = item,
-                                    onOpen = {
+                                TitlePosterCard(
+                                    title = item.displayTitle(),
+                                    cover = item.coverPath(),
+                                    onClick = {
                                         val chapter = item.chapterKey()
                                         if (chapter.isNotBlank()) onContinueReading(item.titleKey(), chapter)
                                         else onOpenTitle(item.titleKey(), item.slug())
                                     },
+                                    width = 148.dp,
+                                    type = ReaderMode.typeLabel(item.type()),
+                                    rating = item.rating(),
+                                    status = item.status(),
+                                    isAdult = false,
+                                    plain = true,
+                                    showCoverType = false,
+                                    showCoverChapter = false,
+                                    showFooterRating = false,
+                                    footerTrailing = item.totalChaptersValue()?.let { "$it глав" },
                                 )
                             }
                         }
-                        Spacer(Modifier.height(24.dp))
+                        Spacer(Modifier.height(22.dp))
                     }
 
-                    // "Новые главы и релизы"
-                    SectionHead(
-                        title = "Свежие обновления",
-                        action = "Каталог",
-                        badge = if (filteredUpdates.isNotEmpty()) "${filteredUpdates.size}" else null,
-                        onAction = onOpenUpdates,
-                    )
-                    Column(
-                        Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        filteredUpdates.take(8).chunked(2).forEach { row ->
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                row.forEach { item ->
-                                    TitlePosterCard(
-                                        title = item.displayTitle(),
-                                        cover = item.coverPath(),
-                                        onClick = { onOpenTitle(item.stableId(), item.slug) },
-                                        modifier = Modifier.weight(1f),
-                                        width = null,
-                                        type = ReaderMode.typeLabel(item.type),
-                                        rating = item.displayRating(),
-                                        status = item.status,
-                                        chapterBadge = item.chapterBadge() ?: item.totalChapters?.let { "$it гл." },
-                                        isAdult = item.isAdult == true,
-                                        compact = false,
-                                    )
-                                }
-                                repeat(2 - row.size) { Spacer(Modifier.weight(1f)) }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
-
-                    // Компактный блок "Топ читателей недели" для разбивки однотипности тайтлов
-                    HomeLeaderboardPreview(
-                        leaders = leaders,
-                        onOpenLeaders = onOpenLeaders,
-                    )
-                    Spacer(Modifier.height(24.dp))
-
-                    // "Реклама" Премиум
-                    HomePremiumPromotionBanner(
-                        onOpenPremium = onOpenPremium,
-                    )
-                    Spacer(Modifier.height(24.dp))
-
-                    // "Популярное сейчас" with Rank Medals
                     SectionHead(
                         title = "Сейчас читают",
-                        action = "Все",
+                        action = "Каталог",
                         onAction = onOpenCatalog,
                     )
-                    RankedPosterRow(
-                        items = filteredPopular.take(15),
+                    PosterGrid(
+                        items = filteredPopular.take(6),
+                        columns = 2,
                         onOpen = { onOpenTitle(it.stableId(), it.slug) },
+                        trailing = { item -> item.totalChapters?.let { "$it глав" } },
                     )
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(22.dp))
 
-                    // Curated Genre Highlights & Categories
-                    if (genres.isNotEmpty()) {
-                        SectionHead(
-                            title = "Популярные жанры",
-                            action = "Каталог",
-                            onAction = onOpenCatalog,
-                        )
-                        Row(
-                            Modifier
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            genres.forEach { genre ->
-                                GenreBadgeChip(
-                                    genre = genre,
-                                    onClick = { onOpenGenre(genre) },
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(18.dp))
+                    if (!isPremiumUser) {
+                        HomePremiumPromotionBanner(onOpenPremium = onOpenPremium)
+                        Spacer(Modifier.height(22.dp))
                     }
+
+                    SectionHead(
+                        title = "Новые главы",
+                        action = "Все",
+                        onAction = onOpenUpdates,
+                    )
+                    PosterGrid(
+                        items = filteredUpdates.take(9),
+                        columns = 3,
+                        compact = true,
+                        onOpen = { onOpenTitle(it.stableId(), it.slug) },
+                        subtitle = { item -> item.updatedAtRaw()?.let { ChatTime.relativeAgo(it) } },
+                        trailing = { item -> item.latestChapterFooter() },
+                        trailingAccent = true,
+                    )
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HomeHeaderGreeting(
-    greeting: String,
+private fun HomeHeroCarousel(
+    items: List<CatalogTitleDto>,
     username: String?,
-    streak: Int?,
-    coins: Int?,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = if (username.isNullOrBlank()) greeting else "$greeting, $username!",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = TomiloText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = "Что почитаем сегодня?",
-                style = MaterialTheme.typography.bodySmall,
-                color = TomiloMuted,
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (streak != null && streak > 0) {
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(99.dp))
-                        .background(TomiloPrimary.copy(alpha = 0.15f))
-                        .border(1.dp, TomiloPrimary.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Outlined.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = TomiloPrimary,
-                        modifier = Modifier.size(15.dp),
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        "$streak дн.",
-                        color = TomiloPrimary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-
-            if (coins != null && coins > 0) {
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(99.dp))
-                        .background(TomiloPremium.copy(alpha = 0.15f))
-                        .border(1.dp, TomiloPremium.copy(alpha = 0.3f), RoundedCornerShape(99.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        "🪙 $coins",
-                        color = TomiloPremium,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeSpotlightBanner(
-    item: CatalogTitleDto,
-    onOpen: () -> Unit,
+    avatar: String?,
+    coins: Int,
+    decorations: ru.tomilo.lib.mobile.data.api.EquippedDecorationsDto?,
+    onOpen: (CatalogTitleDto) -> Unit,
     onLuckyRandom: () -> Unit,
+    onOpenProfile: () -> Unit,
 ) {
+    val pagerState = rememberPagerState(pageCount = { items.size })
+    val screenH = LocalConfiguration.current.screenHeightDp.dp
+    val heroHeight = (screenH * 0.62f).coerceIn(440.dp, 580.dp)
+
     Box(
         Modifier
-            .padding(horizontal = 16.dp, vertical = 6.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(TomiloSurface)
-            .border(1.dp, TomiloPrimary.copy(alpha = 0.25f), RoundedCornerShape(22.dp))
-            .clickable(onClick = onOpen),
+            .height(heroHeight)
+            .background(TomiloBg),
     ) {
-        // High-res cover backdrop with dark gradient fade (+19% height for more presence)
-        TomiloCoverImage(
-            source = item.coverPath(),
-            contentDescription = item.displayTitle(),
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-        )
-
-        // Gradient overlay
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(220.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.25f),
-                            Color.Black.copy(alpha = 0.70f),
-                            TomiloSurface,
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            val item = items[page]
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable { onOpen(item) },
+            ) {
+                TomiloCoverImage(
+                    source = item.coverPath(),
+                    contentDescription = item.displayTitle(),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.Black.copy(alpha = 0.28f),
+                                    Color.Black.copy(alpha = 0.12f),
+                                    Color.Black.copy(alpha = 0.45f),
+                                    Color.Black.copy(alpha = 0.88f),
+                                ),
+                            ),
                         ),
-                    ),
-                ),
-        )
+                )
+            }
+        }
+
+        val current = items.getOrNull(pagerState.currentPage)
 
         Column(
             Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -557,79 +393,139 @@ private fun HomeSpotlightBanner(
             ) {
                 Box(
                     Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(TomiloPrimary)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
                     Text(
-                        "🔥 В ЦЕНТРЕ ВНИМАНИЯ",
+                        "TOMILO LIB",
                         color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        letterSpacing = 1.1.sp,
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                item.displayRating()?.let { rating ->
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .clickable(onClick = onOpenProfile)
+                        .padding(start = 4.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DecoratedAvatar(
+                        avatarUrl = avatar,
+                        username = username,
+                        decorations = decorations,
+                        size = 28.dp,
+                        ringColor = Color.White.copy(alpha = 0.35f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Default.Paid,
+                        contentDescription = null,
+                        tint = TomiloPremium,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "$coins",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Column {
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(TomiloPrimary)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "В центре внимания",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                    )
+                }
+                current?.displayRating()?.let { rating ->
+                    Spacer(Modifier.height(8.dp))
                     Row(
                         Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Black.copy(alpha = 0.6f))
-                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.45f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
                             Icons.Default.Star,
                             contentDescription = null,
                             tint = TomiloPremium,
-                            modifier = Modifier.size(14.dp),
+                            modifier = Modifier.size(13.dp),
                         )
-                        Spacer(Modifier.width(3.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(
-                            "%.1f".format(rating),
+                            formatRating(rating),
                             color = Color.White,
-                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
-
-            Text(
-                item.displayTitle(),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Spacer(Modifier.weight(1f))
 
             Row(
-                Modifier.padding(top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                item.type?.takeIf { it.isNotBlank() }?.let {
+                Button(
+                    onClick = { current?.let(onOpen) },
+                    modifier = Modifier.height(44.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                ) {
+                    Text("Читать сейчас", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+                }
+                Row(
+                    Modifier
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xCC2A2A2E))
+                        .clickable(onClick = onLuckyRandom)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Default.Casino,
+                        contentDescription = null,
+                        tint = TomiloPremium,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        ReaderMode.typeLabel(it),
-                        color = TomiloPrimary,
-                        style = MaterialTheme.typography.labelSmall,
+                        "Мне повезет",
+                        color = Color.White,
                         fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                item.totalChapters?.let {
-                    Text(
-                        "·  $it глав",
-                        color = TomiloMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-                item.releaseYear?.let {
-                    Text(
-                        "·  $it",
-                        color = TomiloMuted,
-                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 13.sp,
+                        maxLines = 1,
                     )
                 }
             }
@@ -638,31 +534,57 @@ private fun HomeSpotlightBanner(
 
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
-                Button(
-                    onClick = onOpen,
-                    modifier = Modifier.weight(1.3f).height(42.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Читать сейчас", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        current?.displayTitle().orEmpty(),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        Modifier.padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        current?.type?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                ReaderMode.typeLabel(it),
+                                color = TomiloPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        current?.releaseYear?.let {
+                            Text("$it", color = TomiloMuted, fontSize = 12.sp)
+                        }
+                    }
                 }
+                current?.status?.takeIf { it.isNotBlank() }?.let { status ->
+                    HomeStatusChip(status)
+                }
+            }
 
-                OutlinedButton(
-                    onClick = onLuckyRandom,
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TomiloText),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = Brush.linearGradient(listOf(TomiloBorder, TomiloBorder))),
-                    contentPadding = PaddingValues(horizontal = 10.dp),
-                ) {
-                    Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(16.dp), tint = TomiloPremium)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Мне повезёт", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(items.size) { index ->
+                    val active = index == pagerState.currentPage
+                    Box(
+                        Modifier
+                            .padding(horizontal = 3.dp)
+                            .height(5.dp)
+                            .width(if (active) 18.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(if (active) TomiloPrimary else Color.White.copy(alpha = 0.35f)),
+                    )
                 }
             }
         }
@@ -670,27 +592,27 @@ private fun HomeSpotlightBanner(
 }
 
 @Composable
-private fun HomeSearchBar(onClick: () -> Unit) {
+private fun HomeStatusChip(status: String) {
+    val color = statusColor(status)
     Row(
         Modifier
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(TomiloSurface2.copy(alpha = 0.95f))
-            .border(1.dp, TomiloBorder, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.Black.copy(alpha = 0.55f))
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Default.Search, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+        Spacer(Modifier.width(6.dp))
         Text(
-            "Поиск по названию, автору или жанру...",
-            color = TomiloMuted,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            statusLabel(status),
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -703,8 +625,8 @@ private fun HomeFilterRow(
     Row(
         Modifier
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         FeedFilter.values().forEach { filter ->
             val isSelected = selected == filter
@@ -714,22 +636,22 @@ private fun HomeFilterRow(
                 label = {
                     Text(
                         filter.label,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     )
                 },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = TomiloPrimary,
                     selectedLabelColor = Color.White,
-                    containerColor = TomiloSurface,
-                    labelColor = TomiloMuted,
+                    containerColor = Color(0xFF1A1C20),
+                    labelColor = Color.White,
                 ),
                 border = FilterChipDefaults.filterChipBorder(
                     enabled = true,
                     selected = isSelected,
-                    borderColor = TomiloBorder,
+                    borderColor = Color.White.copy(alpha = 0.08f),
                     selectedBorderColor = TomiloPrimary,
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(20.dp),
             )
         }
     }
@@ -738,6 +660,7 @@ private fun HomeFilterRow(
 @Composable
 private fun ShortcutRow(
     onUpdates: () -> Unit,
+    onSearch: () -> Unit,
     onQuests: () -> Unit,
     onWheel: () -> Unit,
     onOffline: () -> Unit,
@@ -747,15 +670,17 @@ private fun ShortcutRow(
     Row(
         Modifier
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        ShortcutActionItem("Новинки", Icons.Outlined.Update, TomiloPrimary, onUpdates)
-        ShortcutActionItem("Квесты", Icons.Outlined.CardGiftcard, Color(0xFF4CAF50), onQuests)
-        ShortcutActionItem("Колесо", Icons.Default.Casino, TomiloPremium, onWheel)
-        ShortcutActionItem("Офлайн", Icons.Outlined.CloudOff, Color(0xFF29B6F6), onOffline)
-        ShortcutActionItem("Игры", Icons.Outlined.SportsEsports, Color(0xFFAB47BC), onGames)
-        ShortcutActionItem("Друзья", Icons.Outlined.People, Color(0xFFFF7043), onFriends)
+        ShortcutActionItem("Новинки", Icons.Outlined.Update, onUpdates)
+        ShortcutActionItem("Поиск", Icons.Default.Search, onSearch)
+        ShortcutActionItem("Квесты", Icons.Outlined.CardGiftcard, onQuests)
+        ShortcutActionItem("Колесо", Icons.Default.Casino, onWheel)
+        ShortcutActionItem("Офлайн", Icons.Outlined.CloudOff, onOffline)
+        ShortcutActionItem("Игры", Icons.Outlined.SportsEsports, onGames)
+        ShortcutActionItem("Друзья", Icons.Outlined.People, onFriends)
     }
 }
 
@@ -763,31 +688,23 @@ private fun ShortcutRow(
 private fun ShortcutActionItem(
     label: String,
     icon: ImageVector,
-    color: Color,
     onClick: () -> Unit,
 ) {
-    Surface(
-        onClick = onClick,
-        color = TomiloSurface,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.border(1.dp, TomiloBorder.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+    Row(
+        Modifier.clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Box(
+            Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(TomiloPrimary),
+            contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(17.dp))
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = TomiloText)
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
         }
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = TomiloText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
     }
 }
 
@@ -795,13 +712,12 @@ private fun ShortcutActionItem(
 private fun SectionHead(
     title: String,
     action: String = "Все",
-    badge: String? = null,
     onAction: () -> Unit = {},
 ) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -809,141 +725,56 @@ private fun SectionHead(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = TomiloText,
+            modifier = Modifier.weight(1f),
         )
-        badge?.let {
-            Spacer(Modifier.width(6.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(TomiloSurface2)
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-            ) {
-                Text(it, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
-            }
-        }
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = onAction) {
-            Text("$action  ›", color = TomiloPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        TextButton(onClick = onAction, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Text("$action  >", color = TomiloPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
     }
 }
 
 @Composable
-private fun ContinueReadingCard(
-    item: HistoryEntryDto,
-    onOpen: () -> Unit,
+private fun PosterGrid(
+    items: List<CatalogTitleDto>,
+    columns: Int,
+    onOpen: (CatalogTitleDto) -> Unit,
+    compact: Boolean = false,
+    subtitle: (CatalogTitleDto) -> String? = { null },
+    trailing: (CatalogTitleDto) -> String? = { null },
+    trailingAccent: Boolean = false,
 ) {
-    val totalChapters = (item.titleId as? kotlinx.serialization.json.JsonObject)
-        ?.get("totalChapters")?.toString()?.trim('"')?.toFloatOrNull()
-    val currentChapter = item.lastChapter?.numberLabel()?.toFloatOrNull()
-    val completedChapters = (item.chaptersCount?.toFloat() ?: currentChapter ?: 0f).coerceAtLeast(0f)
-    val progress = if (totalChapters != null && totalChapters > 0f) {
-        (completedChapters / totalChapters).coerceIn(0f, 1f)
-    } else null
-
     Column(
-        Modifier
-            .width(160.dp)
-            .shadow(4.dp, RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
-            .background(TomiloSurface)
-            .border(1.dp, TomiloBorder, RoundedCornerShape(18.dp))
-            .clickable(onClick = onOpen),
+        Modifier.padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 14.dp),
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(0.72f)
-                .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
-                .background(TomiloSurface2),
-        ) {
-            TomiloCoverImage(
-                source = item.coverPath(),
-                contentDescription = item.displayTitle(),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.90f)),
-                        ),
-                    )
-                    .padding(8.dp),
+        items.chunked(columns).forEach { row ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    "Глава ${item.chapterLabel()}",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-
-        Column(Modifier.padding(10.dp)) {
-            Text(
-                item.displayTitle(),
-                color = TomiloText,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(4.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                val label = if (completedChapters > 0f) "Гл. ${completedChapters.toInt()}" else "Начать"
-                Text(label, color = TomiloMuted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
-                progress?.let {
-                    Text(
-                        "${(it * 100).toInt()}%",
-                        color = TomiloPrimary,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
+                row.forEach { item ->
+                    TitlePosterCard(
+                        title = item.displayTitle(),
+                        cover = item.coverPath(),
+                        onClick = { onOpen(item) },
+                        modifier = Modifier.weight(1f),
+                        width = null,
+                        type = ReaderMode.typeLabel(item.type),
+                        rating = item.displayRating(),
+                        status = item.status,
+                        isAdult = item.isAdult == true,
+                        compact = compact,
+                        plain = true,
+                        showCoverType = false,
+                        showCoverChapter = false,
+                        showFooterRating = false,
+                        subtitle = subtitle(item),
+                        footerTrailing = trailing(item),
+                        footerTrailingAccent = trailingAccent,
                     )
                 }
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
-            if (progress != null) {
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
-                    color = TomiloPrimary,
-                    trackColor = TomiloSurface2,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun RankedPosterRow(
-    items: List<CatalogTitleDto>,
-    onOpen: (CatalogTitleDto) -> Unit,
-) {
-    Row(
-        Modifier
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        items.forEachIndexed { index, item ->
-            TitlePosterCard(
-                title = item.displayTitle(),
-                cover = item.coverPath(),
-                onClick = { onOpen(item) },
-                type = ReaderMode.typeLabel(item.type),
-                rating = item.displayRating(),
-                status = item.status,
-                totalChapters = item.totalChapters,
-                year = item.releaseYear,
-                isAdult = item.isAdult == true,
-                rank = index + 1,
-            )
         }
     }
 }
@@ -953,309 +784,114 @@ private fun HomePremiumPromotionBanner(
     onOpenPremium: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val gold = TomiloPremium
     Surface(
         onClick = onOpenPremium,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(24.dp),
-        color = Color(0xFF161418),
-        border = androidx.compose.foundation.BorderStroke(
-            1.2.dp,
-            Brush.linearGradient(
-                listOf(
-                    Color(0xFFFFDF00),
-                    Color(0xFFFF7A59),
-                    Color(0xFFE5A60D).copy(alpha = 0.35f),
-                ),
-            ),
-        ),
+        color = TomiloSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, gold.copy(alpha = 0.42f)),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
+        Column(
+            Modifier
                 .background(
-                    Brush.linearGradient(
+                    Brush.verticalGradient(
                         listOf(
-                            Color(0xFF281C10),
-                            Color(0xFF1E1716),
-                            Color(0xFF121418),
+                            gold.copy(alpha = 0.16f),
+                            Color.Transparent,
                         ),
                     ),
                 )
                 .padding(18.dp),
         ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Brush.horizontalGradient(listOf(Color(0xFFFFDF00), Color(0xFFFF9800))))
-                                .padding(horizontal = 7.dp, vertical = 3.dp),
-                        ) {
-                            Text("VIP", color = Color(0xFF261800), fontSize = 10.sp, fontWeight = FontWeight.Black)
-                        }
-                        Text(
-                            "TOMILO PREMIUM",
-                            color = TomiloPremium,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                        )
-                    }
-
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(99.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .padding(horizontal = 8.dp, vertical = 3.dp),
-                    ) {
-                        Text(
-                            "Реклама",
-                            color = TomiloMuted,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(10.dp))
-
-                Text(
-                    text = "Читай без рекламы и ограничений",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TomiloText,
-                )
-
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    text = "Ранний доступ к новым главам, загрузка в офлайн и эксклюзивные значки читателя",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TomiloMuted,
-                    lineHeight = 16.sp,
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    listOf(
-                        "⚡ Без рекламы",
-                        "⬇️ Безлимит офлайн",
-                        "🎨 Кастомизация",
-                        "🛍️ Скидка 20%",
-                    ).forEach { feature ->
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.Black.copy(alpha = 0.45f))
-                                .border(0.8.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 7.dp, vertical = 4.dp),
-                        ) {
-                            Text(feature, color = Color.White.copy(alpha = 0.95f), fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column {
-                        Text("от 150 ₽ / мес", color = TomiloPremium, fontWeight = FontWeight.ExtraBold, fontSize = 13.5.sp)
-                        Text("без рекламы · офлайн · скидка 20%", color = TomiloMuted, fontSize = 10.sp)
-                    }
-
-                    Box(
-                        Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color(0xFFFFDF00), Color(0xFFFF7A59)),
-                                ),
-                            )
-                            .padding(horizontal = 16.dp, vertical = 9.dp),
-                    ) {
-                        Text(
-                            "Попробовать",
-                            color = Color(0xFF1E1300),
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Black,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private val FallbackLeaders = listOf(
-    LeaderboardUserDto(id = "fb_1", username = "ShadowReader", level = 42, chaptersRead = 1240),
-    LeaderboardUserDto(id = "fb_2", username = "MangaKing", level = 38, chaptersRead = 980),
-    LeaderboardUserDto(id = "fb_3", username = "SakuraBloom", level = 35, chaptersRead = 890),
-)
-
-@Composable
-private fun HomeLeaderboardPreview(
-    leaders: List<LeaderboardUserDto>,
-    onOpenLeaders: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val displayLeaders = if (leaders.isNotEmpty()) leaders else FallbackLeaders
-
-    Column(modifier = modifier) {
-        SectionHead(
-            title = "Топ читателей недели",
-            action = "Весь рейтинг",
-            badge = "Топ",
-            onAction = onOpenLeaders,
-        )
-
-        Surface(
-            onClick = onOpenLeaders,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(22.dp),
-            color = TomiloSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
-        ) {
-            Column(
-                Modifier
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFFFFC857).copy(alpha = 0.08f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
-                    .padding(14.dp),
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                val podiumUsers = if (displayLeaders.size >= 3) {
-                    listOf(displayLeaders[1] to 1, displayLeaders[0] to 0, displayLeaders[2] to 2)
-                } else {
-                    displayLeaders.take(3).mapIndexed { idx, u -> u to idx }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.Bottom,
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(gold.copy(alpha = 0.20f)),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    podiumUsers.forEach { (user, rankIndex) ->
-                        val medalColor = when (rankIndex) {
-                            0 -> Color(0xFFFFD700)
-                            1 -> Color(0xFFC0C7D4)
-                            else -> Color(0xFFCD7F32)
-                        }
-                        val medalBg = when (rankIndex) {
-                            0 -> Brush.horizontalGradient(listOf(Color(0xFFFFDF00), Color(0xFFE5A60D)))
-                            1 -> Brush.horizontalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFA6ADBB)))
-                            else -> Brush.horizontalGradient(listOf(Color(0xFFFFB076), Color(0xFFD97706)))
-                        }
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(bottom = if (rankIndex == 0) 0.dp else 6.dp),
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = gold,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "Tomilo Premium",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = gold,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(gold)
+                                .padding(horizontal = 6.dp, vertical = 1.dp),
                         ) {
-                            if (rankIndex == 0) {
-                                Text(
-                                    "👑",
-                                    fontSize = 15.sp,
-                                    modifier = Modifier.padding(bottom = 2.dp),
-                                )
-                            }
-                            Box(contentAlignment = Alignment.BottomEnd) {
-                                DecoratedAvatar(
-                                    avatarUrl = user.avatar,
-                                    username = user.username,
-                                    decorations = user.decorations(),
-                                    size = if (rankIndex == 0) 56.dp else 46.dp,
-                                    ringColor = medalColor,
-                                )
-                                Box(
-                                    Modifier
-                                        .clip(CircleShape)
-                                        .background(medalBg)
-                                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                                ) {
-                                    Text(
-                                        "#${rankIndex + 1}",
-                                        color = if (rankIndex == 1) Color.Black else Color(0xFF1E1300),
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Black,
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(6.dp))
                             Text(
-                                text = user.username?.takeIf(String::isNotBlank) ?: "Читатель",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (rankIndex == 0) FontWeight.Bold else FontWeight.SemiBold,
-                                color = TomiloText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                text = "Lv ${user.level ?: 1}",
-                                color = if (rankIndex == 0) TomiloPrimary else TomiloMuted,
-                                fontSize = 10.sp,
-                                fontWeight = if (rankIndex == 0) FontWeight.Bold else FontWeight.Normal,
+                                "VIP",
+                                color = Color.Black,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
                             )
                         }
                     }
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Без рекламы, безлимитный офлайн и скидка 20% в магазине",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
-        }
-    }
-}
 
-@Composable
-private fun GenreBadgeChip(
-    genre: String,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        color = TomiloSurface,
-        shape = RoundedCornerShape(12.dp),
-        modifier = Modifier.border(1.dp, TomiloBorder, RoundedCornerShape(12.dp)),
-    ) {
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(TomiloPrimary),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                GenreLabels.ru(genre),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
-                color = TomiloText,
-            )
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "от 150 ₽ / мес",
+                        color = gold,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        "Отменить можно в любой момент",
+                        color = TomiloMuted,
+                        fontSize = 11.sp,
+                    )
+                }
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(gold)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        "Попробовать",
+                        color = Color(0xFF1E1300),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                    )
+                }
+            }
         }
     }
 }

@@ -36,4 +36,10 @@ class ChatTimeTest {
     fun parsesSpaceSeparatedUtc() {
         assertEquals("15:04", ChatTime.label("2026-08-30 15:04:12", now, zone))
     }
+
+    @Test
+    fun relativeAgoUsesMinutes() {
+        val stamp = LocalDateTime.of(2026, 8, 30, 17, 39).toInstant(ZoneOffset.UTC)
+        assertEquals("21 мин назад", ChatTime.relativeAgo(stamp.toString(), now))
+    }
 }

@@ -160,7 +160,7 @@ fun UpdatesScreen(
                         totalChapters = title.totalChapters,
                         year = title.releaseYear,
                         status = title.status,
-                        subtitle = title.chapter?.let { "Новая глава: $it" } ?: "Недавно обновлено",
+                        subtitle = title.chapterUpdateLine(),
                         isAdult = title.isAdult == true,
                         onClick = { onOpenTitle(title.stableId(), title.slug) },
                     )

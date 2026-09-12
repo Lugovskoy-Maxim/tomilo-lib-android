@@ -52,9 +52,13 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
+import java.util.Locale
 
 private val CardRadius = 20.dp
 private val CoverShape = RoundedCornerShape(CardRadius)
+
+fun formatRating(value: Double): String =
+    String.format(Locale.forLanguageTag("ru"), "%.2f", value)
 
 /** Обложка с автоматическим переключением между S3 и CDN, если один источник недоступен. */
 @Composable
@@ -116,10 +120,21 @@ fun TitlePosterCard(
     year: Int? = null,
     compact: Boolean = false,
     rank: Int? = null,
+    plain: Boolean = false,
+    showCoverType: Boolean = true,
+    showCoverChapter: Boolean = true,
+    showFooterRating: Boolean = true,
+    subtitle: String? = null,
+    footerTrailing: String? = null,
+    footerTrailingAccent: Boolean = false,
 ) {
+    val coverRadius = if (plain) 16.dp else CardRadius
+    val coverShape = RoundedCornerShape(coverRadius)
     val base = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
-    Column(
-        modifier = base
+    val chrome = if (plain) {
+        base.clickable(onClick = onClick)
+    } else {
+        base
             .shadow(7.dp, CoverShape, ambientColor = Color.Black.copy(alpha = 0.20f))
             .clip(CoverShape)
             .background(
@@ -129,15 +144,16 @@ fun TitlePosterCard(
             )
             .border(1.dp, Color.White.copy(alpha = 0.075f), CoverShape)
             .clickable(onClick = onClick)
-            .padding(bottom = 9.dp),
-    ) {
+            .padding(bottom = 9.dp)
+    }
+    Column(modifier = chrome) {
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .clip(CoverShape)
+                .clip(coverShape)
                 .background(TomiloSurface2)
-                .border(1.dp, Color.White.copy(alpha = 0.06f), CoverShape),
+                .then(if (plain) Modifier else Modifier.border(1.dp, Color.White.copy(alpha = 0.06f), coverShape)),
         ) {
             TomiloCoverImage(
                 source = cover,
@@ -215,7 +231,7 @@ fun TitlePosterCard(
                         lineHeight = 12.sp,
                     )
                 }
-            } else {
+            } else if (showCoverType) {
                 Row(
                     Modifier
                         .align(Alignment.TopStart)
@@ -229,6 +245,14 @@ fun TitlePosterCard(
                         MetaChip("18+", container = Color(0xFFB33A3A).copy(alpha = 0.92f))
                     }
                 }
+            } else if (isAdult) {
+                MetaChip(
+                    "18+",
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(6.dp),
+                    container = Color(0xFFB33A3A).copy(alpha = 0.92f),
+                )
             }
             if (rating != null && rating > 0) {
                 Row(
@@ -249,7 +273,7 @@ fun TitlePosterCard(
                     )
                     Spacer(Modifier.width(3.dp))
                     Text(
-                        "%.1f".format(rating),
+                        formatRating(rating),
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -285,7 +309,7 @@ fun TitlePosterCard(
                     )
                 }
             }
-            val bottomEnd = chapterBadge ?: totalChapters?.let { "$it гл." }
+            val bottomEnd = if (showCoverChapter) chapterBadge ?: totalChapters?.let { "$it гл." } else null
             if (!bottomEnd.isNullOrBlank()) {
                 MetaChip(
                     bottomEnd,
@@ -296,46 +320,62 @@ fun TitlePosterCard(
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(if (plain) 8.dp else 8.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyMedium,
+            style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
-            minLines = 2,
+            minLines = if (compact) 1 else 2,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            lineHeight = 18.sp,
-            modifier = Modifier.padding(horizontal = 10.dp),
+            lineHeight = if (compact) 16.sp else 18.sp,
+            color = TomiloText,
+            modifier = Modifier.padding(horizontal = if (plain) 2.dp else 10.dp),
         )
-        Spacer(Modifier.height(4.dp))
-        // Строка метаданных под обложкой (тип, год и рейтинг) - статус отображается только на обложке
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            val leftMeta = listOfNotNull(
-                type?.let { typeLabel(it) },
-                year?.toString(),
-            ).joinToString(" · ")
+        if (!subtitle.isNullOrBlank()) {
+            Spacer(Modifier.height(2.dp))
             Text(
-                text = leftMeta.ifBlank { " " },
+                subtitle,
                 style = MaterialTheme.typography.labelSmall,
                 color = TomiloMuted,
                 maxLines = 1,
-                fontSize = 11.sp,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = if (plain) 2.dp else 10.dp),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = if (plain) 2.dp else 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            val typeText = type?.let { typeLabel(it) }
+            val leftMeta = when {
+                plain -> typeText.orEmpty()
+                rank != null -> listOfNotNull(typeText, year?.toString()).joinToString(" · ")
+                else -> listOfNotNull(if (showCoverType) null else typeText, year?.toString()).joinToString(" · ")
+            }
+            Text(
+                text = leftMeta.ifBlank { " " },
+                style = MaterialTheme.typography.labelSmall,
+                color = if (plain && !typeText.isNullOrBlank()) TomiloPrimary else TomiloMuted,
+                maxLines = 1,
+                fontSize = if (compact) 10.sp else 11.sp,
+                fontWeight = if (plain) FontWeight.SemiBold else FontWeight.Normal,
                 modifier = Modifier.weight(1f, fill = false),
             )
 
-            val rightMeta = chapterBadge
-                ?: totalChapters?.let { "$it гл." }
-                ?: year?.toString()
-                ?: ""
+            val rightMeta = footerTrailing
+                ?: if (chapterBadge.isNullOrBlank() && !plain) {
+                    totalChapters?.let { "$it гл." }.orEmpty()
+                } else {
+                    ""
+                }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (rating != null && rating > 0) {
+                if (showFooterRating && rating != null && rating > 0) {
                     Icon(
                         Icons.Default.Star,
                         contentDescription = null,
@@ -344,7 +384,7 @@ fun TitlePosterCard(
                     )
                     Spacer(Modifier.width(2.dp))
                     Text(
-                        "%.1f".format(rating),
+                        formatRating(rating),
                         style = MaterialTheme.typography.labelSmall,
                         color = TomiloPremium,
                         fontWeight = FontWeight.Bold,
@@ -363,9 +403,10 @@ fun TitlePosterCard(
                     Text(
                         text = rightMeta,
                         style = MaterialTheme.typography.labelSmall,
-                        color = TomiloMuted,
+                        color = if (footerTrailingAccent) TomiloPrimary else TomiloMuted,
                         maxLines = 1,
-                        fontSize = 11.sp,
+                        fontWeight = if (plain) FontWeight.SemiBold else FontWeight.Normal,
+                        fontSize = if (compact) 10.sp else 11.sp,
                     )
                 }
             }

@@ -361,6 +361,23 @@ data class HistoryEntryDto(
         return null
     }
 
+    fun status(): String? {
+        val el = titleId as? kotlinx.serialization.json.JsonObject ?: return null
+        return el["status"]?.toString()?.trim('"')?.takeIf { it.isNotBlank() && it != "null" }
+    }
+
+    fun rating(): Double? {
+        val el = titleId as? kotlinx.serialization.json.JsonObject ?: return null
+        return el["rating"]?.toString()?.trim('"')?.toDoubleOrNull()
+            ?: el["averageRating"]?.toString()?.trim('"')?.toDoubleOrNull()
+    }
+
+    fun totalChaptersValue(): Int? {
+        val el = titleId as? kotlinx.serialization.json.JsonObject
+        val fromTitle = el?.get("totalChapters")?.toString()?.trim('"')?.toDoubleOrNull()?.toInt()
+        return fromTitle ?: chaptersCount
+    }
+
     fun chapterKey(): String {
         lastChapter?.chapterKey()?.takeIf { it.isNotBlank() }?.let { return it }
         jsonElementId(chapterId).takeIf { it.isNotBlank() }?.let { return it }
@@ -529,22 +546,34 @@ data class CatalogTitleDto(
     val isAdult: Boolean? = null,
     val views: Long? = null,
     val weekViews: Long? = null,
+    val updatedAt: String? = null,
+    val lastChapterAt: String? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     fun displayTitle(): String = title ?: name.orEmpty()
     fun coverPath(): String? = cover ?: coverImage
     fun displayRating(): Double? = rating ?: averageRating
-    fun chapterBadge(): String? {
-        val raw = chapter?.trim()?.takeIf { it.isNotBlank() }
-        val number = chapterNumber?.toString()?.trim()?.trim('"')?.takeIf { it.isNotBlank() && it != "null" }
-        return when {
-            raw != null && raw.startsWith("Гл", ignoreCase = true) -> raw
-            raw != null -> raw
-            number != null -> "Гл. $number"
-            totalChapters != null -> "$totalChapters гл."
-            else -> null
-        }
+    fun chapterBadge(): String? = ru.tomilo.lib.mobile.core.chapterBadgeText(
+        chapter = chapter,
+        chapterNumber = chapterNumber?.toString()?.trim()?.trim('"'),
+        titleName = displayTitle(),
+        totalChapters = totalChapters,
+    )
+
+    fun chapterUpdateLine(): String = ru.tomilo.lib.mobile.core.chapterUpdateSubtitle(
+        chapter = chapter,
+        chapterNumber = chapterNumber?.toString()?.trim()?.trim('"'),
+        titleName = displayTitle(),
+    )
+
+    fun latestChapterFooter(): String? {
+        val number = ru.tomilo.lib.mobile.core.compactChapterNumber(
+            chapterNumber?.toString()?.trim()?.trim('"'),
+        ) ?: chapterBadge()?.removePrefix("Гл. ")?.takeIf { it.all { ch -> ch.isDigit() || ch == '.' } }
+        return number?.let { "$it глава" }
     }
+
+    fun updatedAtRaw(): String? = updatedAt ?: lastChapterAt
 }
 
 @Serializable

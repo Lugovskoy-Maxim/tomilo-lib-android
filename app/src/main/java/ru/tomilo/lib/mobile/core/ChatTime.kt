@@ -50,4 +50,19 @@ object ChatTime {
     }
 
     fun nowIso(): String = ZonedDateTime.now(ZoneOffset.UTC).toInstant().toString()
+
+    fun relativeAgo(raw: String?, now: Instant = Instant.now()): String? {
+        val instant = parseInstant(raw) ?: return null
+        val seconds = java.time.Duration.between(instant, now).seconds.coerceAtLeast(0)
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+        return when {
+            minutes < 1 -> "только что"
+            minutes < 60 -> "$minutes мин назад"
+            hours < 24 -> "$hours ч назад"
+            days < 7 -> "$days дн назад"
+            else -> label(raw, now)
+        }
+    }
 }

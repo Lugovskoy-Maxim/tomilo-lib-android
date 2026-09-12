@@ -294,6 +294,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
                     onOpenPremium = { navController.navigate(Routes.Premium) },
+                    onOpenProfile = { navigateTab(Routes.Profile) },
                     onContinueReading = { titleId, chapterId ->
                         navController.navigate(Routes.reader(chapterId, offline = false, titleId = titleId))
                     },
