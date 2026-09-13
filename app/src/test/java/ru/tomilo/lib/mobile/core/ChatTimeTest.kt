@@ -42,4 +42,12 @@ class ChatTimeTest {
         val stamp = LocalDateTime.of(2026, 8, 30, 17, 39).toInstant(ZoneOffset.UTC)
         assertEquals("21 мин назад", ChatTime.relativeAgo(stamp.toString(), now))
     }
+
+    @Test
+    fun threadAgoMatchesSiteShortLabels() {
+        assertEquals("сейчас", ChatTime.threadAgo("2026-08-30T17:59:40Z", now, zone))
+        assertEquals("21 мин", ChatTime.threadAgo("2026-08-30T17:39:00Z", now, zone))
+        assertEquals("3 ч", ChatTime.threadAgo("2026-08-30T15:00:00Z", now, zone))
+        assertEquals("2 д", ChatTime.threadAgo("2026-08-28T18:00:00Z", now, zone))
+    }
 }

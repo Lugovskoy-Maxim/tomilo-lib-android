@@ -611,6 +611,8 @@ fun TitleScreen(
                                 entityId = t.stableId(),
                                 socialRepository = socialRepository,
                                 isLoggedIn = user != null,
+                                currentUser = user,
+                                titleId = t.stableId(),
                                 onLoginRequired = onLogin,
                                 onOpenUser = onOpenUser,
                             )

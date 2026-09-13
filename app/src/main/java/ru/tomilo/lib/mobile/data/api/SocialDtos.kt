@@ -157,6 +157,21 @@ data class CreateCommentRequest(
 )
 
 @Serializable
+data class UpdateCommentRequest(
+    val content: String,
+    val isSpoiler: Boolean? = null,
+)
+
+@Serializable
+data class CreateReportRequest(
+    val reportType: String,
+    val content: String,
+    val entityType: String? = null,
+    val entityId: String? = null,
+    val titleId: String? = null,
+)
+
+@Serializable
 data class CommentReactionDto(
     val emoji: String = "",
     val count: Int? = null,
@@ -196,6 +211,7 @@ data class CommentDto(
     val dislikesCount: Int? = null,
     val reactions: List<CommentReactionDto>? = null,
     val repliesCount: Int? = null,
+    val myReactions: List<String>? = null,
     val createdAt: String? = null,
     /** На сервере автор называется userId и может быть ID либо populated-объектом. */
     val userId: JsonElement? = null,
@@ -203,6 +219,7 @@ data class CommentDto(
     val author: CommentUserDto? = null,
     val replies: List<CommentDto>? = null,
     val hiddenBySystem: Boolean? = null,
+    val isEdited: Boolean? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     private fun populatedAuthor(): CommentUserDto? = user ?: author ?: (userId as? JsonObject)?.let {
@@ -226,6 +243,15 @@ data class CommentDto(
                 add(CommentReactionDto(emoji = "👎", count = it))
             }
         }
+    }
+    fun myReactionEmojis(): List<String> = myReactions.orEmpty().filter { it.isNotBlank() }
+    fun heartCount(): Int = reactionCounts().firstOrNull { it.emoji == HEART_REACTION }?.resolvedCount() ?: 0
+    fun extraReactions(): List<CommentReactionDto> = reactionCounts().filter { it.emoji != HEART_REACTION }
+    fun likedHeart(): Boolean = HEART_REACTION in myReactionEmojis()
+    fun replyTotal(): Int = (replies?.size ?: repliesCount ?: 0).coerceAtLeast(0)
+
+    companion object {
+        const val HEART_REACTION = "❤️"
     }
 }
 

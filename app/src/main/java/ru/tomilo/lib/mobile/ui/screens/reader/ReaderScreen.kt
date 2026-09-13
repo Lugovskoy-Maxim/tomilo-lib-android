@@ -1154,6 +1154,8 @@ fun ReaderScreen(
                         entityId = currentChapterId,
                         socialRepository = socialRepository,
                         isLoggedIn = user != null,
+                        currentUser = user,
+                        titleId = titleId,
                         onLoginRequired = onLogin,
                         onOpenUser = onOpenUser,
                     )

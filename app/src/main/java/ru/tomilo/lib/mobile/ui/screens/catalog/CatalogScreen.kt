@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
@@ -40,7 +41,6 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewModule
@@ -50,7 +50,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -102,13 +101,12 @@ import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
-import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
+import ru.tomilo.lib.mobile.ui.components.TitleWideCard
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
-import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
@@ -124,7 +122,7 @@ private val SORTS = listOf(
     SortOption("createdAt", "desc", "Новые", Icons.Default.AutoAwesome),
     SortOption("views", "desc", "Популярные", Icons.AutoMirrored.Filled.TrendingUp),
     SortOption("averageRating", "desc", "Рейтинг", Icons.Default.Star),
-    SortOption("name", "asc", "А–Я", Icons.Default.Sort),
+    SortOption("name", "asc", "А–Я", Icons.AutoMirrored.Filled.Sort),
 )
 
 private val STATUS_LABELS = mapOf(
@@ -327,26 +325,21 @@ fun CatalogScreen(
                     )
                 },
                 actions = {
-                    // Sleek layout switcher segmented control
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(TomiloSurface2)
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                            .padding(2.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         listOf(
-                            CatalogLayoutMode.GRID_2 to Icons.Default.GridView,
-                            CatalogLayoutMode.GRID_3 to Icons.Default.ViewModule,
-                            CatalogLayoutMode.LIST to Icons.Default.ViewAgenda,
-                        ).forEach { (mode, icon) ->
+                            Triple(CatalogLayoutMode.GRID_2, Icons.Default.GridView, "Большой"),
+                            Triple(CatalogLayoutMode.GRID_3, Icons.Default.ViewModule, "Компактный"),
+                            Triple(CatalogLayoutMode.LIST, Icons.Default.ViewAgenda, "Список"),
+                        ).forEach { (mode, icon, label) ->
                             val isSelected = layoutMode == mode
                             Box(
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(36.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isSelected) TomiloPrimary.copy(alpha = 0.28f) else Color.Transparent)
+                                    .background(if (isSelected) TomiloPrimary else Color.Transparent)
                                     .clickable {
                                         if (layoutMode != mode) {
                                             layoutMode = mode
@@ -357,9 +350,9 @@ fun CatalogScreen(
                             ) {
                                 Icon(
                                     imageVector = icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) TomiloPrimary else TomiloMuted,
-                                    modifier = Modifier.size(17.dp),
+                                    contentDescription = label,
+                                    tint = if (isSelected) Color.White else TomiloMuted,
+                                    modifier = Modifier.size(18.dp),
                                 )
                             }
                         }
@@ -418,7 +411,7 @@ fun CatalogScreen(
                 if (layoutMode == CatalogLayoutMode.GRID_3) 6.dp else 10.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(
-                if (layoutMode == CatalogLayoutMode.LIST) 10.dp else 12.dp,
+                if (layoutMode == CatalogLayoutMode.LIST) 12.dp else 12.dp,
             ),
             modifier = Modifier
                 .padding(padding)
@@ -461,10 +454,11 @@ fun CatalogScreen(
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = TomiloSurface,
-                            unfocusedContainerColor = TomiloSurface,
-                            focusedBorderColor = TomiloPrimary.copy(alpha = 0.65f),
-                            unfocusedBorderColor = TomiloBorder,
+                            focusedContainerColor = TomiloSurface2,
+                            unfocusedContainerColor = TomiloSurface2,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            cursorColor = TomiloPrimary,
                         ),
                     )
 
@@ -472,12 +466,13 @@ fun CatalogScreen(
                     Row(
                         Modifier
                             .horizontalScroll(rememberScrollState())
-                            .padding(top = 8.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .padding(top = 10.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         FAST_TYPES.forEach { (typeKey, label) ->
                             val isSelected = if (typeKey == null) selectedTypes.isEmpty() else typeKey in selectedTypes
-                            FilterChip(
+                            CatalogTypePill(
+                                label = label,
                                 selected = isSelected,
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -487,59 +482,25 @@ fun CatalogScreen(
                                         if (typeKey in selectedTypes) selectedTypes - typeKey else setOf(typeKey)
                                     }
                                 },
-                                label = {
-                                    Text(
-                                        label,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        fontSize = 13.sp,
-                                    )
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = TomiloPrimary.copy(alpha = 0.22f),
-                                    selectedLabelColor = TomiloPrimary,
-                                ),
                             )
                         }
                     }
 
-                    // Sort pills row
                     Row(
                         Modifier
                             .horizontalScroll(rememberScrollState())
-                            .padding(top = 2.dp, bottom = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         SORTS.forEachIndexed { i, s ->
-                            val isSortSelected = sortIndex == i
-                            FilterChip(
-                                selected = isSortSelected,
+                            CatalogSortPill(
+                                label = s.label,
+                                icon = s.icon,
+                                selected = sortIndex == i,
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     sortIndex = i
                                 },
-                                leadingIcon = s.icon?.let { icon ->
-                                    {
-                                        Icon(
-                                            icon,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp),
-                                            tint = if (isSortSelected) Color.White else TomiloMuted,
-                                        )
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        s.label,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSortSelected) FontWeight.Bold else FontWeight.Normal,
-                                    )
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = TomiloSurface2,
-                                    selectedLabelColor = Color.White,
-                                ),
                             )
                         }
                     }
@@ -715,7 +676,7 @@ fun CatalogScreen(
                                 )
                             }
                             CatalogLayoutMode.LIST -> {
-                                TitleSearchCard(
+                                TitleWideCard(
                                     title = item.displayTitle(),
                                     cover = item.coverPath(),
                                     onClick = { onOpenTitle(item.stableId(), item.slug) },
@@ -725,6 +686,12 @@ fun CatalogScreen(
                                     rating = item.displayRating(),
                                     year = item.releaseYear,
                                     totalChapters = item.totalChapters,
+                                    description = item.description
+                                        ?.replace(Regex("<[^>]*>"), " ")
+                                        ?.replace(Regex("\\s+"), " ")
+                                        ?.trim()
+                                        ?.takeIf { it.isNotBlank() },
+                                    isAdult = item.isAdult == true,
                                 )
                             }
                         }
@@ -992,18 +959,84 @@ private fun WrapChips(
     ) {
         options.forEach { opt ->
             val isSelected = opt in selected
-            FilterChip(
-                selected = isSelected,
-                onClick = { onToggle(opt) },
-                label = {
-                    Text(
-                        label(opt),
-                        fontSize = 12.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            Text(
+                label(opt),
+                color = if (isSelected) Color.White else TomiloText,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (isSelected) TomiloPrimary else Color(0xFF1A1C20))
+                    .border(
+                        1.dp,
+                        if (isSelected) TomiloPrimary else Color.White.copy(alpha = 0.10f),
+                        RoundedCornerShape(999.dp),
                     )
-                },
-                shape = RoundedCornerShape(12.dp),
+                    .clickable { onToggle(opt) }
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun CatalogTypePill(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        label,
+        color = Color.White,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        fontSize = 13.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) TomiloPrimary else Color(0xFF1A1C20))
+            .border(
+                1.dp,
+                if (selected) TomiloPrimary else Color.White.copy(alpha = 0.10f),
+                RoundedCornerShape(999.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun CatalogSortPill(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector?,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color(0xFF15171A))
+            .border(
+                1.dp,
+                if (selected) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                RoundedCornerShape(999.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = if (selected) Color.White else TomiloMuted,
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            label,
+            color = if (selected) Color.White else TomiloMuted,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+        )
     }
 }

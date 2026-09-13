@@ -48,8 +48,8 @@ android {
         // RuStore / production consumer release
         // 37 уже был загружен в Play Console с targetSdk 35; исправленная сборка
         // должна иметь новый versionCode, так как Play не заменяет загруженный bundle.
-        versionCode = 38
-        versionName = "1.3.2"
+        versionCode = 39
+        versionName = "1.3.3"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")

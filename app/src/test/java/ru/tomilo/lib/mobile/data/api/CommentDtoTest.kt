@@ -19,7 +19,12 @@ class CommentDtoTest {
               "content": "Комментарий",
               "likes": 0,
               "dislikes": 0,
-              "reactions": [{ "emoji": "👍", "count": 1 }]
+              "myReactions": ["❤️"],
+              "isEdited": true,
+              "reactions": [
+                { "emoji": "❤️", "count": 4 },
+                { "emoji": "👍", "count": 1 }
+              ]
             }
         """.trimIndent()
 
@@ -28,8 +33,18 @@ class CommentDtoTest {
         assertEquals("Lord_of_the_ban", comment.authorName())
         assertEquals("69ee670414e6d2264d2bedb9", comment.authorId())
         assertEquals("/avatars/user.webp", comment.authorAvatar())
-        assertEquals("👍", comment.reactionCounts().single().emoji)
-        assertEquals(1, comment.reactionCounts().single().resolvedCount())
+        assertEquals(listOf("❤️", "👍"), comment.reactionCounts().map { it.emoji })
+        assertEquals(4, comment.heartCount())
+        assertEquals(true, comment.likedHeart())
+        assertEquals(listOf("👍"), comment.extraReactions().map { it.emoji })
+        assertEquals(true, comment.isEdited)
+    }
+
+    @Test
+    fun isEditedDefaultsAbsent() {
+        val payload = """{ "_id": "c1", "content": "ok" }"""
+        val comment = NetworkModule.json.decodeFromString<CommentDto>(payload)
+        assertEquals(null, comment.isEdited)
     }
 
     @Test

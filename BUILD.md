@@ -12,7 +12,7 @@ APK: `app/build/outputs/apk/rustore/debug/`
 
 ## Релиз GitHub
 
-Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.3.2** (`versionCode 38`).
+Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.3.3** (`versionCode 39`).
 
 ```bash
 git tag v1.3.2

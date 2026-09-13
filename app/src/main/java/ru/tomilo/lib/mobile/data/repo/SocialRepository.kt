@@ -12,6 +12,7 @@ import ru.tomilo.lib.mobile.data.api.CommentReactionRequest
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
 import ru.tomilo.lib.mobile.data.api.CreateCommentRequest
 import ru.tomilo.lib.mobile.data.api.CreateConversationRequest
+import ru.tomilo.lib.mobile.data.api.CreateReportRequest
 import ru.tomilo.lib.mobile.data.api.DeviceTokenRequest
 import ru.tomilo.lib.mobile.data.api.DeviceTokenUnregisterRequest
 import ru.tomilo.lib.mobile.data.api.DirectMessageDto
@@ -23,6 +24,7 @@ import ru.tomilo.lib.mobile.data.api.SendMessageRequest
 import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 import ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest
+import ru.tomilo.lib.mobile.data.api.UpdateCommentRequest
 
 class SocialRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
@@ -113,6 +115,7 @@ class SocialRepository(private val api: TomiloApi) {
         entityType: String,
         entityId: String,
         page: Int = 1,
+        sortOrder: String = "newest",
     ): Result<List<CommentDto>> = runCatching {
         val res = api.comments(
             entityType = entityType,
@@ -120,6 +123,7 @@ class SocialRepository(private val api: TomiloApi) {
             page = page,
             limit = 40,
             includeReplies = true,
+            sortOrder = sortOrder,
         )
         if (!res.success) error(res.message ?: "Ошибка комментариев")
         res.data?.comments.orEmpty()
@@ -130,6 +134,7 @@ class SocialRepository(private val api: TomiloApi) {
         entityId: String,
         content: String,
         parentId: String? = null,
+        isSpoiler: Boolean = false,
     ): Result<CommentDto> = runCatching {
         val res = api.createComment(
             CreateCommentRequest(
@@ -137,10 +142,53 @@ class SocialRepository(private val api: TomiloApi) {
                 entityId = entityId,
                 content = content.trim(),
                 parentId = parentId,
+                isSpoiler = isSpoiler.takeIf { it },
             ),
         )
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось отправить")
         res.data ?: error("Пустой ответ")
+    }
+
+    suspend fun updateComment(
+        commentId: String,
+        content: String,
+        isSpoiler: Boolean = false,
+    ): Result<CommentDto> = runCatching {
+        if (commentId.isBlank()) error("Комментарий не найден")
+        val res = api.updateComment(
+            commentId,
+            UpdateCommentRequest(content = content.trim(), isSpoiler = isSpoiler),
+        )
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось сохранить")
+        res.data ?: error("Пустой ответ")
+    }
+
+    suspend fun deleteComment(commentId: String): Result<Unit> = runCatching {
+        if (commentId.isBlank()) error("Комментарий не найден")
+        val res = api.deleteComment(commentId)
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось удалить")
+    }
+
+    suspend fun reportComment(
+        commentId: String,
+        content: String,
+        titleId: String? = null,
+    ): Result<Unit> = runCatching {
+        if (commentId.isBlank()) error("Комментарий не найден")
+        val trimmed = content.trim()
+        if (trimmed.length < 10) error("Опишите причину не короче 10 символов")
+        val res = api.createReport(
+            CreateReportRequest(
+                reportType = "comment_report",
+                content = trimmed,
+                entityType = "comment",
+                entityId = commentId,
+                titleId = titleId?.takeIf { it.isNotBlank() },
+            ),
+        )
+        if (!res.success) {
+            error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось отправить жалобу")
+        }
     }
 
     suspend fun likeComment(commentId: String): Result<Unit> = runCatching {

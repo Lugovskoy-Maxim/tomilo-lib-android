@@ -220,6 +220,18 @@ interface TomiloApi {
     @POST("comments")
     suspend fun createComment(@Body body: CreateCommentRequest): ApiResponse<CommentDto>
 
+    @PUT("comments/{id}")
+    suspend fun updateComment(
+        @Path("id") id: String,
+        @Body body: UpdateCommentRequest,
+    ): ApiResponse<CommentDto>
+
+    @DELETE("comments/{id}")
+    suspend fun deleteComment(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @POST("reports")
+    suspend fun createReport(@Body body: CreateReportRequest): ApiResponse<JsonElement>
+
     @POST("comments/{id}/like")
     suspend fun likeComment(@Path("id") id: String): ApiResponse<JsonElement>
 

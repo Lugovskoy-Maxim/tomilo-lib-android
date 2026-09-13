@@ -65,4 +65,25 @@ object ChatTime {
             else -> label(raw, now)
         }
     }
+
+    /** Короткое относительное время как на сайте / в Threads: «5 мин», «2 ч», «3 д». */
+    fun threadAgo(raw: String?, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()): String? {
+        val instant = parseInstant(raw) ?: return null
+        val seconds = java.time.Duration.between(instant, now).seconds.coerceAtLeast(0)
+        val minutes = seconds / 60
+        val hours = minutes / 60
+        val days = hours / 24
+        return when {
+            minutes < 1 -> "сейчас"
+            minutes < 60 -> "$minutes мин"
+            hours < 24 -> "$hours ч"
+            days < 7 -> "$days д"
+            else -> {
+                val dt = instant.atZone(zone)
+                val today = now.atZone(zone)
+                val pattern = if (dt.year == today.year) "d MMM" else "d MMM yyyy"
+                dt.format(DateTimeFormatter.ofPattern(pattern, ru)).replace(".", "")
+            }
+        }
+    }
 }

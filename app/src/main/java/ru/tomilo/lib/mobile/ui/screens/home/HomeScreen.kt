@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.screens.home
 
+import android.text.Html
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,20 +13,24 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Search
@@ -36,11 +41,10 @@ import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Update
+import androidx.compose.material.icons.outlined.ViewCarousel
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -55,6 +59,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +73,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ChatTime
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderMode
@@ -136,6 +144,7 @@ fun HomeScreen(
     var reloadToken by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(FeedFilter.ALL) }
+    var showCarousel by remember { mutableStateOf(false) }
 
     LaunchedEffect(user?.stableId(), reloadToken) {
         continueItems = if (user == null) {
@@ -184,7 +193,7 @@ fun HomeScreen(
     }
 
     val featured = remember(popular, updates) {
-        (popular + updates).distinctBy { it.stableId() }.filter { it.coverPath() != null }.take(6)
+        (popular + updates).distinctBy { it.stableId() }.filter { it.coverPath() != null }.take(10)
     }
 
     val isPremiumUser = Premium.isActive(user?.subscriptionExpiresAt)
@@ -242,6 +251,7 @@ fun HomeScreen(
                     ShortcutRow(
                         onUpdates = onOpenUpdates,
                         onSearch = onOpenSearch,
+                        onCarousel = { if (featured.isNotEmpty()) showCarousel = true },
                         onQuests = onOpenQuests,
                         onWheel = onOpenWheel,
                         onOffline = onOpenOffline,
@@ -322,6 +332,33 @@ fun HomeScreen(
             }
         }
     }
+
+    if (showCarousel && featured.isNotEmpty()) {
+        Dialog(
+            onDismissRequest = { showCarousel = false },
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+            ),
+        ) {
+            HomeTitleCarousel(
+                items = featured,
+                catalogRepository = catalogRepository,
+                continueItems = continueItems,
+                onDismiss = { showCarousel = false },
+                onOpenTitle = { item ->
+                    showCarousel = false
+                    onOpenTitle(item.stableId(), item.slug)
+                },
+                onReadChapter = { titleId, chapterId ->
+                    showCarousel = false
+                    onContinueReading(titleId, chapterId)
+                },
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -397,13 +434,22 @@ private fun HomeHeroCarousel(
                         .background(Color.Black.copy(alpha = 0.62f))
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
-                    Text(
-                        "TOMILO LIB",
-                        color = Color.White,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.sp,
-                        letterSpacing = 1.1.sp,
-                    )
+                    Row {
+                        Text(
+                            "TOMILO",
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            letterSpacing = 1.1.sp,
+                        )
+                        Text(
+                            " LIB",
+                            color = TomiloPrimary,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            letterSpacing = 1.1.sp,
+                        )
+                    }
                 }
                 Spacer(Modifier.weight(1f))
                 Row(
@@ -630,28 +676,21 @@ private fun HomeFilterRow(
     ) {
         FeedFilter.values().forEach { filter ->
             val isSelected = selected == filter
-            FilterChip(
-                selected = isSelected,
-                onClick = { onSelect(filter) },
-                label = {
-                    Text(
-                        filter.label,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            Text(
+                filter.label,
+                color = Color.White,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (isSelected) TomiloPrimary else Color(0xFF1A1C20))
+                    .border(
+                        1.dp,
+                        if (isSelected) TomiloPrimary else Color.White.copy(alpha = 0.10f),
+                        RoundedCornerShape(999.dp),
                     )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = TomiloPrimary,
-                    selectedLabelColor = Color.White,
-                    containerColor = Color(0xFF1A1C20),
-                    labelColor = Color.White,
-                ),
-                border = FilterChipDefaults.filterChipBorder(
-                    enabled = true,
-                    selected = isSelected,
-                    borderColor = Color.White.copy(alpha = 0.08f),
-                    selectedBorderColor = TomiloPrimary,
-                ),
-                shape = RoundedCornerShape(20.dp),
+                    .clickable { onSelect(filter) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
             )
         }
     }
@@ -661,6 +700,7 @@ private fun HomeFilterRow(
 private fun ShortcutRow(
     onUpdates: () -> Unit,
     onSearch: () -> Unit,
+    onCarousel: () -> Unit,
     onQuests: () -> Unit,
     onWheel: () -> Unit,
     onOffline: () -> Unit,
@@ -676,6 +716,7 @@ private fun ShortcutRow(
     ) {
         ShortcutActionItem("Новинки", Icons.Outlined.Update, onUpdates)
         ShortcutActionItem("Поиск", Icons.Default.Search, onSearch)
+        ShortcutActionItem("Карусель", Icons.Outlined.ViewCarousel, onCarousel)
         ShortcutActionItem("Квесты", Icons.Outlined.CardGiftcard, onQuests)
         ShortcutActionItem("Колесо", Icons.Default.Casino, onWheel)
         ShortcutActionItem("Офлайн", Icons.Outlined.CloudOff, onOffline)
@@ -894,4 +935,281 @@ private fun HomePremiumPromotionBanner(
             }
         }
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun HomeTitleCarousel(
+    items: List<CatalogTitleDto>,
+    catalogRepository: CatalogRepository,
+    continueItems: List<HistoryEntryDto>,
+    onDismiss: () -> Unit,
+    onOpenTitle: (CatalogTitleDto) -> Unit,
+    onReadChapter: (titleId: String, chapterId: String) -> Unit,
+) {
+    val pagerState = rememberPagerState(pageCount = { items.size })
+    var descriptions by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var opening by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(pagerState.currentPage, items) {
+        val item = items.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect
+        val key = item.stableId().ifBlank { item.slug.orEmpty() }
+        if (key.isBlank() || key in descriptions) return@LaunchedEffect
+        val local = htmlToPlain(item.description)
+        if (local.isNotBlank()) {
+            descriptions = descriptions + (key to local)
+            return@LaunchedEffect
+        }
+        val lookup = item.stableId().ifBlank { item.slug.orEmpty() }
+        catalogRepository.title(lookup).onSuccess { detail ->
+            descriptions = descriptions + (key to htmlToPlain(detail.description))
+        }
+    }
+
+    fun readNow(item: CatalogTitleDto) {
+        if (opening) return
+        opening = true
+        scope.launch {
+            val titleId = item.stableId()
+            val fromHistory = continueItems.firstOrNull { it.titleKey() == titleId }
+                ?.chapterKey()
+                ?.takeIf { it.isNotBlank() }
+            val chapterId = fromHistory
+                ?: catalogRepository.chapters(titleId).getOrNull()?.firstOrNull()?.stableId()
+            opening = false
+            if (!chapterId.isNullOrBlank()) onReadChapter(titleId, chapterId)
+            else onOpenTitle(item)
+        }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(TomiloBg),
+    ) {
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+        ) { page ->
+            val item = items[page]
+            val key = item.stableId().ifBlank { item.slug.orEmpty() }
+            HomeTitleCarouselPage(
+                item = item,
+                description = descriptions[key].orEmpty(),
+                opening = opening,
+                onBack = onDismiss,
+                onRead = { readNow(item) },
+                onOpenTitle = { onOpenTitle(item) },
+            )
+        }
+        Column(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .padding(end = 10.dp)
+                .fillMaxHeight(0.28f),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            repeat(items.size) { index ->
+                val active = index == pagerState.currentPage
+                Box(
+                    Modifier
+                        .padding(vertical = 3.dp)
+                        .size(if (active) 7.dp else 5.dp)
+                        .clip(CircleShape)
+                        .background(if (active) Color.White else Color.White.copy(alpha = 0.38f)),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeTitleCarouselPage(
+    item: CatalogTitleDto,
+    description: String,
+    opening: Boolean,
+    onBack: () -> Unit,
+    onRead: () -> Unit,
+    onOpenTitle: () -> Unit,
+) {
+    Box(Modifier.fillMaxSize()) {
+        TomiloCoverImage(
+            source = item.coverPath(),
+            contentDescription = item.displayTitle(),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.38f),
+                            Color.Black.copy(alpha = 0.08f),
+                            Color.Black.copy(alpha = 0.42f),
+                            Color.Black.copy(alpha = 0.92f),
+                        ),
+                    ),
+                ),
+        )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.22f))
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Назад",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                item.displayRating()?.takeIf { it > 0 }?.let { rating ->
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color.Black.copy(alpha = 0.55f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = TomiloPremium,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            formatRating(rating),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = onRead,
+                    enabled = !opening,
+                    modifier = Modifier.height(44.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                ) {
+                    Text(
+                        if (opening) "Открытие…" else "Читать сейчас",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                    )
+                }
+                Row(
+                    Modifier
+                        .height(44.dp)
+                        .weight(1f)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xCC2A2A2E))
+                        .clickable(enabled = !opening, onClick = onOpenTitle)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        "Перейти на страницу тайтла",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        item.displayTitle(),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(
+                        Modifier.padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        item.type?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                ReaderMode.typeLabel(it),
+                                color = TomiloPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        item.releaseYear?.let {
+                            Text("$it", color = Color.White.copy(alpha = 0.72f), fontSize = 12.sp)
+                        }
+                    }
+                }
+                item.status?.takeIf { it.isNotBlank() }?.let { status ->
+                    HomeStatusChip(status)
+                }
+            }
+
+            if (description.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    description,
+                    color = Color.White.copy(alpha = 0.88f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    maxLines = 7,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+private fun htmlToPlain(raw: String?): String {
+    val value = raw?.trim().orEmpty()
+    if (value.isEmpty()) return ""
+    return Html.fromHtml(value, Html.FROM_HTML_MODE_LEGACY)
+        .toString()
+        .replace('\u00A0', ' ')
+        .trim()
 }

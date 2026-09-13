@@ -3,6 +3,7 @@ package ru.tomilo.lib.mobile.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,9 +16,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -411,6 +414,154 @@ fun TitlePosterCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun TitleWideCard(
+    title: String,
+    cover: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    type: String? = null,
+    status: String? = null,
+    rating: Double? = null,
+    year: Int? = null,
+    totalChapters: Int? = null,
+    description: String? = null,
+    isAdult: Boolean = false,
+) {
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(TomiloSurface2)
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            Modifier
+                .width(108.dp)
+                .height(148.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(TomiloSurface2),
+        ) {
+            TomiloCoverImage(
+                source = cover,
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (isAdult) {
+                MetaChip(
+                    "18+",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp),
+                    container = Color(0xFFB33A3A).copy(alpha = 0.92f),
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                year?.let { WideOutlineChip("$it") }
+                if (!type.isNullOrBlank()) {
+                    WideOutlineChip(typeLabel(type), color = TomiloPrimary)
+                }
+                if (rating != null && rating > 0) {
+                    WideOutlineChip(
+                        formatRating(rating),
+                        leading = {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = TomiloPremium,
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                        },
+                    )
+                }
+                if (!status.isNullOrBlank()) {
+                    val sColor = statusColor(status)
+                    WideOutlineChip(
+                        statusLabel(status),
+                        borderColor = sColor.copy(alpha = 0.55f),
+                        leading = {
+                            Box(
+                                Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(sColor),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                        },
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                title,
+                color = TomiloText,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (totalChapters != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "$totalChapters глав",
+                    color = TomiloMuted,
+                    fontSize = 13.sp,
+                )
+            }
+            if (!description.isNullOrBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    description,
+                    color = TomiloMuted,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WideOutlineChip(
+    text: String,
+    color: Color = TomiloText,
+    borderColor: Color = Color.White.copy(alpha = 0.16f),
+    leading: @Composable (() -> Unit)? = null,
+) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(999.dp))
+            .padding(horizontal = 9.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        leading?.invoke()
+        Text(
+            text,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
     }
 }
 
