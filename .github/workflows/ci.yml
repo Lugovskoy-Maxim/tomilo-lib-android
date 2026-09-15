@@ -38,11 +38,14 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android platforms
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          fi
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Assemble rustore debug
         run: ./gradlew :app:assembleRustoreDebug --stacktrace --no-daemon
