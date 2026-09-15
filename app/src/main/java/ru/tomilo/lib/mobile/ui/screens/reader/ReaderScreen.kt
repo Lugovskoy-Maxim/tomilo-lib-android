@@ -366,8 +366,12 @@ fun ReaderScreen(
                     val entity = offlineRepository.getEntity(id)
                     effectiveTitleId = titleId ?: entity?.titleId
                     title = entity?.let { "Глава ${it.chapterNumber}" } ?: "Глава (офлайн)"
+                    // userFlow при холодном старте сначала отдаёт null. Для
+                    // офлайн-доступа читаем Premium прямо из сохранённой сессии,
+                    // чтобы не показывать Premium-пользователю рекламный gate.
+                    val hasOfflinePremium = authRepository.isPremium()
                     val gateRead = OfflineAdLimits.requiresAdForOfflineRead(
-                        isPremium = isPremium,
+                        isPremium = hasOfflinePremium,
                         online = context.isNetworkAvailable(),
                         hasReadPass = adRewardStore.hasOfflineReadAccess(),
                     )

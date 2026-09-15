@@ -12,16 +12,19 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
@@ -37,7 +41,6 @@ import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -47,10 +50,8 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.NotificationsNone
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Star
@@ -72,6 +73,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -97,15 +99,18 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.annotation.ExperimentalCoilApi
+import coil.compose.AsyncImage
 import coil.imageLoader
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.BuildConfig
+import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
@@ -164,7 +169,6 @@ fun ProfileScreen(
     var cacheMsg by remember { mutableStateOf<String?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
     var selectedProfileTab by rememberSaveable { mutableIntStateOf(0) }
-    var settingsExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(user?.stableId()) {
         if (user != null) {
@@ -178,40 +182,21 @@ fun ProfileScreen(
 
     Scaffold(
         containerColor = TomiloBg,
+        contentWindowInsets = if (user == null) ScaffoldDefaults.contentWindowInsets else WindowInsets(0),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Профиль",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = TomiloText,
-                    )
-                },
-                colors = tomiloTopBarColors(),
-                actions = {
-                    if (user != null) {
-                        IconButton(onClick = onOpenNotifications) {
-                            Box {
-                                Icon(
-                                    Icons.Default.NotificationsNone,
-                                    contentDescription = "Уведомления",
-                                    tint = TomiloText,
-                                )
-                                if (notifUnread > 0) {
-                                    Box(
-                                        Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(TomiloPrimary)
-                                            .align(Alignment.TopEnd),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                },
-            )
+            if (user == null) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Профиль",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TomiloText,
+                        )
+                    },
+                    colors = tomiloTopBarColors(),
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -219,25 +204,27 @@ fun ProfileScreen(
                 .padding(padding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 110.dp),
+                .padding(bottom = 110.dp),
         ) {
             if (user == null) {
-                // Logged-out state
-                LoggedOutProfileCard(
-                    onLogin = onLogin,
-                    onOpenLeaders = onOpenLeaders,
-                    onOpenPremium = onOpenPremium,
-                    contentSettings = contentSettings,
-                    onToggleAdult = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
-                )
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
+                    LoggedOutProfileCard(
+                        onLogin = onLogin,
+                        onOpenLeaders = onOpenLeaders,
+                        onOpenPremium = onOpenPremium,
+                        contentSettings = contentSettings,
+                        onToggleAdult = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
+                    )
+                }
             } else {
                 val premium = Premium.isActive(user!!.subscriptionExpiresAt)
 
-                // 1. User Header & Level Progress Card
                 UserProfileHeaderCard(
                     user = user!!,
                     isPremium = premium,
                     onOpenPublic = { onOpenMyPublicProfile(user!!.stableId()) },
+                    onOpenNotifications = onOpenNotifications,
+                    notificationCount = notifUnread,
                     onCopyId = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("Tomilo User ID", user!!.stableId()))
@@ -245,178 +232,148 @@ fun ProfileScreen(
                     },
                 )
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(10.dp))
 
-                // Modern Segmented Tab Switcher (Website-grade profile UX)
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = TomiloSurface2,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        Modifier
-                            .padding(4.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        listOf(
-                            Triple(0, "Обзор", Icons.Default.Dashboard),
-                            Triple(1, "Кастомизация", Icons.Default.Palette),
-                            Triple(2, "Настройки", Icons.Default.Settings),
-                        ).forEach { (tabIdx, label, icon) ->
-                            val isSelected = selectedProfileTab == tabIdx
-                            Surface(
-                                onClick = { selectedProfileTab = tabIdx },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) TomiloPrimary else Color.Transparent,
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Row(
-                                    Modifier.padding(vertical = 9.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
-                                ) {
-                                    Icon(
-                                        icon,
-                                        contentDescription = null,
-                                        tint = if (isSelected) Color.White else TomiloMuted,
-                                        modifier = Modifier.size(16.dp),
+                ProfileTabRow(
+                    selectedTab = selectedProfileTab,
+                    onOverview = { selectedProfileTab = 0 },
+                    onLibrary = onOpenOffline,
+                    onRewards = { selectedProfileTab = 1 },
+                    onPremium = onOpenPremium,
+                    onSettings = { selectedProfileTab = 2 },
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                Box(Modifier.padding(horizontal = 12.dp)) {
+                    Column {
+                        when (selectedProfileTab) {
+                            0 -> {
+                                Text(
+                                    "О себе, активность дня и быстрые действия",
+                                    color = TomiloMuted,
+                                    fontSize = 12.sp,
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                UserReadingStatisticsGrid(user = user!!)
+
+                                Spacer(Modifier.height(20.dp))
+
+                                // 2. Services Hub
+                                ProfileSectionHeader("Сервисы и награды", "Бонусы, валюта и коллекция")
+                                Spacer(Modifier.height(10.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    ProfileQuickCard(
+                                        icon = Icons.Default.TaskAlt,
+                                        title = "Задания",
+                                        subtitle = "XP и награды",
+                                        onClick = onOpenQuests,
+                                        iconTint = Color(0xFF4CAF50),
+                                        modifier = Modifier.weight(1f),
                                     )
-                                    Spacer(Modifier.width(5.dp))
-                                    Text(
-                                        label,
-                                        color = if (isSelected) Color.White else TomiloMuted,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    ProfileQuickCard(
+                                        icon = Icons.Default.Casino,
+                                        title = "Колесо",
+                                        subtitle = "Испытать удачу",
+                                        onClick = onOpenWheel,
+                                        iconTint = TomiloPremium,
+                                        modifier = Modifier.weight(1f),
                                     )
+                                    ProfileQuickCard(
+                                        icon = Icons.Default.ShoppingBag,
+                                        title = "Магазин",
+                                        subtitle = "${user!!.balance ?: 0} монет",
+                                        onClick = onOpenShop,
+                                        iconTint = TomiloPrimary,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    ProfileQuickCard(
+                                        icon = Icons.Default.DownloadForOffline,
+                                        title = "Офлайн",
+                                        subtitle = formatBytes(offlineBytes),
+                                        onClick = onOpenOffline,
+                                        iconTint = Color(0xFF29B6F6),
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    ProfileQuickCard(
+                                        icon = Icons.Default.SportsEsports,
+                                        title = "Арена & Игры",
+                                        subtitle = "Дуэли и секты",
+                                        onClick = onOpenGames,
+                                        iconTint = Color(0xFFAB47BC),
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    ProfileQuickCard(
+                                        icon = Icons.Default.Group,
+                                        title = "Друзья",
+                                        subtitle = "Заявки и чаты",
+                                        onClick = onOpenFriends,
+                                        iconTint = Color(0xFFFF7043),
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
+
+                                Spacer(Modifier.height(20.dp))
+
+                                // 3. Tomilo Premium Banner
+                                ProfilePremiumBanner(
+                                    isPremium = premium,
+                                    onClick = onOpenPremium,
+                                )
+
+                                Spacer(Modifier.height(20.dp))
+
+                                // 4. Reading & Catalog
+                                ProfileSectionHeader("Чтение и каталог", "История и свежие главы")
+                                Spacer(Modifier.height(10.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ActionRow(Icons.Default.History, "История чтения", onOpenHistory, subtitle = "Все прочитанные тайтлы и главы")
+                                    ActionRow(Icons.Default.Update, "Обновления каталога", onOpenUpdates, subtitle = "Свежие релизы авторов")
+                                    ActionRow(Icons.Default.Leaderboard, "Рейтинг читателей", onOpenLeaders, subtitle = "Топ читателей по опыту")
+                                    ActionRow(Icons.Default.Explore, "Мир Tomilo", onOpenHub, subtitle = "Подборки, новости и сообщество")
                                 }
                             }
+                            1 -> {
+                                ProfileCustomizationTab(
+                                    user = user!!,
+                                    isPremium = premium,
+                                    onOpenShop = onOpenShop,
+                                    onOpenPremium = onOpenPremium,
+                                )
+                            }
+                            2 -> {
+                                ProfileSettingsTab(
+                                    readingSettings = readingSettings,
+                                    contentSettings = contentSettings,
+                                    offlineBytes = offlineBytes,
+                                    cacheMsg = cacheMsg,
+                                    isStaff = user!!.isStaff(),
+                                    onKeepScreenOn = { scope.launch { readingPrefs.setKeepScreenOn(it) } },
+                                    onStartFullscreen = { scope.launch { readingPrefs.setStartFullscreen(it) } },
+                                    onAutoScrollSpeed = { scope.launch { readingPrefs.setAutoScrollSpeed(it) } },
+                                    onToggleAdult = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
+                                    onClearCache = {
+                                        scope.launch {
+                                            context.imageLoader.memoryCache?.clear()
+                                            context.imageLoader.diskCache?.clear()
+                                            offlineBytes = offlineRepository.offlineBytesTotal()
+                                            cacheMsg = "Кеш изображений успешно очищен"
+                                        }
+                                    },
+                                    onOpenAdmin = onOpenAdmin,
+                                    onLogout = { confirmLogout = true },
+                                )
+                            }
                         }
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                when (selectedProfileTab) {
-                    0 -> {
-                        // 1. Reading Statistics
-                        UserReadingStatisticsGrid(user = user!!)
-
-                        Spacer(Modifier.height(20.dp))
-
-                        // 2. Services Hub
-                        ProfileSectionHeader("Сервисы и награды", "Бонусы, валюта и коллекция")
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ProfileQuickCard(
-                                icon = Icons.Default.TaskAlt,
-                                title = "Задания",
-                                subtitle = "XP и награды",
-                                onClick = onOpenQuests,
-                                iconTint = Color(0xFF4CAF50),
-                                modifier = Modifier.weight(1f),
-                            )
-                            ProfileQuickCard(
-                                icon = Icons.Default.Casino,
-                                title = "Колесо",
-                                subtitle = "Испытать удачу",
-                                onClick = onOpenWheel,
-                                iconTint = TomiloPremium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            ProfileQuickCard(
-                                icon = Icons.Default.ShoppingBag,
-                                title = "Магазин",
-                                subtitle = "${user!!.balance ?: 0} монет",
-                                onClick = onOpenShop,
-                                iconTint = TomiloPrimary,
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ProfileQuickCard(
-                                icon = Icons.Default.DownloadForOffline,
-                                title = "Офлайн",
-                                subtitle = formatBytes(offlineBytes),
-                                onClick = onOpenOffline,
-                                iconTint = Color(0xFF29B6F6),
-                                modifier = Modifier.weight(1f),
-                            )
-                            ProfileQuickCard(
-                                icon = Icons.Default.SportsEsports,
-                                title = "Арена & Игры",
-                                subtitle = "Дуэли и секты",
-                                onClick = onOpenGames,
-                                iconTint = Color(0xFFAB47BC),
-                                modifier = Modifier.weight(1f),
-                            )
-                            ProfileQuickCard(
-                                icon = Icons.Default.Group,
-                                title = "Друзья",
-                                subtitle = "Заявки и чаты",
-                                onClick = onOpenFriends,
-                                iconTint = Color(0xFFFF7043),
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-
-                        Spacer(Modifier.height(20.dp))
-
-                        // 3. Tomilo Premium Banner
-                        ProfilePremiumBanner(
-                            isPremium = premium,
-                            onClick = onOpenPremium,
-                        )
-
-                        Spacer(Modifier.height(20.dp))
-
-                        // 4. Reading & Catalog
-                        ProfileSectionHeader("Чтение и каталог", "История и свежие главы")
-                        Spacer(Modifier.height(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ActionRow(Icons.Default.History, "История чтения", onOpenHistory, subtitle = "Все прочитанные тайтлы и главы")
-                            ActionRow(Icons.Default.Update, "Обновления каталога", onOpenUpdates, subtitle = "Свежие релизы авторов")
-                            ActionRow(Icons.Default.Leaderboard, "Рейтинг читателей", onOpenLeaders, subtitle = "Топ читателей по опыту")
-                            ActionRow(Icons.Default.Explore, "Мир Tomilo", onOpenHub, subtitle = "Подборки, новости и сообщество")
-                        }
-                    }
-                    1 -> {
-                        ProfileCustomizationTab(
-                            user = user!!,
-                            isPremium = premium,
-                            onOpenShop = onOpenShop,
-                            onOpenPremium = onOpenPremium,
-                        )
-                    }
-                    2 -> {
-                        ProfileSettingsTab(
-                            readingSettings = readingSettings,
-                            contentSettings = contentSettings,
-                            offlineBytes = offlineBytes,
-                            cacheMsg = cacheMsg,
-                            isStaff = user!!.isStaff(),
-                            onKeepScreenOn = { scope.launch { readingPrefs.setKeepScreenOn(it) } },
-                            onStartFullscreen = { scope.launch { readingPrefs.setStartFullscreen(it) } },
-                            onAutoScrollSpeed = { scope.launch { readingPrefs.setAutoScrollSpeed(it) } },
-                            onToggleAdult = { show -> scope.launch { contentPrefs.setShowAdult(show) } },
-                            onClearCache = {
-                                scope.launch {
-                                    context.imageLoader.memoryCache?.clear()
-                                    context.imageLoader.diskCache?.clear()
-                                    offlineBytes = offlineRepository.offlineBytesTotal()
-                                    cacheMsg = "Кеш изображений успешно очищен"
-                                }
-                            },
-                            onOpenAdmin = onOpenAdmin,
-                            onLogout = { confirmLogout = true },
-                        )
                     }
                 }
             }
 
             Spacer(Modifier.height(24.dp))
-            AppVersionFooter()
+            Box(Modifier.padding(horizontal = 16.dp)) { AppVersionFooter() }
         }
     }
 
@@ -435,10 +392,59 @@ fun ProfileScreen(
 }
 
 @Composable
+private fun ProfileTabRow(
+    selectedTab: Int,
+    onOverview: () -> Unit,
+    onLibrary: () -> Unit,
+    onRewards: () -> Unit,
+    onPremium: () -> Unit,
+    onSettings: () -> Unit,
+) {
+    val tabs = listOf(
+        Triple("Обзор", selectedTab == 0, onOverview),
+        Triple("Библиотека", false, onLibrary),
+        Triple("Награды", selectedTab == 1, onRewards),
+        Triple("Премиум", false, onPremium),
+        Triple("Настройки", selectedTab == 2, onSettings),
+    )
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        tabs.forEach { (label, selected, onClick) ->
+            Column(
+                Modifier.clickable(onClick = onClick),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    label,
+                    color = if (selected) TomiloText else TomiloMuted,
+                    fontSize = 13.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 7.dp),
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .clip(CircleShape)
+                        .background(if (selected) TomiloPrimary else Color.Transparent),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun UserProfileHeaderCard(
     user: ru.tomilo.lib.mobile.data.api.UserDto,
     isPremium: Boolean,
     onOpenPublic: () -> Unit,
+    onOpenNotifications: () -> Unit,
+    notificationCount: Int,
     onCopyId: () -> Unit,
 ) {
     val level = user.level ?: 1
@@ -458,277 +464,239 @@ private fun UserProfileHeaderCard(
         else -> "Легендарный читатель"
     }
 
-    Surface(
-        shape = RoundedCornerShape(26.dp),
-        color = TomiloSurface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isPremium) TomiloPremium.copy(alpha = 0.38f) else TomiloPrimary.copy(alpha = 0.22f),
-        ),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column {
-            // Website-Style Profile Hero Cover Banner
+    val backgroundUrl = user.decorations()?.backgroundUrl()?.takeIf { it.isNotBlank() }
+    val accent = if (isPremium) TomiloPremium else TomiloPrimary
+
+    Box(Modifier.fillMaxWidth().height(360.dp)) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(258.dp)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF191226), Color(0xFF612646), Color(0xFF171A2B)),
+                    ),
+                ),
+        ) {
+            if (backgroundUrl != null) {
+                AsyncImage(
+                    model = MediaUrl.resolve(backgroundUrl),
+                    contentDescription = "Фон профиля",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .size(220.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.16f)),
+                )
+                TomiloRingLogo(
+                    modifier = Modifier.align(Alignment.Center),
+                    size = 118.dp,
+                )
+            }
             Box(
                 Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
+                    .fillMaxSize()
                     .background(
-                        Brush.horizontalGradient(
-                            if (isPremium) listOf(
-                                Color(0xFF2C1900),
-                                Color(0xFF4C3308),
-                                Color(0xFF7A540C),
-                                Color(0xFF2C1900),
-                            )
-                            else listOf(
-                                TomiloPrimary.copy(alpha = 0.35f),
-                                Color(0xFF1E2640),
-                                Color(0xFF281E38),
-                                TomiloPrimary.copy(alpha = 0.20f),
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.10f),
+                                Color.Black.copy(alpha = 0.18f),
+                                TomiloBg.copy(alpha = 0.92f),
                             ),
                         ),
                     ),
             )
 
-            Column(
+            Row(
                 Modifier
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                if (isPremium) TomiloPremium.copy(alpha = 0.12f) else TomiloPrimary.copy(alpha = 0.10f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                DecoratedAvatar(
-                    avatarUrl = user.avatar,
-                    username = user.username,
-                    decorations = user.decorations(),
-                    size = 80.dp,
-                    ringColor = if (isPremium) TomiloPremium else TomiloPrimary,
+                ProfileHeroAction(
+                    icon = Icons.Default.NotificationsNone,
+                    contentDescription = "Уведомления",
+                    showBadge = notificationCount > 0,
+                    onClick = onOpenNotifications,
                 )
+                ProfileHeroAction(
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = "Открыть публичный профиль",
+                    onClick = onOpenPublic,
+                )
+            }
+        }
 
-                Spacer(Modifier.width(16.dp))
-
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            user.username ?: "Пользователь",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = TomiloText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        if (isPremium) {
-                            Spacer(Modifier.width(6.dp))
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(TomiloPremium, Color(0xFFFFB300)),
-                                        ),
-                                    )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                            ) {
-                                Text("PRO", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                        if (user.isAdmin()) {
-                            Spacer(Modifier.width(6.dp))
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFFE53935))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                            ) {
-                                Text("ADMIN", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isPremium) TomiloPremium.copy(alpha = 0.15f) else TomiloPrimary.copy(alpha = 0.14f))
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = if (isPremium) TomiloPremium else TomiloPrimary,
-                                    modifier = Modifier.size(12.dp),
-                                )
-                                Text(
-                                    rankTitle,
-                                    color = if (isPremium) TomiloPremium else TomiloPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                        }
-
-                        user.email?.takeIf { it.isNotBlank() }?.let {
+        Surface(
+            shape = RoundedCornerShape(26.dp),
+            color = Color(0xF218191D),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+            shadowElevation = 12.dp,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 12.dp)
+                .fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 13.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DecoratedAvatar(
+                        avatarUrl = user.avatar,
+                        username = user.username,
+                        decorations = user.decorations(),
+                        size = 72.dp,
+                        ringColor = accent,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                it,
-                                color = TomiloMuted,
-                                style = MaterialTheme.typography.bodySmall,
+                                user.username ?: "Пользователь",
+                                color = if (isPremium) TomiloPremium else TomiloText,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            if (isPremium) {
+                                Spacer(Modifier.width(6.dp))
+                                Icon(
+                                    Icons.Default.WorkspacePremium,
+                                    contentDescription = "Premium",
+                                    tint = TomiloPremium,
+                                    modifier = Modifier.size(17.dp),
+                                )
+                            }
                         }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Surface(
-                        onClick = onCopyId,
-                        color = TomiloSurface2,
-                        shape = RoundedCornerShape(8.dp),
-                    ) {
+                        Spacer(Modifier.height(5.dp))
                         Row(
-                            Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Text(
-                                "ID: ${user.stableId().take(8)}…",
-                                color = TomiloMuted,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "Копировать ID",
-                                tint = TomiloMuted,
-                                modifier = Modifier.size(12.dp),
-                            )
+                            Surface(
+                                color = accent.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
+                            ) {
+                                Text(
+                                    rankTitle,
+                                    color = accent,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = TomiloPremium,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("${user.balance ?: 0}", color = TomiloText, fontSize = 13.sp)
+                            }
                         }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            // Level & XP Progression Bar
-            Surface(
-                color = TomiloSurface2.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(Modifier.padding(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isPremium) TomiloPremium.copy(alpha = 0.2f) else TomiloPrimary.copy(alpha = 0.18f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        ) {
-                            Text(
-                                "УРОВЕНЬ $level",
-                                fontWeight = FontWeight.Black,
-                                color = if (isPremium) TomiloPremium else TomiloPrimary,
-                                fontSize = 12.sp,
-                            )
-                        }
-                        Spacer(Modifier.weight(1f))
+                        Spacer(Modifier.height(5.dp))
                         Text(
-                            "$exp / $nextLevelExp XP · ${(progress * 100).toInt()}%",
-                            color = TomiloText,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-
-                    Spacer(Modifier.height(10.dp))
-
-                    // Custom gradient progress bar
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(99.dp))
-                            .background(TomiloBg),
-                    ) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth(progress)
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(99.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        if (isPremium) listOf(TomiloPremium, Color(0xFFFFB300))
-                                        else listOf(TomiloPrimary, Color(0xFFFF7043)),
-                                    ),
-                                ),
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(
-                            "До уровня ${level + 1}: ещё ${(nextLevelExp - exp).coerceAtLeast(0)} XP",
+                            "Ур. $level · $rankTitle",
                             color = TomiloMuted,
                             fontSize = 11.sp,
+                            maxLines = 1,
                         )
-                        Text(
-                            "+250 XP/ур.",
-                            color = TomiloMuted.copy(alpha = 0.7f),
-                            fontSize = 11.sp,
+                    }
+                    IconButton(onClick = onCopyId, modifier = Modifier.size(34.dp)) {
+                        Icon(
+                            Icons.Default.ContentCopy,
+                            contentDescription = "Скопировать ID",
+                            tint = TomiloMuted,
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }
-            }
 
-            Spacer(Modifier.height(12.dp))
-
-            Surface(
-                onClick = onOpenPublic,
-                shape = RoundedCornerShape(14.dp),
-                color = TomiloSurface2.copy(alpha = 0.5f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
-                modifier = Modifier.fillMaxWidth().height(42.dp),
-            ) {
-                Row(
-                    Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
+                Spacer(Modifier.height(15.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = accent.copy(alpha = 0.82f), shape = RoundedCornerShape(9.dp)) {
+                        Text(
+                            "Уровень $level",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("$exp/$nextLevelExp", color = TomiloText, fontSize = 12.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("XP", color = TomiloMuted, fontSize = 11.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("${(progress * 100).toInt()}%", color = TomiloMuted, fontSize = 11.sp)
+                }
+                Spacer(Modifier.height(7.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFB8BBC2)),
                 ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(progress)
+                            .height(5.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.horizontalGradient(listOf(TomiloPrimary, Color(0xFFFF6D7E))),
+                            ),
+                    )
+                }
+                Spacer(Modifier.height(7.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
-                        "Открыть публичный профиль",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TomiloText,
+                        "До уровня ${level + 1}: ещё ${(nextLevelExp - exp).coerceAtLeast(0)} XP",
+                        color = TomiloMuted,
+                        fontSize = 11.sp,
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = TomiloPrimary,
-                        modifier = Modifier.size(15.dp),
-                    )
+                    Text("+250 XP/ур.", color = TomiloMuted, fontSize = 11.sp)
                 }
             }
         }
     }
 }
+
+@Composable
+private fun ProfileHeroAction(
+    icon: ImageVector,
+    contentDescription: String,
+    showBadge: Boolean = false,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = Color.Black.copy(alpha = 0.32f),
+        shape = CircleShape,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+    ) {
+        Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription, tint = Color.White, modifier = Modifier.size(19.dp))
+            if (showBadge) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(7.dp)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(TomiloPrimary),
+                )
+            }
+        }
+    }
 }
 
 @Composable

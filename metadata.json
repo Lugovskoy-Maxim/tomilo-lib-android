@@ -1,0 +1,6 @@
+{
+  "name": "TOMILO LIB",
+  "description": "Читалка манги и манхвы с tomilo-lib.ru: лента, каталог, полка, профиль и офлайн-чтение",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

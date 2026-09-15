@@ -12,9 +12,13 @@ import coil.request.CachePolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import ru.rustore.sdk.pushclient.RuStorePushClient
 import ru.rustore.sdk.pushclient.common.logger.DefaultLogger
@@ -22,6 +26,7 @@ import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.push.PushTokenSync
+import ru.tomilo.lib.mobile.core.isNetworkAvailable
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
@@ -31,6 +36,32 @@ class TomiloApp : Application(), ImageLoaderFactory {
         private set
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val historySyncMutex = Mutex()
+
+    /**
+     * Очередь сохраняется в DataStore, поэтому неудачные элементы останутся до
+     * следующего подключения/запуска. Mutex не даёт событиям сети и входа
+     * отправить одну и ту же главу параллельно.
+     */
+    private suspend fun syncPendingHistory() = historySyncMutex.withLock {
+        if (!applicationContext.isNetworkAvailable() || !container.authRepository.isLoggedIn()) return@withLock
+
+        var profileChanged = false
+        container.readingPrefs.pendingHistory().forEach { (titleId, chapterId) ->
+            container.historyRepository.markRead(titleId, chapterId)
+                .onSuccess { reward ->
+                    container.readingPrefs.markHistorySynced(titleId, chapterId)
+                    profileChanged = profileChanged ||
+                        reward.experienceGained != 0 || reward.coinsGained != 0
+                    RewardNotifications.show(
+                        experience = reward.experienceGained,
+                        coins = reward.coinsGained,
+                        source = reward.reason ?: "Офлайн-глава синхронизирована",
+                    )
+                }
+        }
+        if (profileChanged) container.authRepository.refreshProfile()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -55,31 +86,26 @@ class TomiloApp : Application(), ImageLoaderFactory {
         NotificationsPollWorker.schedule(this)
         AppUpdateCheckWorker.schedule(this)
         appScope.launch {
-            container.authStore.tokenFlow.collectLatest { token ->
+            container.authStore.tokenFlow.distinctUntilChanged().collectLatest { token ->
                 TokenBridge.setCached(token)
                 // Вход может завершиться, когда сеть уже подключена и новый
                 // network callback не придёт. Запускаем подписку сразу по токену.
                 if (!token.isNullOrBlank()) {
                     NotificationsPollWorker.schedule(this@TomiloApp)
                     PushTokenSync.syncIfNeeded(this@TomiloApp)
+                    // Вход может завершиться уже при активной сети, без
+                    // нового connectivity callback.
+                    syncPendingHistory()
                 }
             }
         }
         appScope.launch {
-            applicationContext.networkAvailabilityFlow().collectLatest { online ->
+            // collectLatest мог отменить HTTP-запрос при быстрой смене
+            // network capabilities. Начатую синхронизацию доводим до конца.
+            applicationContext.networkAvailabilityFlow().collect { online ->
                 if (online && container.authRepository.isLoggedIn()) {
                     NotificationsPollWorker.enqueueNow(this@TomiloApp)
-                    container.readingPrefs.pendingHistory().forEach { (titleId, chapterId) ->
-                        container.historyRepository.markRead(titleId, chapterId)
-                            .onSuccess { reward ->
-                                container.readingPrefs.markHistorySynced(titleId, chapterId)
-                                RewardNotifications.show(
-                                    experience = reward.experienceGained,
-                                    coins = reward.coinsGained,
-                                    source = reward.reason ?: "Офлайн-глава синхронизирована",
-                                )
-                            }
-                    }
+                    syncPendingHistory()
                 }
                 if (online) AppUpdateCheckWorker.enqueueNow(this@TomiloApp)
             }
