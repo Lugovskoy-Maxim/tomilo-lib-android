@@ -56,9 +56,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.ViewDay
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -226,6 +228,7 @@ fun ReaderScreen(
     var chapterQuery by rememberSaveable { mutableStateOf("") }
     var showComments by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showRating by remember { mutableStateOf(false) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
     var failedPages by remember { mutableStateOf(setOf<Int>()) }
     var loadedPages by remember { mutableStateOf(setOf<Int>()) }
@@ -240,6 +243,8 @@ fun ReaderScreen(
     var hasScrolledThisChapter by remember { mutableStateOf(false) }
     var autoAdvanceFromChapter by remember { mutableStateOf<String?>(null) }
     var currentChapterNumber by remember { mutableStateOf<Double?>(null) }
+    var myChapterRating by remember { mutableIntStateOf(0) }
+    var ratingBusy by remember { mutableStateOf(false) }
 
     LaunchedEffect(storedSettings) {
         val saved = storedSettings ?: return@LaunchedEffect
@@ -257,6 +262,12 @@ fun ReaderScreen(
         val tid = effectiveTitleId.orEmpty()
         layout = readingPrefs.layoutFor(tid, titleType)
         direction = readingPrefs.directionFor(tid, titleType)
+    }
+
+    LaunchedEffect(currentChapterId, user?.stableId()) {
+        myChapterRating = if (currentChapterId.isNotBlank() && user != null) {
+            historyRepository.myChapterRating(currentChapterId).getOrNull() ?: 0
+        } else 0
     }
 
     val currentIndex = remember(chapters, currentChapterId) {
@@ -870,6 +881,24 @@ fun ReaderScreen(
                 hasNext = hasNext || chapters.isEmpty(),
                 showTitleButton = atTitleEnd && canOpenTitle,
                 onOpenTitle = { openParentTitle() },
+                myRating = myChapterRating,
+                canRate = user != null && !ratingBusy && currentChapterId.isNotBlank(),
+                onRate = { rating ->
+                    if (user == null) {
+                        onLogin()
+                    } else if (currentChapterId.isNotBlank() && !ratingBusy) {
+                        scope.launch {
+                            ratingBusy = true
+                            historyRepository.rateChapter(currentChapterId, rating)
+                                .onSuccess {
+                                    myChapterRating = rating
+                                    chapterNavMessage = "Спасибо! Оценка главы: $rating/10"
+                                }
+                                .onFailure { chapterNavMessage = it.message ?: "Не удалось сохранить оценку" }
+                            ratingBusy = false
+                        }
+                    }
+                },
                 onRetry = { index, page ->
                     failedPages = failedPages - index
                     loadedPages = loadedPages - index
@@ -978,6 +1007,13 @@ fun ReaderScreen(
                                     .background(TomiloPrimary.copy(alpha = 0.13f))
                                     .padding(horizontal = 9.dp, vertical = 6.dp),
                             )
+                            IconButton(onClick = { showRating = true }) {
+                                Icon(
+                                    if (myChapterRating > 0) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                    "Оценить главу",
+                                    tint = if (myChapterRating > 0) Color(0xFFE4B85D) else Color.White,
+                                )
+                            }
                             IconButton(onClick = { chapterQuery = ""; showChapters = true }) {
                                 Icon(Icons.AutoMirrored.Filled.List, "Главы", tint = Color.White)
                             }
@@ -1165,6 +1201,51 @@ fun ReaderScreen(
                     )
                     Spacer(Modifier.height(30.dp))
                 }
+            }
+        }
+    }
+
+    if (showRating) {
+        ModalBottomSheet(
+            onDismissRequest = { showRating = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Color(0xFF17171D),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("Оценить главу", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    if (myChapterRating > 0) "Текущая оценка: $myChapterRating из 10" else "Выберите оценку от 1 до 10",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(16.dp))
+                ReaderRatingRow(
+                    rating = myChapterRating,
+                    enabled = !ratingBusy,
+                    onRate = { rating ->
+                        if (user == null) {
+                            showRating = false
+                            onLogin()
+                        } else if (currentChapterId.isNotBlank() && !ratingBusy) {
+                            scope.launch {
+                                ratingBusy = true
+                                historyRepository.rateChapter(currentChapterId, rating)
+                                    .onSuccess {
+                                        myChapterRating = rating
+                                        chapterNavMessage = "Спасибо! Оценка главы: $rating/10"
+                                        showRating = false
+                                    }
+                                    .onFailure { chapterNavMessage = it.message ?: "Не удалось сохранить оценку" }
+                                ratingBusy = false
+                            }
+                        }
+                    },
+                )
+                Spacer(Modifier.height(22.dp))
             }
         }
     }
@@ -1484,40 +1565,35 @@ private fun ReaderError(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun AdCountdownOverlay(secondsLeft: Int) {
-    val secondsWord = when (secondsLeft) {
-        1 -> "секунду"
-        in 2..4 -> "секунды"
-        else -> "секунд"
-    }
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.78f))
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) awaitPointerEvent()
-                }
-            },
-        contentAlignment = Alignment.Center,
+            .padding(top = 92.dp, end = 14.dp),
+        contentAlignment = Alignment.TopEnd,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                "Реклама через",
-                color = TomiloMuted,
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                secondsLeft.toString(),
-                color = Color.White,
-                style = MaterialTheme.typography.displayLarge,
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                secondsWord,
-                color = TomiloMuted,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        Surface(
+            color = Color(0xEE1B1B21),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, TomiloPrimary.copy(alpha = 0.38f)),
+            shadowElevation = 12.dp,
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    progress = { secondsLeft / ChapterTransitionAds.COUNTDOWN_SECONDS.toFloat() },
+                    color = TomiloPrimary,
+                    trackColor = Color.White.copy(alpha = 0.10f),
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.size(8.dp))
+                Column {
+                    Text("Реклама через", color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+                    Text("$secondsLeft сек.", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
 }
@@ -1688,6 +1764,9 @@ private fun WebtoonReader(
     hasNext: Boolean,
     showTitleButton: Boolean = false,
     onOpenTitle: () -> Unit = {},
+    myRating: Int = 0,
+    canRate: Boolean = false,
+    onRate: (Int) -> Unit = {},
     onRetry: (Int, String) -> Unit,
     onState: (index: Int, success: Boolean?, attempt: Int, page: String) -> Unit,
     onToggleChrome: () -> Unit,
@@ -1751,6 +1830,40 @@ private fun WebtoonReader(
                         color = TomiloMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        if (myRating > 0) "Ваша оценка главы — $myRating из 10" else "Как вам эта глава?",
+                        color = if (myRating > 0) Color(0xFFE4B85D) else Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Spacer(Modifier.height(7.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        (1..10).forEach { rating ->
+                            Icon(
+                                imageVector = if (rating <= myRating) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                contentDescription = "Оценка $rating из 10",
+                                tint = if (rating <= myRating) Color(0xFFE4B85D) else TomiloMuted,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(CircleShape)
+                                    .clickable(enabled = canRate) { onRate(rating) }
+                                    .padding(3.dp),
+                            )
+                        }
+                    }
+                    if (!canRate && myRating == 0) {
+                        Text(
+                            "Войдите, чтобы поставить оценку",
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier
+                                .clickable { onRate(0) }
+                                .padding(top = 5.dp),
+                        )
+                    }
                     if (showTitleButton) {
                         Button(
                             onClick = onOpenTitle,
@@ -1765,6 +1878,33 @@ private fun WebtoonReader(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ReaderRatingRow(
+    rating: Int,
+    enabled: Boolean,
+    onRate: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        (1..10).forEach { value ->
+            Icon(
+                imageVector = if (value <= rating) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                contentDescription = "Оценка $value из 10",
+                tint = if (value <= rating) Color(0xFFE4B85D) else TomiloMuted,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(enabled = enabled) { onRate(value) }
+                    .padding(3.dp),
+            )
         }
     }
 }
@@ -1856,33 +1996,36 @@ private fun WebtoonTileImage(
 
     LaunchedEffect(active, tileKey, claimed, attempt, localRetry) {
         if (!active) {
+            loading = false
             delay(900)
             if (!active) bitmap = null
             return@LaunchedEffect
         }
         if (bitmap != null || loading) return@LaunchedEffect
-        loading = true
-        error = null
-        var lastFailure: Throwable? = null
-        repeat(PageImages.MAX_ATTEMPTS) { retry ->
-            val result = runCatching {
-                WebtoonTiles.decode(
-                    context,
-                    page,
-                    tile,
-                    claimed = claimed,
-                    retry = attempt + localRetry + retry,
-                )
+        try {
+            loading = true
+            error = null
+            var lastFailure: Throwable? = null
+            repeat(PageImages.MAX_ATTEMPTS) { retry ->
+                val result = runCatching {
+                    WebtoonTiles.decode(
+                        context,
+                        page,
+                        tile,
+                        claimed = claimed,
+                        retry = attempt + localRetry + retry,
+                    )
+                }
+                result.onSuccess {
+                    bitmap = it
+                    return@LaunchedEffect
+                }.onFailure { lastFailure = it }
+                delay(300L * (retry + 1))
             }
-            result.onSuccess {
-                bitmap = it
-                loading = false
-                return@LaunchedEffect
-            }.onFailure { lastFailure = it }
-            delay(300L * (retry + 1))
+            error = lastFailure?.message ?: "Не удалось загрузить фрагмент"
+        } finally {
+            loading = false
         }
-        error = lastFailure?.message ?: "Не удалось загрузить фрагмент"
-        loading = false
     }
 
     Box(

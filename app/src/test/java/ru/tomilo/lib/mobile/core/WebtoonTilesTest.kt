@@ -71,6 +71,26 @@ class WebtoonTilesTest {
     }
 
     @Test
+    fun arbitraryOnlineSizesNeverProduceSeamsOrOverlaps() {
+        val claimedHeights = listOf(4097, 8193, 10_001, 27_777)
+        val sourceHeights = listOf(2049, 8887, 12_003, 31_111)
+
+        for (claimedHeight in claimedHeights) {
+            val claimed = PageDimensions(width = 1440, height = claimedHeight)
+            for (sourceHeight in sourceHeights) {
+                val rects = WebtoonTiles.split(claimed).map {
+                    WebtoonTiles.mapTileToSource(it, claimed, 1280, sourceHeight)
+                }
+                assertEquals(0, rects.first().top)
+                assertEquals(sourceHeight, rects.last().bottom)
+                assertTrue(rects.all { it.height > 0 })
+                assertTrue(rects.zipWithNext().all { (upper, lower) -> upper.bottom == lower.top })
+                assertEquals(sourceHeight, rects.sumOf { it.height })
+            }
+        }
+    }
+
+    @Test
     fun chapterReadsPageDimensionsFromCurrentApi() {
         val chapter = NetworkModule.json.decodeFromString<ChapterDto>(
             """

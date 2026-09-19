@@ -49,10 +49,10 @@ class ChapterTransitionAds(
 
             withContext(Dispatchers.Main) {
                 when {
-                    interstitialAdManager.enabled -> {
-                        Log.i(TAG, "Wait briefly for interstitial between chapters")
-                        interstitialAdManager.showWhenReady(activity) { shown ->
-                            if (shown) scope.launch { frequencyStore.markInterChapterShown() }
+                    interstitialAdManager.isReady -> {
+                        Log.i(TAG, "Show ready interstitial between chapters")
+                        interstitialAdManager.show(activity) {
+                            scope.launch { frequencyStore.markInterChapterShown() }
                             proceed()
                         }
                     }
@@ -92,7 +92,7 @@ class ChapterTransitionAds(
     suspend fun shouldPrompt(user: UserDto?, alreadyCheckedPremium: Boolean = false): Boolean {
         if (!alreadyCheckedPremium && Premium.isActive(user?.subscriptionExpiresAt)) return false
         if (!frequencyStore.canShowInterChapter()) return false
-        if (interstitialAdManager.enabled) return true
+        if (interstitialAdManager.isReady) return true
         return rewardedAdManager.isReady && adRewardStore.canGrantRewarded()
     }
 

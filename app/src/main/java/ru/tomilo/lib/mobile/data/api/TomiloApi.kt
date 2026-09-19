@@ -381,6 +381,16 @@ interface TomiloApi {
     @GET("titles/{id}/my-rating")
     suspend fun myTitleRating(@Path("id") id: String): ApiResponse<JsonElement>
 
+    // ── Chapter rating ──────────────────────────────────────────
+    @GET("chapters/{id}/rating")
+    suspend fun chapterRating(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @POST("chapters/{id}/rating")
+    suspend fun rateChapter(
+        @Path("id") id: String,
+        @Body body: RateChapterRequest,
+    ): ApiResponse<JsonElement>
+
     // ── Admin ───────────────────────────────────────────────────
     @GET("admin/dashboard")
     suspend fun adminDashboard(): ApiResponse<AdminDashboardDto>

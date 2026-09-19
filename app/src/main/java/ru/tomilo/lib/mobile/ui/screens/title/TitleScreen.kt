@@ -82,14 +82,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -101,6 +104,7 @@ import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.formatChapterTitle
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
+import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.local.AdRewardStore
@@ -114,6 +118,7 @@ import ru.tomilo.lib.mobile.ui.components.DownloadProgressSheet
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
+import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.formatRating
 import ru.tomilo.lib.mobile.ui.components.statusColor
 import ru.tomilo.lib.mobile.ui.components.statusLabel
@@ -154,6 +159,7 @@ fun TitleScreen(
     onOpenHome: () -> Unit,
     onLogin: () -> Unit,
     onOpenChapter: (titleId: String, chapterId: String, offline: Boolean) -> Unit,
+    onOpenTitle: (String) -> Unit = {},
     onOpenUser: (userId: String) -> Unit,
     onOpenPremium: () -> Unit = {},
 ) {
@@ -167,6 +173,7 @@ fun TitleScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var title by remember { mutableStateOf<TitleDetailDto?>(null) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
+    var recommendations by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var bookmarked by remember { mutableStateOf(false) }
     var bookmarkCategory by remember { mutableStateOf<String?>(null) }
     var selectMode by remember { mutableStateOf(false) }
@@ -184,7 +191,7 @@ fun TitleScreen(
     var adBusy by remember { mutableStateOf(false) }
     var showBookmarkCategories by remember { mutableStateOf(false) }
     var titleDetailsExpanded by remember { mutableStateOf(true) }
-    var pageTab by rememberSaveable { mutableStateOf(TitlePageTab.About) }
+    var pageTab by rememberSaveable { mutableStateOf(TitlePageTab.Chapters) }
     var chapterQuery by rememberSaveable { mutableStateOf("") }
 
     BackHandler {
@@ -352,6 +359,9 @@ fun TitleScreen(
             .onSuccess { chapters = it }
             .onFailure { error = it.message }
         loading = false
+        recommendations = catalogRepository.popular(8).getOrDefault(emptyList())
+            .filter { it.stableId() != detail.stableId() }
+            .take(6)
     }
 
     LaunchedEffect(title?.stableId(), user?.stableId()) {
@@ -552,6 +562,14 @@ fun TitleScreen(
                                     }
                                 },
                             )
+                            TitleCreditsAndRecommendations(
+                                title = t,
+                                recommendations = recommendations,
+                                onOpen = { item ->
+                                    val key = item.slug?.takeIf { it.isNotBlank() } ?: item.stableId()
+                                    if (key.isNotBlank()) onOpenTitle(key)
+                                },
+                            )
                             Spacer(Modifier.height(80.dp))
                         }
                     }
@@ -567,7 +585,7 @@ fun TitleScreen(
                                 onLoginRequired = onLogin,
                                 onOpenUser = onOpenUser,
                             )
-                            Spacer(Modifier.height(80.dp))
+                            Spacer(Modifier.height(16.dp))
                         }
                     }
                     if (pageTab == TitlePageTab.Chapters) {
@@ -1000,6 +1018,35 @@ fun TitleScreen(
 }
 
 @Composable
+private fun TitleSectionHeader(
+    title: String,
+    subtitle: String,
+    onBack: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(
+                subtitle,
+                color = TomiloMuted,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun TitleHero(
     title: TitleDetailDto,
     selectMode: Boolean,
@@ -1014,21 +1061,24 @@ private fun TitleHero(
     onBookmark: () -> Unit,
     onRead: () -> Unit,
 ) {
-    val screenH = LocalConfiguration.current.screenHeightDp.dp
-    val posterHeight = (screenH * 0.37f).coerceIn(270.dp, 330.dp)
-    val heroHeight = posterHeight + 310.dp
+    val posterHeight = 258.dp
+    val heroHeight = 528.dp
 
     Box(
         Modifier
             .fillMaxWidth()
             .height(heroHeight)
+            .clipToBounds()
             .background(TomiloBg),
     ) {
         TomiloCoverImage(
             source = title.coverImage,
-            contentDescription = title.name,
+            contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { scaleX = 1.18f; scaleY = 1.18f }
+                .blur(28.dp),
         )
         Box(
             Modifier
@@ -1036,9 +1086,8 @@ private fun TitleHero(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color.Black.copy(alpha = 0.42f),
-                            Color.Black.copy(alpha = 0.68f),
-                            Color.Black.copy(alpha = 0.88f),
+                            Color.Black.copy(alpha = 0.52f),
+                            TomiloBg.copy(alpha = 0.66f),
                             TomiloBg,
                         ),
                     ),
@@ -1083,7 +1132,7 @@ private fun TitleHero(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
 
             TomiloCoverImage(
                 source = title.coverImage,
@@ -1092,18 +1141,18 @@ private fun TitleHero(
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .height(posterHeight)
-                    .width(posterHeight * 0.68f)
-                    .shadow(18.dp, RoundedCornerShape(22.dp))
-                    .clip(RoundedCornerShape(22.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(22.dp)),
+                    .width(176.dp)
+                    .shadow(10.dp, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(12.dp)),
             )
 
-            Spacer(Modifier.height(15.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 title.name.orEmpty(),
                 color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -1119,7 +1168,7 @@ private fun TitleHero(
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1127,8 +1176,8 @@ private fun TitleHero(
                 Button(
                     onClick = onRead,
                     enabled = continueChapterId != null,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(22.dp),
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    shape = RoundedCornerShape(19.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
                 ) {
                     Text(
@@ -1138,8 +1187,8 @@ private fun TitleHero(
                 }
                 Surface(
                     onClick = onBookmark,
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(22.dp),
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    shape = RoundedCornerShape(19.dp),
                     color = Color(0xCC17181C),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                 ) {
@@ -1169,7 +1218,7 @@ private fun TitleHero(
                 Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(top = 11.dp),
+                    .padding(top = 9.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
                 title.releaseYear?.let { TitleHeroMetadataChip("$it") }
@@ -1206,22 +1255,23 @@ private fun TitlePageSwitcher(
     selected: TitlePageTab,
     onSelect: (TitlePageTab) -> Unit,
 ) {
-    Surface(
-        modifier = Modifier
+    Row(
+        Modifier
             .fillMaxWidth()
-            .padding(horizontal = 42.dp, vertical = 8.dp),
-        color = Color(0xFF101115),
-        shape = RoundedCornerShape(28.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+            .padding(horizontal = 28.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TitlePageTab.entries.forEach { tab ->
                 val active = tab == selected
                 Surface(
                     onClick = { onSelect(tab) },
                     modifier = Modifier.weight(1f),
-                    color = if (active) TomiloPrimary.copy(alpha = 0.14f) else Color.Transparent,
-                    shape = RoundedCornerShape(22.dp),
+                    color = if (active) TomiloPrimary.copy(alpha = 0.16f) else Color(0xFF111216),
+                    shape = RoundedCornerShape(18.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (active) TomiloPrimary.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.05f),
+                    ),
                 ) {
                     Text(
                         tab.label,
@@ -1229,11 +1279,11 @@ private fun TitlePageSwitcher(
                         fontSize = 12.sp,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 9.dp),
                     )
                 }
             }
-        }
     }
 }
 
@@ -1329,6 +1379,71 @@ private fun TitleRatingBlock(
                 color = if (myRating > 0) TomiloPremium else TomiloMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
+        }
+    }
+}
+
+@Composable
+private fun TitleCreditsAndRecommendations(
+    title: TitleDetailDto,
+    recommendations: List<CatalogTitleDto>,
+    onOpen: (CatalogTitleDto) -> Unit,
+) {
+    val credits = listOfNotNull(
+        title.author?.takeIf { it.isNotBlank() }?.let { "Автор" to it },
+        title.artist?.takeIf { it.isNotBlank() }?.let { "Художник" to it },
+    )
+    if (credits.isNotEmpty()) {
+        Text(
+            "Над тайтлом работали",
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            credits.forEach { (role, name) ->
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    color = TomiloSurface2,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(role, color = TomiloMuted, fontSize = 11.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                    }
+                }
+            }
+        }
+    }
+    if (recommendations.isNotEmpty()) {
+        Text(
+            "Рекомендуем почитать",
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        )
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            recommendations.forEach { item ->
+                TitlePosterCard(
+                    title = item.displayTitle(),
+                    cover = item.coverPath(),
+                    onClick = { onOpen(item) },
+                    width = 116.dp,
+                    type = item.type,
+                    rating = item.displayRating(),
+                    status = item.status,
+                    isAdult = item.isAdult == true,
+                    plain = true,
+                )
+            }
         }
     }
 }

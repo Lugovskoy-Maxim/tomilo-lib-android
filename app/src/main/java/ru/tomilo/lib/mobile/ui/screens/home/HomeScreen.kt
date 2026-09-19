@@ -53,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -69,6 +70,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,6 +84,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ChatTime
+import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
@@ -134,7 +142,10 @@ fun HomeScreen(
     onOpenProfile: () -> Unit = {},
     onContinueReading: (titleId: String, chapterId: String) -> Unit = { _, _ -> },
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
+    val online by remember(context) { context.networkAvailabilityFlow() }.collectAsState(initial = true)
     val user by authRepository.userFlow.collectAsState(initial = null)
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -145,6 +156,23 @@ fun HomeScreen(
     var refreshing by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(FeedFilter.ALL) }
     var showCarousel by remember { mutableStateOf(false) }
+    var observedInitialResume by remember { mutableStateOf(false) }
+    var previousOnline by remember { mutableStateOf(online) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (observedInitialResume) reloadToken += 1 else observedInitialResume = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(online) {
+        if (online && !previousOnline) reloadToken += 1
+        previousOnline = online
+    }
 
     LaunchedEffect(user?.stableId(), reloadToken) {
         continueItems = if (user == null) {
@@ -157,11 +185,15 @@ fun HomeScreen(
     LaunchedEffect(reloadToken, contentSettings.showAdultContent) {
         loading = true
         error = null
-        val u = catalogRepository.latestUpdates()
-        val p = catalogRepository.popular()
+        val (u, p) = coroutineScope {
+            val updatesRequest = async { catalogRepository.latestUpdates() }
+            val popularRequest = async { catalogRepository.popular() }
+            updatesRequest.await() to popularRequest.await()
+        }
         if (u.isFailure && p.isFailure) {
             error = u.exceptionOrNull()?.message ?: "Не удалось загрузить данные"
             loading = false
+            refreshing = false
             return@LaunchedEffect
         }
         val showAdult = contentSettings.showAdultContent
@@ -716,12 +748,7 @@ private fun ShortcutRow(
     ) {
         ShortcutActionItem("Новинки", Icons.Outlined.Update, onUpdates)
         ShortcutActionItem("Поиск", Icons.Default.Search, onSearch)
-        ShortcutActionItem("Карусель", Icons.Outlined.ViewCarousel, onCarousel)
-        ShortcutActionItem("Квесты", Icons.Outlined.CardGiftcard, onQuests)
-        ShortcutActionItem("Колесо", Icons.Default.Casino, onWheel)
-        ShortcutActionItem("Офлайн", Icons.Outlined.CloudOff, onOffline)
-        ShortcutActionItem("Игры", Icons.Outlined.SportsEsports, onGames)
-        ShortcutActionItem("Друзья", Icons.Outlined.People, onFriends)
+        ShortcutActionItem("Больше", Icons.Outlined.ViewCarousel, onCarousel)
     }
 }
 
@@ -738,11 +765,12 @@ private fun ShortcutActionItem(
         Box(
             Modifier
                 .size(34.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(TomiloPrimary),
+                .clip(CircleShape)
+                .background(Color(0xFF17191D))
+                .border(1.dp, Color.White.copy(alpha = 0.09f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(8.dp))
         Text(label, color = TomiloText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)

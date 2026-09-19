@@ -51,10 +51,16 @@ class AppContainer(context: Context) {
     )
     private val tokenHolder = TokenHolder()
 
-    val tomiloApi = NetworkModule.createApi(appContext) {
-        // tokenHolder может ещё не подтянуться с DataStore — fallback на store
-        tokenHolder.token ?: TokenBridge.peekToken()
-    }
+    val tomiloApi = NetworkModule.createApi(
+        context = appContext,
+        tokenProvider = { tokenHolder.token ?: TokenBridge.peekToken() },
+        refreshTokenProvider = { TokenBridge.peekRefreshToken() },
+        onTokensRefreshed = { access, refresh ->
+            TokenBridge.setCached(access)
+            TokenBridge.setCachedRefreshToken(refresh ?: TokenBridge.peekRefreshToken())
+            kotlinx.coroutines.runBlocking { authStore.updateTokens(access, refresh) }
+        },
+    )
 
     val authRepository = AuthRepository(tomiloApi, authStore)
     val catalogRepository = CatalogRepository(tomiloApi)
@@ -92,6 +98,7 @@ object TokenBridge {
     /** Синхронный peek: holder, затем (если уже инициализирован) — null (async only). */
     @Volatile
     private var cachedToken: String? = null
+    @Volatile private var cachedRefreshToken: String? = null
 
     fun setCached(token: String?) {
         cachedToken = token
@@ -104,4 +111,10 @@ object TokenBridge {
         }
         return cachedToken
     }
+
+    fun setCachedRefreshToken(token: String?) {
+        cachedRefreshToken = token
+    }
+
+    fun peekRefreshToken(): String? = cachedRefreshToken
 }

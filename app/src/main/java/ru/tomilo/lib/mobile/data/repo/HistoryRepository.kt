@@ -10,6 +10,7 @@ import kotlinx.serialization.json.intOrNull
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.RateTitleRequest
+import ru.tomilo.lib.mobile.data.api.RateChapterRequest
 import ru.tomilo.lib.mobile.data.api.ReadIdsDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
@@ -82,6 +83,24 @@ class HistoryRepository(private val api: TomiloApi) {
         when (data) {
             is kotlinx.serialization.json.JsonPrimitive -> data.content.toIntOrNull()
             is JsonObject -> data["rating"]?.jsonPrimitive?.content?.toIntOrNull()
+            else -> null
+        }
+    }
+
+    suspend fun rateChapter(chapterId: String, rating: Int): Result<Unit> = runCatching {
+        val res = api.rateChapter(chapterId, RateChapterRequest(rating.coerceIn(1, 10)))
+        if (!res.success) error(res.message ?: "Не удалось оценить главу")
+    }
+
+    suspend fun myChapterRating(chapterId: String): Result<Int?> = runCatching {
+        if (chapterId.isBlank()) return@runCatching null
+        val res = api.chapterRating(chapterId)
+        if (!res.success) error(res.message ?: "Не удалось загрузить оценку главы")
+        val data = res.data ?: return@runCatching null
+        when (data) {
+            is kotlinx.serialization.json.JsonPrimitive -> data.content.toIntOrNull()
+            is JsonObject -> data["userRating"]?.jsonPrimitive?.content?.toIntOrNull()
+                ?: data["rating"]?.jsonPrimitive?.content?.toIntOrNull()
             else -> null
         }
     }

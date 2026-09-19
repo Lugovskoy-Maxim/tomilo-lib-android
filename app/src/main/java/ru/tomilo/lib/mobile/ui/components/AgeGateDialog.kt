@@ -1,73 +1,140 @@
 package ru.tomilo.lib.mobile.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
-import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
-import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
+import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
+import ru.tomilo.lib.mobile.ui.theme.TomiloPrimaryDim
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-/**
- * Первый запуск: подтверждение возраста.
- * 18+ по умолчанию выключен; взрослый может включить в профиле/каталоге.
- */
+/** Обязательное подтверждение 18+ при первом запуске. */
 @Composable
 fun AgeGateDialog(
     onAdult: () -> Unit,
-    onMinor: () -> Unit,
+    onExit: () -> Unit,
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = { /* обязательный ответ */ },
-        icon = { Icon(Icons.Default.Shield, contentDescription = null, tint = TomiloPrimary) },
-        title = {
-            Text("Подтверждение возраста", fontWeight = FontWeight.Bold)
-        },
-        text = {
-            Column {
-                Text(
-                    "Вам уже исполнилось 18 лет?",
-                    style = MaterialTheme.typography.bodyLarge,
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 12.dp)
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.verticalGradient(listOf(Color(0xFF1C1010), TomiloBg)),
+                    shape = RoundedCornerShape(24.dp),
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Контент 18+ по умолчанию скрыт. Если вам есть 18, вы сможете " +
-                        "включить его позже в профиле или фильтрах каталога.",
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodySmall,
+                .border(
+                    width = 1.dp,
+                    color = TomiloPrimaryDim.copy(alpha = 0.42f),
+                    shape = RoundedCornerShape(24.dp),
+                )
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(TomiloPremium.copy(alpha = 0.28f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Shield,
+                    contentDescription = null,
+                    tint = TomiloPremium,
+                    modifier = Modifier.size(21.dp),
                 )
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = onAdult,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Возрастное ограничение",
+                color = TomiloPremium,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(18.dp))
+            Text("Сайт содержит материалы 18+", color = TomiloText, fontSize = 14.sp)
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "На Tomilo-lib есть произведения с возрастным ограничением. Продолжая, вы подтверждаете, что вам исполнилось 18 лет.",
+                color = TomiloText,
+                fontSize = 16.sp,
+                lineHeight = 20.sp,
+            )
+            Spacer(Modifier.height(14.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF121111), RoundedCornerShape(24.dp))
+                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                Text("Мне есть 18")
+                Text(
+                    "Подтверждение сохраняется только на этом устройстве. Если вам нет 18 лет, выберите выход с сайта.",
+                    color = TomiloText,
+                    fontSize = 14.sp,
+                    lineHeight = 17.sp,
+                    textAlign = TextAlign.Center,
+                )
             }
-        },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onMinor,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            Spacer(Modifier.height(14.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Мне нет 18")
+                OutlinedButton(
+                    onClick = onAdult,
+                    modifier = Modifier.fillMaxWidth(0.64f).height(44.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, TomiloBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TomiloText),
+                ) {
+                    Text("Мне исполнилось 18 лет", fontSize = 14.sp)
+                }
+                Button(
+                    onClick = onExit,
+                    modifier = Modifier.fillMaxWidth(0.28f).height(40.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimaryDim),
+                ) {
+                    Text("Выйти", fontSize = 14.sp)
+                }
             }
-        },
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
-        containerColor = TomiloSurface2,
-    )
+        }
+    }
 }

@@ -1,17 +1,20 @@
 package ru.tomilo.lib.mobile.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -51,10 +54,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -73,6 +81,9 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private val fallbackCommentReactions = listOf("👍", "👎", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏")
 private val HeartActive = Color(0xFFEF4444)
+private val CommentDivider = Color.White.copy(alpha = 0.065f)
+private val ReplyConnector = TomiloPrimary.copy(alpha = 0.34f)
+private val ReplySurface = TomiloPrimary.copy(alpha = 0.055f)
 private val commentBody = TextStyle(
     fontSize = 15.sp,
     lineHeight = 20.sp,
@@ -100,6 +111,7 @@ fun CommentsSection(
 ) {
     var loading by remember { mutableStateOf(true) }
     var comments by remember { mutableStateOf<List<CommentDto>>(emptyList()) }
+    var commentsTotal by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var draft by remember { mutableStateOf("") }
     var spoiler by remember { mutableStateOf(false) }
@@ -116,12 +128,17 @@ fun CommentsSection(
     var reactionPickerComment by remember { mutableStateOf<CommentDto?>(null) }
     var pendingReactionIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(entityId, entityType, reload, sortOrder) {
         loading = comments.isEmpty()
         error = null
         socialRepository.comments(entityType, entityId, sortOrder = sortOrder)
-            .onSuccess { comments = it.sortedComments(sortOrder) }
+            .onSuccess {
+                comments = it.comments.sortedComments(sortOrder)
+                commentsTotal = it.total.coerceAtLeast(it.comments.totalCommentCount())
+            }
             .onFailure { error = it.message }
         loading = false
     }
@@ -174,6 +191,8 @@ fun CommentsSection(
                     spoiler = false
                     replyingTo = null
                     editingComment = null
+                    focusManager.clearFocus(force = true)
+                    keyboard?.hide()
                     reload += 1
                 }
                 .onFailure { error = it.message }
@@ -216,7 +235,7 @@ fun CommentsSection(
         else -> null
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth().background(TomiloBg)) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -231,7 +250,7 @@ fun CommentsSection(
             )
             if (!loading && comments.isNotEmpty()) {
                 Text(
-                    " ${comments.size}",
+                    " $commentsTotal",
                     color = TomiloMuted,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Normal,
@@ -239,7 +258,7 @@ fun CommentsSection(
             }
         }
 
-        HorizontalDivider(color = TomiloBorder.copy(alpha = 0.7f))
+        HorizontalDivider(color = CommentDivider)
 
         if (isLoggedIn) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -264,7 +283,7 @@ fun CommentsSection(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .padding(top = 12.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
                     DecoratedAvatar(
@@ -362,7 +381,7 @@ fun CommentsSection(
                     Modifier
                         .wrapContentWidth()
                         .clickable { sortOrder = value }
-                        .padding(top = 8.dp),
+                        .padding(top = 2.dp),
                 ) {
                     Text(
                         label,
@@ -651,22 +670,41 @@ private fun CommentThread(
         onDelete = { onDelete(comment) },
         onReport = { onReport(comment) },
     )
-    comment.replies.orEmpty().forEach { reply ->
-        CommentThread(
-            comment = reply,
-            currentUserId = currentUserId,
-            isStaff = isStaff,
-            isLoggedIn = isLoggedIn,
-            onOpenUser = onOpenUser,
-            pendingReactionIds = pendingReactionIds,
-            onReaction = onReaction,
-            onAddReaction = onAddReaction,
-            onReply = onReply,
-            onEdit = onEdit,
-            onDelete = onDelete,
-            onReport = onReport,
-            level = level + 1,
-        )
+    if (comment.replies.orEmpty().isNotEmpty()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    val x = 31.dp.toPx()
+                    val inset = 12.dp.toPx()
+                    drawLine(
+                        ReplyConnector,
+                        Offset(x, inset),
+                        Offset(x, (size.height - inset).coerceAtLeast(inset)),
+                        1.dp.toPx(),
+                    )
+                },
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                comment.replies.orEmpty().forEach { reply ->
+                    CommentThread(
+                        comment = reply,
+                        currentUserId = currentUserId,
+                        isStaff = isStaff,
+                        isLoggedIn = isLoggedIn,
+                        onOpenUser = onOpenUser,
+                        pendingReactionIds = pendingReactionIds,
+                        onReaction = onReaction,
+                        onAddReaction = onAddReaction,
+                        onReply = onReply,
+                        onEdit = onEdit,
+                        onDelete = onDelete,
+                        onReport = onReport,
+                        level = (level + 1).coerceAtMost(2),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -688,6 +726,8 @@ private fun CommentItem(
 ) {
     val isReply = level > 0
     var spoilerRevealed by remember(comment.stableId()) { mutableStateOf(false) }
+    var textExpanded by remember(comment.stableId()) { mutableStateOf(false) }
+    var textOverflows by remember(comment.stableId()) { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     val hasSpoiler = comment.isSpoiler == true
     val avatarSize = if (isReply) 32.dp else 36.dp
@@ -704,9 +744,12 @@ private fun CommentItem(
     Column(
         Modifier
             .fillMaxWidth()
-            .then(if (isReply) Modifier.padding(start = 40.dp) else Modifier),
+            .then(if (isReply) Modifier.padding(start = 24.dp) else Modifier),
     ) {
-        HorizontalDivider(color = TomiloBorder.copy(alpha = 0.7f))
+        HorizontalDivider(
+            modifier = if (isReply) Modifier.padding(start = 24.dp) else Modifier,
+            color = CommentDivider,
+        )
         if (comment.hiddenBySystem == true) {
             Text(
                 "Комментарий скрыт системой модерации",
@@ -719,7 +762,14 @@ private fun CommentItem(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .then(
+                    if (isReply) Modifier
+                        .padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 4.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(ReplySurface)
+                    else Modifier,
+                )
+                .padding(start = 16.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
             verticalAlignment = Alignment.Top,
         ) {
             DecoratedAvatar(
@@ -839,20 +889,55 @@ private fun CommentItem(
                     }
                 }
                 if (hasSpoiler && !spoilerRevealed) {
-                    Text(
-                        "Показать спойлер",
-                        fontSize = 15.sp,
-                        color = TomiloMuted,
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .clickable { spoilerRevealed = true },
-                    )
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 7.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(TomiloSurface2)
+                            .border(1.dp, TomiloPrimary.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+                            .clickable { spoilerRevealed = true }
+                            .padding(horizontal = 14.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            "Комментарий может содержать спойлер.",
+                            fontSize = 13.sp,
+                            color = TomiloMuted,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "Нажмите, чтобы открыть",
+                            fontSize = 13.sp,
+                            color = TomiloText,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                 } else {
-                    Text(
-                        comment.content.orEmpty(),
-                        style = commentBody,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
+                    Column(Modifier.padding(top = 2.dp)) {
+                        Text(
+                            comment.content.orEmpty(),
+                            style = commentBody,
+                            maxLines = if (textExpanded) Int.MAX_VALUE else 6,
+                            overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { result ->
+                                if (!textExpanded) textOverflows = result.hasVisualOverflow
+                            },
+                        )
+                        if (textOverflows || textExpanded) {
+                            Text(
+                                if (textExpanded) "Свернуть" else "Показать полностью",
+                                color = TomiloPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { textExpanded = !textExpanded }
+                                    .padding(top = 4.dp, end = 8.dp, bottom = 2.dp),
+                            )
+                        }
+                    }
                 }
                 Row(
                     Modifier.padding(top = 2.dp),
@@ -942,4 +1027,8 @@ private fun List<CommentDto>.sortedComments(order: String): List<CommentDto> {
         "popular" -> sortedByDescending(score)
         else -> sortedByDescending(stamp)
     }
+}
+
+private fun List<CommentDto>.totalCommentCount(): Int = sumOf { comment ->
+    1 + comment.replies.orEmpty().totalCommentCount()
 }

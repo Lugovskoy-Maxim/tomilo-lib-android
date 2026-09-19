@@ -15,9 +15,11 @@ private val Context.authDataStore by preferencesDataStore("tomilo_auth")
 
 class AuthStore(private val context: Context) {
     private val tokenKey = stringPreferencesKey("access_token")
+    private val refreshTokenKey = stringPreferencesKey("refresh_token")
     private val userKey = stringPreferencesKey("user_json")
 
     val tokenFlow: Flow<String?> = context.authDataStore.data.map { it[tokenKey] }
+    val refreshTokenFlow: Flow<String?> = context.authDataStore.data.map { it[refreshTokenKey] }
     val userFlow: Flow<UserDto?> = context.authDataStore.data.map { prefs ->
         prefs[userKey]?.let {
             runCatching { NetworkModule.json.decodeFromString<UserDto>(it) }.getOrNull()
@@ -25,13 +27,23 @@ class AuthStore(private val context: Context) {
     }
 
     suspend fun token(): String? = tokenFlow.first()
+    suspend fun refreshToken(): String? = refreshTokenFlow.first()
 
     suspend fun user(): UserDto? = userFlow.first()
 
-    suspend fun saveSession(token: String, user: UserDto) {
+    suspend fun saveSession(token: String, refreshToken: String?, user: UserDto) {
         context.authDataStore.edit { prefs ->
             prefs[tokenKey] = token
+            if (refreshToken.isNullOrBlank()) prefs.remove(refreshTokenKey)
+            else prefs[refreshTokenKey] = refreshToken
             prefs[userKey] = NetworkModule.json.encodeToString(user)
+        }
+    }
+
+    suspend fun updateTokens(token: String, refreshToken: String?) {
+        context.authDataStore.edit { prefs ->
+            prefs[tokenKey] = token
+            if (!refreshToken.isNullOrBlank()) prefs[refreshTokenKey] = refreshToken
         }
     }
 

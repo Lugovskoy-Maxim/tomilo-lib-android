@@ -33,8 +33,9 @@ class InterstitialAdManager(
     private var retryRunnable: Runnable? = null
     private val sdkReady = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
+    private val adsAllowed = AtomicBoolean(true)
 
-    val enabled: Boolean get() = adUnitId.isNotBlank()
+    val enabled: Boolean get() = adUnitId.isNotBlank() && adsAllowed.get()
 
     @Volatile
     var isReady: Boolean = false
@@ -50,6 +51,10 @@ class InterstitialAdManager(
             YandexAds.initialize(
                 appContext,
                 InitializationListener {
+                    if (!adsAllowed.get()) {
+                        onReady?.invoke()
+                        return@InitializationListener
+                    }
                     sdkReady.set(true)
                     ensureLoader()
                     preload()
@@ -95,6 +100,16 @@ class InterstitialAdManager(
                     }
                 },
             )
+        }
+    }
+
+    /** Premium completely disables requests, cached ads and future shows. */
+    fun setAdsAllowed(allowed: Boolean) {
+        val changed = adsAllowed.getAndSet(allowed) != allowed
+        if (!allowed) {
+            destroy()
+        } else if (changed) {
+            if (sdkReady.get()) preload() else initialize()
         }
     }
 

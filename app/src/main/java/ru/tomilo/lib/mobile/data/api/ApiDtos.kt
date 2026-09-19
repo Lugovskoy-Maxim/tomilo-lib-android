@@ -56,6 +56,12 @@ data class AuthPayload(
 )
 
 @Serializable
+data class RefreshTokenPayload(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("refresh_token") val refreshToken: String? = null,
+)
+
+@Serializable
 data class UserDto(
     @SerialName("_id") val underscoreId: String? = null,
     val id: String? = null,
@@ -142,6 +148,9 @@ data class ShopDecorationDto(
 
 @Serializable
 data class RateTitleRequest(val rating: Int)
+
+@Serializable
+data class RateChapterRequest(val value: Int)
 
 @Serializable
 data class DailyQuestDto(

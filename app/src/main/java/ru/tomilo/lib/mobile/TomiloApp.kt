@@ -15,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -28,6 +29,7 @@ import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.push.PushTokenSync
 import ru.tomilo.lib.mobile.core.isNetworkAvailable
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
+import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 
@@ -67,12 +69,15 @@ class TomiloApp : Application(), ImageLoaderFactory {
         super.onCreate()
         container = AppContainer(this)
         // Синхронно подтянуть токен до UI — иначе чаты/закладки уходят без Authorization
-        runBlocking {
+        val initialUser = runBlocking {
             TokenBridge.setCached(container.authStore.token())
+            TokenBridge.setCachedRefreshToken(container.authStore.refreshToken())
+            container.authStore.user()
         }
-        // РСЯ: init + preload rewarded + interstitial (между главами)
-        container.rewardedAdManager.initialize()
-        container.interstitialAdManager.initialize()
+        // У Premium реклама отключена полностью: SDK не запрашивает и не кеширует объявления.
+        val adsAllowedInitially = !Premium.isActive(initialUser?.subscriptionExpiresAt)
+        container.rewardedAdManager.setAdsAllowed(adsAllowedInitially)
+        container.interstitialAdManager.setAdsAllowed(adsAllowedInitially)
         NotificationHelper.ensureChannel(this)
         if (BuildConfig.RUSTORE_PUSH_PROJECT_ID.isNotBlank()) {
             runCatching {
@@ -85,6 +90,15 @@ class TomiloApp : Application(), ImageLoaderFactory {
         }
         NotificationsPollWorker.schedule(this)
         AppUpdateCheckWorker.schedule(this)
+        appScope.launch {
+            container.authStore.userFlow
+                .map { !Premium.isActive(it?.subscriptionExpiresAt) }
+                .distinctUntilChanged()
+                .collect { adsAllowed ->
+                    container.rewardedAdManager.setAdsAllowed(adsAllowed)
+                    container.interstitialAdManager.setAdsAllowed(adsAllowed)
+                }
+        }
         appScope.launch {
             container.authStore.tokenFlow.distinctUntilChanged().collectLatest { token ->
                 TokenBridge.setCached(token)

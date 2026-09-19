@@ -61,7 +61,8 @@ class AuthRepository(
         }
         // Сразу кладём токен — иначе первый GET (чаты/закладки) уходит без Authorization
         TokenBridge.setCached(payload.accessToken)
-        authStore.saveSession(payload.accessToken, payload.user)
+        TokenBridge.setCachedRefreshToken(payload.refreshToken)
+        authStore.saveSession(payload.accessToken, payload.refreshToken, payload.user)
         return payload.user
     }
 
@@ -74,6 +75,7 @@ class AuthRepository(
 
     suspend fun logout() {
         TokenBridge.setCached(null)
+        TokenBridge.setCachedRefreshToken(null)
         authStore.clear()
     }
 

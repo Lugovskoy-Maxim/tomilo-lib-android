@@ -8,6 +8,7 @@ import okhttp3.Dispatcher
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -24,9 +25,15 @@ object NetworkModule {
         explicitNulls = false
     }
 
-    fun createApi(context: Context, tokenProvider: () -> String?): TomiloApi {
+    fun createApi(
+        context: Context,
+        tokenProvider: () -> String?,
+        refreshTokenProvider: () -> String?,
+        onTokensRefreshed: (String, String?) -> Unit,
+    ): TomiloApi {
         val cacheDir = File(context.cacheDir, "http_cache")
         val cache = Cache(cacheDir, 50L * 1024L * 1024L) // 50 MB
+        val contentType = "application/json".toMediaType()
 
         val authInterceptor = Interceptor { chain ->
             val token = tokenProvider()
@@ -123,12 +130,56 @@ object NetworkModule {
             }
         }
 
+        val refreshLock = Any()
+        val tokenAuthenticator = okhttp3.Authenticator { _, response ->
+            if (response.request.url.encodedPath.contains("/auth/refresh")) return@Authenticator null
+            synchronized(refreshLock) {
+                val failedToken = response.request.header("Authorization")?.removePrefix("Bearer ")
+                val currentToken = tokenProvider()
+                if (!currentToken.isNullOrBlank() && currentToken != failedToken) {
+                    return@synchronized response.request.newBuilder()
+                        .header("Authorization", "Bearer $currentToken")
+                        .build()
+                }
+                val refreshToken = refreshTokenProvider()?.takeIf { it.isNotBlank() }
+                    ?: return@synchronized null
+                val refreshBody = json.encodeToString(
+                    kotlinx.serialization.json.JsonObject.serializer(),
+                    kotlinx.serialization.json.buildJsonObject {
+                        put("refresh_token", kotlinx.serialization.json.JsonPrimitive(refreshToken))
+                    },
+                ).toRequestBody(contentType)
+                val refreshRequest = okhttp3.Request.Builder()
+                    .url(BuildConfig.API_BASE_URL.trimEnd('/') + "/auth/refresh")
+                    .post(refreshBody)
+                    .header("Accept", "application/json")
+                    .build()
+                val refreshClient = OkHttpClient.Builder()
+                    .connectTimeout(15, TimeUnit.SECONDS)
+                    .readTimeout(20, TimeUnit.SECONDS)
+                    .build()
+                val refreshed = runCatching {
+                    refreshClient.newCall(refreshRequest).execute().use { refreshResponse ->
+                        if (!refreshResponse.isSuccessful) return@use null
+                        val raw = refreshResponse.body?.string().orEmpty()
+                        json.decodeFromString<ApiResponse<RefreshTokenPayload>>(raw).data
+                    }
+                }.getOrNull() ?: return@synchronized null
+                if (refreshed.accessToken.isBlank()) return@synchronized null
+                onTokensRefreshed(refreshed.accessToken, refreshed.refreshToken)
+                response.request.newBuilder()
+                    .header("Authorization", "Bearer ${refreshed.accessToken}")
+                    .build()
+            }
+        }
+
         val client = OkHttpClient.Builder()
             .cache(cache)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .callTimeout(45, TimeUnit.SECONDS)
+            .authenticator(tokenAuthenticator)
             .addInterceptor(authInterceptor)
             .addInterceptor(offlineCacheInterceptor)
             .addInterceptor(retryGetInterceptor)
@@ -136,7 +187,6 @@ object NetworkModule {
             .addInterceptor(logging)
             .build()
 
-        val contentType = "application/json".toMediaType()
         return Retrofit.Builder()
             .baseUrl(BuildConfig.API_BASE_URL)
             .client(client)

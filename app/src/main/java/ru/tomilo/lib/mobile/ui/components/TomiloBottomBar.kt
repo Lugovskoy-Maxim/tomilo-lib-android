@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -94,6 +95,7 @@ fun TomiloBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .widthIn(max = 350.dp)
                 .selectableGroup()
                 .shadow(
                     elevation = 22.dp,
@@ -120,7 +122,7 @@ fun TomiloBottomBar(
                     ),
                     shape = BarShape,
                 )
-                .padding(horizontal = 6.dp, vertical = 6.dp),
+                .padding(horizontal = 7.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -156,7 +158,7 @@ private fun NavTabItem(
     modifier: Modifier = Modifier,
 ) {
     val contentColor by animateColorAsState(
-        targetValue = if (selected) TomiloPrimary else TomiloMuted.copy(alpha = 0.82f),
+        targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.88f),
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabColor",
     )
@@ -169,21 +171,22 @@ private fun NavTabItem(
         label = "tabScale",
     )
     val bg by animateColorAsState(
-        targetValue = if (selected) TomiloActivePill.copy(alpha = 0.38f) else Color.Transparent,
+        targetValue = if (selected) TomiloPrimary else Color.Transparent,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabBg",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) TomiloActiveBorder.copy(alpha = 0.42f) else Color.Transparent,
+        targetValue = if (selected) TomiloPrimary else Color.Transparent,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabBorder",
     )
 
-    Column(
+    Box(
         modifier = modifier
-            .clip(ItemShape)
+            .height(52.dp)
+            .clip(if (selected) RoundedCornerShape(17.dp) else ItemShape)
             .background(bg)
-            .border(1.dp, border, ItemShape)
+            .border(1.dp, border, if (selected) RoundedCornerShape(17.dp) else ItemShape)
             .clickable(
                 role = Role.Tab,
                 onClick = onClick,
@@ -191,8 +194,7 @@ private fun NavTabItem(
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
             .padding(horizontal = 2.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        contentAlignment = Alignment.Center,
     ) {
         Box(contentAlignment = Alignment.TopEnd) {
             Icon(
@@ -200,7 +202,7 @@ private fun NavTabItem(
                 contentDescription = label,
                 tint = contentColor,
                 modifier = Modifier
-                    .size(23.dp)
+                    .size(if (selected) 27.dp else 24.dp)
                     .scale(scale),
             )
 
@@ -231,40 +233,6 @@ private fun NavTabItem(
             }
         }
 
-        Spacer(Modifier.height(3.dp))
-
-        Text(
-            text = label,
-            color = contentColor,
-            fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
-        // Micro glowing pill beneath the active tab
-        AnimatedVisibility(
-            visible = selected,
-            enter = fadeIn(spring(stiffness = Spring.StiffnessMediumLow)) + scaleIn(spring(stiffness = Spring.StiffnessMediumLow)),
-            exit = fadeOut() + scaleOut(),
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .width(14.dp)
-                    .height(2.5.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                TomiloPrimary.copy(alpha = 0.5f),
-                                TomiloPrimary,
-                                TomiloPrimary.copy(alpha = 0.5f),
-                            ),
-                        ),
-                    ),
-            )
-        }
     }
 }
 

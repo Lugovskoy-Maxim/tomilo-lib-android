@@ -15,6 +15,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -70,6 +71,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -82,6 +84,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.R
 import kotlin.math.roundToInt
 
 class SwipeRevealCoordinator {
@@ -315,22 +318,19 @@ fun ErrorBox(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Outlined.WarningAmber, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(30.dp))
-            }
-            Spacer(Modifier.height(18.dp))
-            Text("Не удалось загрузить", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Image(
+                painter = painterResource(R.drawable.illust_error_mascot),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.size(width = 132.dp, height = 154.dp),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Что-то пошло не так", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             Spacer(Modifier.height(6.dp))
             Text(friendlyMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
             if (onRetry != null) {
                 Spacer(Modifier.height(18.dp))
-                Button(onClick = onRetry) {
+                Button(onClick = onRetry, shape = RoundedCornerShape(22.dp)) {
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Попробовать снова")

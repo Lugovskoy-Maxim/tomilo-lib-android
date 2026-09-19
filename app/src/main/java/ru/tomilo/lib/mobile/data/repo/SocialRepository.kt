@@ -116,7 +116,7 @@ class SocialRepository(private val api: TomiloApi) {
         entityId: String,
         page: Int = 1,
         sortOrder: String = "newest",
-    ): Result<List<CommentDto>> = runCatching {
+    ): Result<ru.tomilo.lib.mobile.data.api.CommentsPageDto> = runCatching {
         val res = api.comments(
             entityType = entityType,
             entityId = entityId,
@@ -126,7 +126,22 @@ class SocialRepository(private val api: TomiloApi) {
             sortOrder = sortOrder,
         )
         if (!res.success) error(res.message ?: "Ошибка комментариев")
-        res.data?.comments.orEmpty()
+        val first = res.data ?: ru.tomilo.lib.mobile.data.api.CommentsPageDto()
+        if (first.totalPages <= 1) return@runCatching first
+        val all = first.comments.toMutableList()
+        for (nextPage in 2..first.totalPages.coerceAtMost(10)) {
+            val next = api.comments(
+                entityType = entityType,
+                entityId = entityId,
+                page = nextPage,
+                limit = 40,
+                includeReplies = true,
+                sortOrder = sortOrder,
+            )
+            if (!next.success) break
+            all += next.data?.comments.orEmpty()
+        }
+        first.copy(comments = all.distinctBy { it.stableId() })
     }
 
     suspend fun postComment(

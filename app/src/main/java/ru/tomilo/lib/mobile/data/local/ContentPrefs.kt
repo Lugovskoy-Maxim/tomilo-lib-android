@@ -17,6 +17,7 @@ private val Context.contentDataStore by preferencesDataStore("tomilo_content")
  * showAdult=false → скрывать 18+ в каталоге/поиске.
  */
 data class ContentSettings(
+    val onboardingComplete: Boolean = false,
     val ageGateAnswered: Boolean = false,
     /** null = не отвечал; true = 18+; false = младше 18 */
     val isAdultUser: Boolean? = null,
@@ -24,6 +25,7 @@ data class ContentSettings(
 )
 
 class ContentPrefs(private val context: Context) {
+    private val onboardingKey = booleanPreferencesKey("onboarding_complete")
     private val answeredKey = booleanPreferencesKey("age_gate_answered")
     private val adultUserKey = intPreferencesKey("is_adult_user") // 0 unknown, 1 yes, 2 no
     private val showAdultKey = booleanPreferencesKey("show_adult")
@@ -31,6 +33,7 @@ class ContentPrefs(private val context: Context) {
     val settingsFlow: Flow<ContentSettings> = context.contentDataStore.data.map { p ->
         val adultFlag = p[adultUserKey]
         ContentSettings(
+            onboardingComplete = p[onboardingKey] == true,
             ageGateAnswered = p[answeredKey] == true,
             isAdultUser = when (adultFlag) {
                 1 -> true
@@ -42,6 +45,10 @@ class ContentPrefs(private val context: Context) {
     }
 
     suspend fun settings(): ContentSettings = settingsFlow.first()
+
+    suspend fun completeOnboarding() {
+        context.contentDataStore.edit { prefs -> prefs[onboardingKey] = true }
+    }
 
     suspend fun answerAgeGate(isAdult: Boolean) {
         context.contentDataStore.edit { prefs ->

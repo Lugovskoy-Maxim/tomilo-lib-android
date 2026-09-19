@@ -32,16 +32,25 @@ class RewardedAdManager(
     private var loadedAd: RewardedAd? = null
     private val sdkReady = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
+    private val adsAllowed = AtomicBoolean(true)
 
     @Volatile
     var isReady: Boolean = false
         private set
 
     fun initialize(onReady: (() -> Unit)? = null) {
+        if (!adsAllowed.get() || adUnitId.isBlank()) {
+            onReady?.invoke()
+            return
+        }
         mainHandler.post {
             YandexAds.initialize(
                 appContext,
                 InitializationListener {
+                    if (!adsAllowed.get()) {
+                        onReady?.invoke()
+                        return@InitializationListener
+                    }
                     sdkReady.set(true)
                     ensureLoader()
                     preload()
@@ -59,7 +68,7 @@ class RewardedAdManager(
     }
 
     fun preload() {
-        if (!sdkReady.get()) return
+        if (!adsAllowed.get() || adUnitId.isBlank() || !sdkReady.get()) return
         if (loadedAd != null || loading.get()) return
         mainHandler.post {
             if (loadedAd != null || loading.get()) return@post
@@ -88,6 +97,16 @@ class RewardedAdManager(
         }
     }
 
+    /** Premium completely disables requests, cached ads and future shows. */
+    fun setAdsAllowed(allowed: Boolean) {
+        val changed = adsAllowed.getAndSet(allowed) != allowed
+        if (!allowed) {
+            destroy()
+        } else if (changed) {
+            if (sdkReady.get()) preload() else initialize()
+        }
+    }
+
     /**
      * Показать rewarded. [onRewarded] — после полного просмотра (amount/type из РСЯ).
      * Вызывать с UI-потока; [activity] не finishing.
@@ -99,6 +118,10 @@ class RewardedAdManager(
         onDismissed: () -> Unit = {},
     ) {
         mainHandler.post {
+            if (!adsAllowed.get() || adUnitId.isBlank()) {
+                onFailed("Реклама недоступна")
+                return@post
+            }
             if (activity.isFinishing) {
                 onFailed("Экран недоступен")
                 return@post

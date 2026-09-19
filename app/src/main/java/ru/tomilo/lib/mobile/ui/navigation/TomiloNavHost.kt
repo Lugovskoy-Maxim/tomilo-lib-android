@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.navigation
 
+import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
@@ -22,7 +23,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -54,6 +58,7 @@ import ru.tomilo.lib.mobile.ui.screens.games.GamesScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
+import ru.tomilo.lib.mobile.ui.screens.onboarding.OnboardingScreen
 import ru.tomilo.lib.mobile.ui.screens.premium.PremiumScreen
 import ru.tomilo.lib.mobile.ui.screens.profile.ProfileScreen
 import ru.tomilo.lib.mobile.ui.screens.library.LibraryScreen
@@ -121,6 +126,7 @@ fun TomiloNavHost(container: AppContainer) {
     val contentSettings by container.contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var onboardingDestination by remember { mutableStateOf<String?>(null) }
 
     val tabs = listOf(
         TomiloTabItem(
@@ -241,10 +247,35 @@ fun TomiloNavHost(container: AppContainer) {
         }
     }
 
+    LaunchedEffect(contentSettings.onboardingComplete, onboardingDestination) {
+        val destination = onboardingDestination ?: return@LaunchedEffect
+        if (contentSettings.onboardingComplete) {
+            onboardingDestination = null
+            navController.navigate(destination)
+        }
+    }
+
+    if (!contentSettings.onboardingComplete) {
+        OnboardingScreen(
+            onComplete = { scope.launch { container.contentPrefs.completeOnboarding() } },
+            onLogin = {
+                onboardingDestination = Routes.Login
+                scope.launch { container.contentPrefs.completeOnboarding() }
+            },
+            onRegister = {
+                scope.launch { container.contentPrefs.completeOnboarding() }
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/register")),
+                )
+            },
+        )
+        return
+    }
+
     if (!contentSettings.ageGateAnswered) {
         AgeGateDialog(
             onAdult = { scope.launch { container.contentPrefs.answerAgeGate(isAdult = true) } },
-            onMinor = { scope.launch { container.contentPrefs.answerAgeGate(isAdult = false) } },
+            onExit = { (context as? Activity)?.finishAffinity() },
         )
     }
 
@@ -558,6 +589,7 @@ fun TomiloNavHost(container: AppContainer) {
                             Routes.reader(chapterId, offline, titleId),
                         )
                     },
+                    onOpenTitle = { relatedKey -> navController.navigate(Routes.title(relatedKey)) },
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                     onOpenPremium = { navController.navigate(Routes.Premium) },
                 )
