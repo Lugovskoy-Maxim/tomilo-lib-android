@@ -86,7 +86,7 @@ private val GamesPurple = Color(0xFF9B8CFF)
 private val GamesCyan = Color(0xFF55C7D9)
 private val GamesGreen = Color(0xFF65B985)
 
-internal enum class GamesPage { HUB, SECT, ARENA, CARDS }
+internal enum class GamesPage { HUB, SECT, ARENA, CARDS, INVENTORY, ALCHEMY }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,6 +134,8 @@ fun GamesScreen(
                                 GamesPage.SECT -> "Секта"
                                 GamesPage.ARENA -> "Арена"
                                 GamesPage.CARDS -> "Карты"
+                                GamesPage.INVENTORY -> "Хранилище"
+                                GamesPage.ALCHEMY -> "Алхимия"
                             },
                         )
                         Text(
@@ -142,6 +144,8 @@ fun GamesScreen(
                                 GamesPage.SECT -> "Ученики и развитие"
                                 GamesPage.ARENA -> "Боевой отряд и PvP"
                                 GamesPage.CARDS -> "Альбом и коллекция"
+                                GamesPage.INVENTORY -> "Материалы и расходники"
+                                GamesPage.ALCHEMY -> "Котёл и развитие"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -194,6 +198,8 @@ fun GamesScreen(
                         onOpenArena = { page = GamesPage.ARENA },
                         onOpenWebTab = onOpenWebTab,
                         onOpenCards = { page = GamesPage.CARDS },
+                        onOpenInventory = { page = GamesPage.INVENTORY },
+                        onOpenAlchemy = { page = GamesPage.ALCHEMY },
                     )
                     GamesPage.SECT -> SectContent(
                         disciples = currentDashboard.disciples,
@@ -213,6 +219,8 @@ fun GamesScreen(
                         onOpenSubmit = { onOpenWebTab("cards/submit") },
                         onOpenWebTab = onOpenWebTab,
                     )
+                    GamesPage.INVENTORY -> InventoryScreen(currentDashboard.inventory)
+                    GamesPage.ALCHEMY -> AlchemyScreen(currentDashboard.alchemy)
                 }
             }
         }
@@ -260,6 +268,8 @@ private fun GamesContent(
     onOpenArena: () -> Unit,
     onOpenWebTab: (String) -> Unit,
     onOpenCards: () -> Unit,
+    onOpenInventory: () -> Unit,
+    onOpenAlchemy: () -> Unit,
 ) {
     val totalItems = dashboard.inventory.sumOf { it.count }
     val disciples = dashboard.disciples
@@ -322,8 +332,7 @@ private fun GamesContent(
                 subtitle = if (totalItems > 0) "$totalItems предметов · ${dashboard.inventory.size} видов" else "Собирайте материалы и расходники",
                 badge = if (totalItems > 0) "$totalItems" else null,
                 accent = GamesCyan,
-                external = true,
-                onClick = { onOpenWebTab("inventory") },
+                onClick = onOpenInventory,
             )
         }
         item {
@@ -365,8 +374,7 @@ private fun GamesContent(
                 subtitle = "Котёл ${alchemy.cauldronTier} ур. · алхимик ${alchemy.alchemyLevel} ур.",
                 badge = "${alchemy.attemptsLeft}/${alchemy.craftsPerDay}",
                 accent = Color(0xFFCC78E8),
-                external = true,
-                onClick = { onOpenWebTab("alchemy") },
+                onClick = onOpenAlchemy,
             )
         }
         item {
@@ -380,7 +388,7 @@ private fun GamesContent(
             )
         }
         if (dashboard.inventory.isNotEmpty()) {
-            item { GamesSectionTitle("В хранилище", "Полный инвентарь", { onOpenWebTab("inventory") }) }
+            item { GamesSectionTitle("В хранилище", "Полный инвентарь", onOpenInventory, external = false) }
             item { InventoryPreview(dashboard) }
         }
         if (disciples.disciples.isNotEmpty()) {
