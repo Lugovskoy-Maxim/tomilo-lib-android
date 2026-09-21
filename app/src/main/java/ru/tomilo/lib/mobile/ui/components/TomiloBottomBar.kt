@@ -35,11 +35,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,6 +58,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import ru.tomilo.lib.mobile.ui.theme.TomiloActiveBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloActivePill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -79,11 +85,13 @@ private val ItemShape = RoundedCornerShape(20.dp)
 @Composable
 fun TomiloBottomBar(
     tabs: List<TomiloTabItem>,
+    moreItems: List<TomiloTabItem> = emptyList(),
     currentRoute: String,
     onTabClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
+    var moreOpen by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -142,6 +150,51 @@ fun TomiloBottomBar(
                     },
                     modifier = Modifier.weight(1f),
                 )
+            }
+            if (moreItems.isNotEmpty()) {
+                NavTabItem(
+                    label = "Ещё",
+                    icon = Icons.Default.MoreVert,
+                    selected = moreItems.any { currentRoute == it.route },
+                    onClick = { moreOpen = true },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+
+    if (moreOpen) {
+        Dialog(onDismissRequest = { moreOpen = false }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = TomiloSurface,
+                shadowElevation = 24.dp,
+            ) {
+                Column(Modifier.padding(vertical = 12.dp)) {
+                    Text(
+                        "Ещё",
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    moreItems.forEach { item ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .clickable {
+                                    moreOpen = false
+                                    onTabClick(item.route)
+                                }
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(item.icon, contentDescription = null, tint = TomiloMuted, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(16.dp))
+                            Text(item.label, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
             }
         }
     }

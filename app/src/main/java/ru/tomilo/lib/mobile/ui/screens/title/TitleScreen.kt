@@ -108,6 +108,7 @@ import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.local.AdRewardStore
+import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
@@ -176,6 +177,7 @@ fun TitleScreen(
     var recommendations by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var bookmarked by remember { mutableStateOf(false) }
     var bookmarkCategory by remember { mutableStateOf<String?>(null) }
+    var customBookmarkGroups by remember { mutableStateOf<List<BookmarkGroupDto>>(emptyList()) }
     var selectMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
     var showDownloadSheet by remember { mutableStateOf(false) }
@@ -190,6 +192,10 @@ fun TitleScreen(
     var pendingAdChapters by remember { mutableStateOf<List<ChapterDto>?>(null) }
     var adBusy by remember { mutableStateOf(false) }
     var showBookmarkCategories by remember { mutableStateOf(false) }
+
+    LaunchedEffect(user?.stableId()) {
+        customBookmarkGroups = if (user == null) emptyList() else socialRepository.bookmarkGroups().getOrDefault(emptyList())
+    }
     var titleDetailsExpanded by remember { mutableStateOf(true) }
     var pageTab by rememberSaveable { mutableStateOf(TitlePageTab.Chapters) }
     var chapterQuery by rememberSaveable { mutableStateOf("") }
@@ -992,6 +998,33 @@ fun TitleScreen(
                             label = { Text(label) },
                             modifier = Modifier.fillMaxWidth(),
                         )
+                    }
+                    if (customBookmarkGroups.isNotEmpty()) {
+                        Text(
+                            "Мои группы",
+                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        customBookmarkGroups.forEach { group ->
+                            FilterChip(
+                                selected = bookmarkCategory == group.id,
+                                onClick = {
+                                    val tid = title?.stableId().orEmpty()
+                                    scope.launch {
+                                        socialRepository.updateBookmarkCategory(tid, group.id)
+                                            .onSuccess {
+                                                bookmarkCategory = group.id
+                                                showBookmarkCategories = false
+                                                snackbar.showSnackbar("Группа: ${group.name}")
+                                            }
+                                            .onFailure { snackbar.showSnackbar(it.message ?: "Ошибка") }
+                                    }
+                                },
+                                label = { Text(group.name) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
             },

@@ -24,8 +24,11 @@ import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
+import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
@@ -87,7 +92,7 @@ private enum class ShelfTab(val label: String, val bookmarkCategory: String? = n
 }
 
 @Composable
-private fun LibrarySummary(tab: ShelfTab, count: Int, isSearching: Boolean) {
+private fun LibrarySummary(tab: ShelfTab, count: Int, isSearching: Boolean, bookmarkLabel: String? = null) {
     val icon: ImageVector
     val title: String
     val subtitle: String
@@ -104,7 +109,7 @@ private fun LibrarySummary(tab: ShelfTab, count: Int, isSearching: Boolean) {
         }
         else -> {
             icon = Icons.Outlined.BookmarkBorder
-            title = tab.label
+            title = bookmarkLabel ?: tab.label
             subtitle = "Свайпните карточку влево для действий"
         }
     }
@@ -163,6 +168,12 @@ fun LibraryScreen(
     val user by authRepository.userFlow.collectAsState(initial = null)
     var tab by remember { mutableStateOf(ShelfTab.Reading) }
     var lastBookmarkTab by remember { mutableStateOf(ShelfTab.Reading) }
+    var customGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
+    var customGroups by remember { mutableStateOf<List<BookmarkGroupDto>>(emptyList()) }
+    var showCreateGroup by remember { mutableStateOf(false) }
+    var showGroupManager by remember { mutableStateOf(false) }
+    var editingGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
+    var newGroupName by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var bookmarks by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
@@ -174,7 +185,14 @@ fun LibraryScreen(
     val snackbar = remember { SnackbarHostState() }
     val reveal = rememberSwipeRevealCoordinator()
 
-    LaunchedEffect(user?.stableId(), reload, tab) {
+    val bookmarkCategory = customGroup?.id ?: tab.bookmarkCategory
+    val bookmarkLabel = customGroup?.name ?: tab.label
+
+    LaunchedEffect(user?.stableId()) {
+        customGroups = if (user == null) emptyList() else socialRepository.bookmarkGroups().getOrDefault(emptyList())
+    }
+
+    LaunchedEffect(user?.stableId(), reload, tab, customGroup) {
         if (user == null) {
             loading = false
             error = null
@@ -189,7 +207,7 @@ fun LibraryScreen(
                 .onSuccess { history = it }
                 .onFailure { error = it.message }
             ShelfTab.Offline -> Unit
-            else -> socialRepository.bookmarks(tab.bookmarkCategory)
+            else -> socialRepository.bookmarks(bookmarkCategory)
                 .onSuccess { bookmarks = it }
                 .onFailure { error = it.message }
         }
@@ -269,8 +287,11 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FilterChip(
-                        selected = tab.bookmarkCategory != null,
-                        onClick = { tab = lastBookmarkTab },
+                        selected = bookmarkCategory != null,
+                        onClick = {
+                            customGroup = null
+                            tab = lastBookmarkTab
+                        },
                         label = { Text("Закладки") },
                         modifier = Modifier.weight(1f),
                     )
@@ -288,7 +309,7 @@ fun LibraryScreen(
                     )
                 }
             }
-            if (tab.bookmarkCategory != null) {
+            if (bookmarkCategory != null) {
                 item(key = "library_bookmark_categories") {
                     Row(
                         Modifier
@@ -298,13 +319,35 @@ fun LibraryScreen(
                     ) {
                         ShelfTab.entries.filter { it.bookmarkCategory != null }.forEach { item ->
                             FilterChip(
-                                selected = tab == item,
+                                selected = customGroup == null && tab == item,
                                 onClick = {
+                                    customGroup = null
                                     lastBookmarkTab = item
                                     tab = item
                                 },
                                 label = { Text(item.label) },
                             )
+                        }
+                        customGroups.forEach { group ->
+                            FilterChip(
+                                selected = customGroup?.id == group.id,
+                                onClick = {
+                                    customGroup = group
+                                    tab = ShelfTab.Reading
+                                },
+                                label = { Text(group.name) },
+                            )
+                        }
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                if (user == null) onLogin() else showCreateGroup = true
+                            },
+                            label = { Text("Новая группа") },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                        )
+                        if (customGroups.isNotEmpty()) {
+                            TextButton(onClick = { showGroupManager = true }) { Text("Управлять") }
                         }
                     }
                 }
@@ -315,7 +358,12 @@ fun LibraryScreen(
                     ShelfTab.Offline -> offlineGroups.size
                     else -> filteredBookmarks.size
                 }
-                LibrarySummary(tab = tab, count = count, isSearching = needle.isNotBlank())
+                LibrarySummary(
+                    tab = tab,
+                    count = count,
+                    isSearching = needle.isNotBlank(),
+                    bookmarkLabel = customGroup?.name,
+                )
             }
 
             when {
@@ -337,13 +385,13 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth().height(380.dp),
                     ) { reload += 1 }
                 }
-                tab.bookmarkCategory != null && filteredBookmarks.isEmpty() -> item(key = "library_empty_bookmarks") {
+                bookmarkCategory != null && filteredBookmarks.isEmpty() -> item(key = "library_empty_bookmarks") {
                     EmptyState(
                         title = if (needle.isBlank()) "Пока пусто" else "Нет совпадений",
                         message = if (needle.isBlank()) {
-                            "Добавьте тайтл в «${tab.label}» со страницы тайтла."
+                            "Добавьте тайтл в «$bookmarkLabel» со страницы тайтла."
                         } else {
-                            "На полке нет «$needle» в категории «${tab.label}»."
+                            "На полке нет «$needle» в категории «$bookmarkLabel»."
                         },
                         icon = Icons.Outlined.BookmarkBorder,
                         modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
@@ -368,14 +416,14 @@ fun LibraryScreen(
                 else -> {
                     when (tab) {
                         ShelfTab.History, ShelfTab.Offline -> Unit
-                        else -> items(filteredBookmarks, key = { it.resolvedTitleId() + tab.name }) { item ->
+                        else -> items(filteredBookmarks, key = { it.resolvedTitleId() + bookmarkCategory }) { item ->
                             val titleId = item.resolvedTitleId()
                             SwipeActionContainer(
                                 actionLabel = "Убрать",
                                 actionIcon = Icons.Outlined.DeleteOutline,
                                 actionColor = TomiloDanger,
                                 enabled = titleId.isNotBlank(),
-                                revealKey = "bm-$titleId-${tab.name}",
+                                revealKey = "bm-$titleId-$bookmarkCategory",
                                 coordinator = reveal,
                                 onAction = {
                                     val snapshot = bookmarks
@@ -393,7 +441,7 @@ fun LibraryScreen(
                                 TitleSearchCard(
                                     title = item.displayName(),
                                     cover = item.coverPath(),
-                                    subtitle = tab.label,
+                                    subtitle = bookmarkLabel,
                                     onClick = {
                                         onOpenTitle(titleId, item.resolvedTitle()?.slug)
                                     },
@@ -478,5 +526,69 @@ fun LibraryScreen(
                 }
             }
         }
+    }
+
+    if (showCreateGroup) {
+        AlertDialog(
+            onDismissRequest = { showCreateGroup = false },
+            title = { Text(if (editingGroup == null) "Новая категория" else "Редактировать категорию") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Дайте группе понятное название — например, «Манхва на выходные».", color = TomiloMuted)
+                    OutlinedTextField(
+                        value = newGroupName,
+                        onValueChange = { newGroupName = it },
+                        label = { Text("Название группы") },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val action = editingGroup?.let { socialRepository.renameBookmarkGroup(it.id, newGroupName) }
+                            (action ?: socialRepository.createBookmarkGroup(newGroupName)).onSuccess { group ->
+                                customGroup = group
+                                customGroups = if (editingGroup == null) customGroups + group else customGroups.map { if (it.id == group.id) group else it }
+                                tab = ShelfTab.Reading
+                                lastBookmarkTab = ShelfTab.Reading
+                                newGroupName = ""
+                                editingGroup = null
+                                showCreateGroup = false
+                                snackbar.showSnackbar("Группа «${group.name}» создана")
+                            }.onFailure { snackbar.showSnackbar(it.message ?: "Не удалось создать группу") }
+                        }
+                    },
+                    enabled = newGroupName.trim().isNotBlank(),
+                ) { Text("Сохранить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateGroup = false }) { Text("Отмена") }
+            },
+        )
+    }
+
+    if (showGroupManager) {
+        AlertDialog(
+            onDismissRequest = { showGroupManager = false },
+            title = { Text("Мои категории") },
+            text = {
+                Column {
+                    customGroups.forEach { group ->
+                        TextButton(
+                            onClick = {
+                                editingGroup = group
+                                newGroupName = group.name
+                                showGroupManager = false
+                                showCreateGroup = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(group.name, modifier = Modifier.weight(1f)) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showGroupManager = false }) { Text("Готово") } },
+        )
     }
 }

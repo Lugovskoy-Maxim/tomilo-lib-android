@@ -188,6 +188,18 @@ interface TomiloApi {
         @Query("grouped") grouped: Boolean? = null,
     ): ApiResponse<JsonElement>
 
+    @GET("users/profile/bookmark-groups")
+    suspend fun bookmarkGroups(): ApiResponse<List<BookmarkGroupDto>>
+
+    @POST("users/profile/bookmark-groups")
+    suspend fun createBookmarkGroup(@Body body: CreateBookmarkGroupRequest): ApiResponse<BookmarkGroupDto>
+
+    @PUT("users/profile/bookmark-groups/{groupId}")
+    suspend fun renameBookmarkGroup(@Path("groupId") groupId: String, @Body body: CreateBookmarkGroupRequest): ApiResponse<BookmarkGroupDto>
+
+    @DELETE("users/profile/bookmark-groups/{groupId}")
+    suspend fun deleteBookmarkGroup(@Path("groupId") groupId: String): ApiResponse<kotlinx.serialization.json.JsonElement>
+
     @GET("users/profile/bookmarks/{titleId}/status")
     suspend fun bookmarkStatus(@Path("titleId") titleId: String): ApiResponse<BookmarkStatusDto>
 

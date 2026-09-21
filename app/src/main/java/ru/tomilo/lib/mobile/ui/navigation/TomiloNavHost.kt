@@ -153,14 +153,15 @@ fun TomiloNavHost(container: AppContainer) {
             icon = Icons.Outlined.Forum,
             selectedIcon = Icons.Filled.Forum,
         ),
-        TomiloTabItem(
-            route = Routes.Profile,
-            label = "Профиль",
-            icon = Icons.Outlined.AccountCircle,
-            selectedIcon = Icons.Filled.AccountCircle,
-        ),
     )
-    val tabRoutes = tabs.map { it.route }.toSet()
+    val moreTabs = listOf(
+        TomiloTabItem(Routes.Profile, "Профиль", Icons.Outlined.AccountCircle, Icons.Filled.AccountCircle),
+        TomiloTabItem(Routes.Updates, "Обновления", Icons.Outlined.Explore, Icons.Filled.Explore),
+        TomiloTabItem(Routes.Notifications, "Уведомления", Icons.Outlined.Bookmarks, Icons.Filled.Bookmarks),
+        TomiloTabItem(Routes.Shop, "Магазин", Icons.Outlined.AccountCircle, Icons.Filled.AccountCircle),
+        TomiloTabItem(Routes.Games, "Игры", Icons.Outlined.Forum, Icons.Filled.Forum),
+    )
+    val tabRoutes = (tabs + moreTabs).map { it.route }.toSet()
     val showBottomBar = current in tabRoutes
 
     fun goLogin() = navController.navigate(Routes.Login)
@@ -672,6 +673,7 @@ fun TomiloNavHost(container: AppContainer) {
         if (showBottomBar) {
             TomiloBottomBar(
                 tabs = tabs,
+                moreItems = moreTabs,
                 currentRoute = current,
                 onTabClick = ::navigateTab,
                 modifier = Modifier.align(Alignment.BottomCenter),

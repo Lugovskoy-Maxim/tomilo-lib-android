@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
+import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
 import ru.tomilo.lib.mobile.data.api.BookmarkStatusDto
 import ru.tomilo.lib.mobile.data.api.CommentDto
 import ru.tomilo.lib.mobile.data.api.CommentReactionRequest
@@ -24,6 +25,7 @@ import ru.tomilo.lib.mobile.data.api.SendMessageRequest
 import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 import ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest
+import ru.tomilo.lib.mobile.data.api.CreateBookmarkGroupRequest
 import ru.tomilo.lib.mobile.data.api.UpdateCommentRequest
 
 class SocialRepository(private val api: TomiloApi) {
@@ -62,6 +64,29 @@ class SocialRepository(private val api: TomiloApi) {
         val res = api.bookmarks(category = category, grouped = false)
         if (!res.success) error(res.message ?: "Не удалось загрузить закладки")
         parseBookmarks(res.data)
+    }
+
+    suspend fun bookmarkGroups(): Result<List<BookmarkGroupDto>> = runCatching {
+        val res = api.bookmarkGroups()
+        if (!res.success) error(res.message ?: "Не удалось загрузить группы")
+        res.data.orEmpty()
+    }
+
+    suspend fun createBookmarkGroup(name: String): Result<BookmarkGroupDto> = runCatching {
+        val res = api.createBookmarkGroup(CreateBookmarkGroupRequest(name.trim()))
+        if (!res.success) error(res.message ?: "Не удалось создать группу")
+        res.data ?: error("Сервер не вернул группу")
+    }
+
+    suspend fun renameBookmarkGroup(id: String, name: String): Result<BookmarkGroupDto> = runCatching {
+        val res = api.renameBookmarkGroup(id.removePrefix("group:"), CreateBookmarkGroupRequest(name.trim()))
+        if (!res.success) error(res.message ?: "Не удалось переименовать группу")
+        res.data ?: error("Сервер не вернул группу")
+    }
+
+    suspend fun deleteBookmarkGroup(id: String): Result<Unit> = runCatching {
+        val res = api.deleteBookmarkGroup(id.removePrefix("group:"))
+        if (!res.success) error(res.message ?: "Не удалось удалить группу")
     }
 
     suspend fun bookmarkStatus(titleId: String): Result<BookmarkStatusDto> = runCatching {

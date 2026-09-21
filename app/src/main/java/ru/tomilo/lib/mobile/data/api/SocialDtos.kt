@@ -147,6 +147,16 @@ data class BookmarkStatusDto(
 @Serializable
 data class UpdateBookmarkRequest(val category: String)
 
+@kotlinx.serialization.Serializable
+data class BookmarkGroupDto(
+    val id: String = "",
+    val name: String = "",
+    val createdAt: String? = null,
+)
+
+@kotlinx.serialization.Serializable
+data class CreateBookmarkGroupRequest(val name: String)
+
 @Serializable
 data class CreateCommentRequest(
     val entityType: String,
