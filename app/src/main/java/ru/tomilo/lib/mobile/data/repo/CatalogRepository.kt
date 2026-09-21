@@ -58,6 +58,12 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data?.firstOrNull() ?: error("В каталоге пока нет подходящих тайтлов")
     }
 
+    suspend fun randomTitles(limit: Int = 12, includeAdult: Boolean = false): Result<List<CatalogTitleDto>> = runCatching {
+        val res = api.randomTitles(limit = limit.coerceIn(1, 24), includeAdult = includeAdult.takeIf { it })
+        if (!res.success) error(res.message ?: "Не удалось выбрать случайные тайтлы")
+        res.data.orEmpty()
+    }
+
     suspend fun title(idOrSlug: String): Result<TitleDetailDto> = runCatching {
         val byId = runCatching { api.titleById(idOrSlug) }.getOrNull()
         val res = if (byId?.success == true && byId.data != null) {

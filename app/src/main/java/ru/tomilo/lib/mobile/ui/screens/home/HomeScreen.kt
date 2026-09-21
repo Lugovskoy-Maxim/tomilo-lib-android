@@ -118,6 +118,29 @@ enum class FeedFilter(val label: String) {
     TOP_RATED("Топ недели"),
 }
 
+/** Keeps each turn of the carousel fresh without hiding trusted popular picks. */
+private fun interleaveCarouselTitles(
+    popular: List<CatalogTitleDto>,
+    random: List<CatalogTitleDto>,
+    updates: List<CatalogTitleDto>,
+): List<CatalogTitleDto> {
+    val sources = listOf(popular, random, updates)
+    val result = mutableListOf<CatalogTitleDto>()
+    val max = sources.maxOfOrNull { it.size } ?: 0
+    repeat(max) { index ->
+        sources.forEach { source ->
+            source.getOrNull(index)?.takeIf { it.coverPath() != null }?.let(result::add)
+        }
+    }
+    return result.distinctBy { it.stableId().ifBlank { it.slug.orEmpty() } }.take(30)
+}
+
+private fun infinitePagerStart(itemCount: Int): Int {
+    if (itemCount <= 0) return 0
+    val middle = Int.MAX_VALUE / 2
+    return middle - (middle % itemCount)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -151,6 +174,7 @@ fun HomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var updates by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
+    var randomTitles by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var continueItems by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
     var reloadToken by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
@@ -185,10 +209,11 @@ fun HomeScreen(
     LaunchedEffect(reloadToken, contentSettings.showAdultContent) {
         loading = true
         error = null
-        val (u, p) = coroutineScope {
+        val (u, p, random) = coroutineScope {
             val updatesRequest = async { catalogRepository.latestUpdates() }
             val popularRequest = async { catalogRepository.popular() }
-            updatesRequest.await() to popularRequest.await()
+            val randomRequest = async { catalogRepository.randomTitles(limit = 12, includeAdult = contentSettings.showAdultContent) }
+            Triple(updatesRequest.await(), popularRequest.await(), randomRequest.await())
         }
         if (u.isFailure && p.isFailure) {
             error = u.exceptionOrNull()?.message ?: "Не удалось загрузить данные"
@@ -200,6 +225,7 @@ fun HomeScreen(
         fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
         updates = u.getOrDefault(emptyList()).filterAdult()
         popular = p.getOrDefault(emptyList()).filterAdult()
+        randomTitles = random.getOrDefault(emptyList()).filterAdult()
         loading = false
         refreshing = false
     }
@@ -224,8 +250,8 @@ fun HomeScreen(
         }
     }
 
-    val featured = remember(popular, updates) {
-        (popular + updates).distinctBy { it.stableId() }.filter { it.coverPath() != null }.take(10)
+    val featured = remember(popular, updates, randomTitles) {
+        interleaveCarouselTitles(popular, randomTitles, updates)
     }
 
     val isPremiumUser = Premium.isActive(user?.subscriptionExpiresAt)
@@ -263,7 +289,7 @@ fun HomeScreen(
                             decorations = user?.decorations(),
                             onOpen = { item -> onOpenTitle(item.stableId(), item.slug) },
                             onLuckyRandom = {
-                                val pool = (popular + updates).distinctBy { it.stableId() }
+                                val pool = (randomTitles + popular + updates).distinctBy { it.stableId() }
                                 if (pool.isNotEmpty()) {
                                     val pick = pool.random()
                                     onOpenTitle(pick.stableId(), pick.slug)
@@ -405,7 +431,10 @@ private fun HomeHeroCarousel(
     onLuckyRandom: () -> Unit,
     onOpenProfile: () -> Unit,
 ) {
-    val pagerState = rememberPagerState(pageCount = { items.size })
+    val pagerState = rememberPagerState(
+        initialPage = infinitePagerStart(items.size),
+        pageCount = { if (items.isEmpty()) 0 else Int.MAX_VALUE },
+    )
     val screenH = LocalConfiguration.current.screenHeightDp.dp
     val heroHeight = (screenH * 0.62f).coerceIn(440.dp, 580.dp)
 
@@ -419,7 +448,7 @@ private fun HomeHeroCarousel(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
         ) { page ->
-            val item = items[page]
+            val item = items[page % items.size]
             Box(
                 Modifier
                     .fillMaxSize()
@@ -448,7 +477,7 @@ private fun HomeHeroCarousel(
             }
         }
 
-        val current = items.getOrNull(pagerState.currentPage)
+        val current = items.getOrNull(pagerState.currentPage % items.size)
 
         Column(
             Modifier
@@ -653,8 +682,8 @@ private fun HomeHeroCarousel(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                repeat(items.size) { index ->
-                    val active = index == pagerState.currentPage
+                repeat(items.size.coerceAtMost(8)) { index ->
+                    val active = index == pagerState.currentPage % items.size
                     Box(
                         Modifier
                             .padding(horizontal = 3.dp)
@@ -975,23 +1004,36 @@ private fun HomeTitleCarousel(
     onOpenTitle: (CatalogTitleDto) -> Unit,
     onReadChapter: (titleId: String, chapterId: String) -> Unit,
 ) {
-    val pagerState = rememberPagerState(pageCount = { items.size })
+    val pagerState = rememberPagerState(
+        initialPage = infinitePagerStart(items.size),
+        pageCount = { if (items.isEmpty()) 0 else Int.MAX_VALUE },
+    )
     var descriptions by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var artPreviews by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var opening by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(pagerState.currentPage, items) {
-        val item = items.getOrNull(pagerState.currentPage) ?: return@LaunchedEffect
+        val item = items.getOrNull(pagerState.currentPage % items.size) ?: return@LaunchedEffect
         val key = item.stableId().ifBlank { item.slug.orEmpty() }
-        if (key.isBlank() || key in descriptions) return@LaunchedEffect
-        val local = htmlToPlain(item.description)
-        if (local.isNotBlank()) {
-            descriptions = descriptions + (key to local)
-            return@LaunchedEffect
+        if (key.isBlank()) return@LaunchedEffect
+        if (key !in descriptions) {
+            val local = htmlToPlain(item.description)
+            if (local.isNotBlank()) {
+                descriptions = descriptions + (key to local)
+            } else {
+                val lookup = item.stableId().ifBlank { item.slug.orEmpty() }
+                catalogRepository.title(lookup).onSuccess { detail ->
+                    descriptions = descriptions + (key to htmlToPlain(detail.description))
+                }
+            }
         }
-        val lookup = item.stableId().ifBlank { item.slug.orEmpty() }
-        catalogRepository.title(lookup).onSuccess { detail ->
-            descriptions = descriptions + (key to htmlToPlain(detail.description))
+        if (key !in artPreviews && item.stableId().isNotBlank()) {
+            val firstChapter = catalogRepository.chapters(item.stableId(), limit = 1).getOrNull()?.firstOrNull()
+            val art = firstChapter?.stableId()?.takeIf { it.isNotBlank() }?.let { chapterId ->
+                catalogRepository.chapter(chapterId).getOrNull()?.pagePaths()?.firstOrNull()
+            }
+            if (!art.isNullOrBlank()) artPreviews = artPreviews + (key to art)
         }
     }
 
@@ -1020,11 +1062,12 @@ private fun HomeTitleCarousel(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
         ) { page ->
-            val item = items[page]
+            val item = items[page % items.size]
             val key = item.stableId().ifBlank { item.slug.orEmpty() }
             HomeTitleCarouselPage(
                 item = item,
                 description = descriptions[key].orEmpty(),
+                artPreview = artPreviews[key],
                 opening = opening,
                 onBack = onDismiss,
                 onRead = { readNow(item) },
@@ -1039,8 +1082,8 @@ private fun HomeTitleCarousel(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            repeat(items.size) { index ->
-                val active = index == pagerState.currentPage
+            repeat(items.size.coerceAtMost(8)) { index ->
+                val active = index == pagerState.currentPage % items.size
                 Box(
                     Modifier
                         .padding(vertical = 3.dp)
@@ -1057,6 +1100,7 @@ private fun HomeTitleCarousel(
 private fun HomeTitleCarouselPage(
     item: CatalogTitleDto,
     description: String,
+    artPreview: String?,
     opening: Boolean,
     onBack: () -> Unit,
     onRead: () -> Unit,
@@ -1227,6 +1271,28 @@ private fun HomeTitleCarouselPage(
                     maxLines = 7,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            artPreview?.let { preview ->
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(74.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.48f)),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TomiloCoverImage(
+                        source = preview,
+                        contentDescription = "Фрагмент рисовки ${item.displayTitle()}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.width(112.dp).fillMaxHeight(),
+                    )
+                    Column(Modifier.padding(horizontal = 12.dp)) {
+                        Text("Рисовка и персонажи", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Фрагмент из первой главы", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                    }
+                }
             }
             Spacer(Modifier.height(8.dp))
         }

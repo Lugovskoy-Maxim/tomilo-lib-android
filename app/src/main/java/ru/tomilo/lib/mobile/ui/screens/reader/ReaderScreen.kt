@@ -723,7 +723,7 @@ fun ReaderScreen(
             if (!listState.canScrollForward) {
                 autoScroll = false
                 hasScrolledThisChapter = true
-                if (autoAdvanceFromChapter != currentChapterId) {
+                if (settings.autoAdvanceChapters && autoAdvanceFromChapter != currentChapterId) {
                     autoAdvanceFromChapter = currentChapterId
                     goNext()
                 }
@@ -764,7 +764,7 @@ fun ReaderScreen(
         }.collect { (scrolling, lastVisible, canScrollForward) ->
             if (scrolling) hasScrolledThisChapter = true
             val reachedChapterFooter = lastVisible >= pages.size && !canScrollForward
-            if (!scrolling && hasScrolledThisChapter && reachedChapterFooter &&
+            if (settings.autoAdvanceChapters && !scrolling && hasScrolledThisChapter && reachedChapterFooter &&
                 autoAdvanceFromChapter != currentChapterId
             ) {
                 autoAdvanceFromChapter = currentChapterId
@@ -923,6 +923,8 @@ fun ReaderScreen(
                 onToggleChrome = { chromeVisible = !chromeVisible; if (chromeVisible) autoScroll = false },
                 onPrev = { goPrev() },
                 onNext = { goNext() },
+                autoAdvanceEnabled = settings.autoAdvanceChapters,
+                onOpenComments = { showComments = true },
             )
         }
 
@@ -1772,6 +1774,8 @@ private fun WebtoonReader(
     onToggleChrome: () -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
+    autoAdvanceEnabled: Boolean,
+    onOpenComments: () -> Unit,
 ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(pages, key = { i, _ -> "$chapterId-$i" }) { index, page ->
@@ -1826,7 +1830,11 @@ private fun WebtoonReader(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        if (hasNext) "Следующая глава откроется автоматически" else "Можно вернуться к тайтлу или обсудить главу",
+                        when {
+                            hasNext && autoAdvanceEnabled -> "Следующая глава откроется автоматически"
+                            hasNext -> "Выберите следующую главу, когда будете готовы"
+                            else -> "Можно вернуться к тайтлу или обсудить главу"
+                        },
                         color = TomiloMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1875,6 +1883,11 @@ private fun WebtoonReader(
                         if (hasNext) {
                             TextButton(onClick = onNext) { Text("Следующая →", color = Color.White) }
                         }
+                    }
+                    TextButton(onClick = onOpenComments, modifier = Modifier.padding(top = 4.dp)) {
+                        Icon(Icons.Default.ChatBubbleOutline, null, modifier = Modifier.size(17.dp), tint = TomiloPrimary)
+                        Spacer(Modifier.size(7.dp))
+                        Text("Комментарии к главе", color = TomiloPrimary)
                     }
                 }
             }

@@ -22,6 +22,7 @@ data class ReadingSettings(
     val keepScreenOn: Boolean = true,
     val startFullscreen: Boolean = true,
     val volumeButtonsScroll: Boolean = false,
+    val autoAdvanceChapters: Boolean = true,
     val lastAutoScrollOn: Boolean = false,
 )
 
@@ -35,6 +36,7 @@ class ReadingPrefs(private val context: Context) {
     private val keepOnKey = booleanPreferencesKey("keep_screen_on")
     private val fullscreenKey = booleanPreferencesKey("start_fullscreen")
     private val volumeKey = booleanPreferencesKey("volume_buttons")
+    private val autoAdvanceKey = booleanPreferencesKey("auto_advance_chapters")
     private val pendingHistoryKey = stringSetPreferencesKey("pending_offline_history")
 
     val settingsFlow: Flow<ReadingSettings> = context.readingDataStore.data.map { p ->
@@ -43,6 +45,7 @@ class ReadingPrefs(private val context: Context) {
             keepScreenOn = p[keepOnKey] ?: true,
             startFullscreen = p[fullscreenKey] ?: true,
             volumeButtonsScroll = p[volumeKey] ?: false,
+            autoAdvanceChapters = p[autoAdvanceKey] ?: true,
         )
     }
 
@@ -56,6 +59,10 @@ class ReadingPrefs(private val context: Context) {
 
     suspend fun setStartFullscreen(value: Boolean) {
         context.readingDataStore.edit { it[fullscreenKey] = value }
+    }
+
+    suspend fun setAutoAdvanceChapters(value: Boolean) {
+        context.readingDataStore.edit { it[autoAdvanceKey] = value }
     }
 
     suspend fun readingPosition(chapterId: String): ReadingPosition {
