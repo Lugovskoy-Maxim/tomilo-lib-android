@@ -885,6 +885,18 @@ data class GameCardsDto(
 )
 
 @Serializable
+data class GameCardDeckDto(
+    val id: String = "",
+    val _id: String? = null,
+    val name: String = "Набор карт",
+    val description: String? = null,
+    val imageUrl: String? = null,
+    val price: Int = 0,
+    val cardsPerOpen: Int = 1,
+    val isAvailable: Boolean = true,
+) { fun stableId(): String = id.ifBlank { _id.orEmpty() } }
+
+@Serializable
 data class GameAlchemyStatusDto(
     val canCraft: Boolean = false,
     val attemptsToday: Int = 0,

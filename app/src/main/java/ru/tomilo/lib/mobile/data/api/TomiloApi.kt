@@ -80,6 +80,15 @@ interface TomiloApi {
     @GET("users/profile/alchemy/status")
     suspend fun gameAlchemyStatus(): ApiResponse<GameAlchemyStatusDto>
 
+    @GET("shop/decks")
+    suspend fun gameCardDecks(): ApiResponse<List<GameCardDeckDto>>
+
+    @POST("shop/decks/{deckId}/open")
+    suspend fun openGameCardDeck(@Path("deckId") deckId: String): ApiResponse<JsonElement>
+
+    @POST("shop/cards/pull")
+    suspend fun pullGameCard(): ApiResponse<JsonElement>
+
     // ── Tomilo shop ─────────────────────────────────────────────
     @GET("shop/decorations/{type}")
     suspend fun shopDecorations(@Path("type") type: String): ApiResponse<List<ShopDecorationDto>>

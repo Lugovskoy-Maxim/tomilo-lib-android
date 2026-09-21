@@ -8,6 +8,7 @@ import ru.tomilo.lib.mobile.data.api.GameBattleRequest
 import ru.tomilo.lib.mobile.data.api.GameBattleResultDto
 import ru.tomilo.lib.mobile.data.api.GameBattleSquadRequest
 import ru.tomilo.lib.mobile.data.api.GameCardsDto
+import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
@@ -24,6 +25,21 @@ data class GamesDashboard(
 )
 
 class GamesRepository(private val api: TomiloApi) {
+    suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatching {
+        val response = api.gameCardDecks()
+        if (!response.success) error(response.message ?: "Не удалось загрузить наборы")
+        response.data.orEmpty()
+    }
+
+    suspend fun pullCard(): Result<Unit> = runCatching {
+        val response = api.pullGameCard()
+        if (!response.success) error(response.message ?: "Не удалось получить карту")
+    }
+
+    suspend fun openCardDeck(deckId: String): Result<Unit> = runCatching {
+        val response = api.openGameCardDeck(deckId)
+        if (!response.success) error(response.message ?: "Не удалось открыть набор")
+    }
     suspend fun disciples(): Result<GameDisciplesDto> = runCatching {
         val response = api.gameDisciples()
         if (!response.success) error(response.message ?: "Не удалось обновить секту")
