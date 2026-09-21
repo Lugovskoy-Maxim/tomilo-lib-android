@@ -89,6 +89,15 @@ interface TomiloApi {
     @POST("shop/cards/pull")
     suspend fun pullGameCard(): ApiResponse<JsonElement>
 
+    @GET("users/profile/card-trades")
+    suspend fun gameCardTrades(): ApiResponse<GameCardTradesDto>
+
+    @POST("users/profile/card-trades/{id}/accept")
+    suspend fun acceptGameCardTrade(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @POST("users/profile/cards/craft")
+    suspend fun craftGameCards(@Body body: GameCraftRequest): ApiResponse<JsonElement>
+
     // ── Tomilo shop ─────────────────────────────────────────────
     @GET("shop/decorations/{type}")
     suspend fun shopDecorations(@Path("type") type: String): ApiResponse<List<ShopDecorationDto>>

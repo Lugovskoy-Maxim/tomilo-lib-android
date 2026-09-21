@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,6 +68,8 @@ fun CardsScreen(
 ) {
     var cards by remember { mutableStateOf<List<GameCardDto>>(emptyList()) }
     var decks by remember { mutableStateOf(emptyList<ru.tomilo.lib.mobile.data.api.GameCardDeckDto>()) }
+    var trades by remember { mutableStateOf(emptyList<ru.tomilo.lib.mobile.data.api.GameCardTradeDto>()) }
+    var forgeSelection by remember { mutableStateOf(emptySet<String>()) }
     var tab by remember { mutableStateOf("album") }
     var actionMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -77,6 +80,7 @@ fun CardsScreen(
             .onSuccess { cards = it.cards.cards; error = null }
             .onFailure { error = it.message ?: "Не удалось загрузить карточки" }
         gamesRepository.cardDecks().onSuccess { decks = it }
+        gamesRepository.cardTrades().onSuccess { trades = it.offers }
         loading = false
     }
     Column(Modifier.fillMaxSize().background(TomiloBg)) {
@@ -112,12 +116,28 @@ fun CardsScreen(
                     }
                 }
             }
-        } else if (tab == "trade" || tab == "forge") {
-            Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Icon(Icons.Default.Style, null, tint = TomiloPremium, modifier = Modifier.size(44.dp))
-                Spacer(Modifier.height(12.dp))
-                Text(if (tab == "trade") "Обмен карточками" else "Кузница", fontWeight = FontWeight.Bold)
-                Text(if (tab == "trade") "Выберите дубликаты в альбоме — создание и принятие сделок появятся после синхронизации торгового API." else "Выберите дубликаты в альбоме для перековки. Рецепты и выбор результата станут доступны вместе с API кузницы.", color = TomiloMuted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+        } else if (tab == "trade") {
+            LazyVerticalGrid(GridCells.Fixed(1), contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Text("Открытые обмены", fontWeight = FontWeight.Bold) }
+                if (trades.isEmpty()) item { Text("Пока нет доступных обменов.", color = TomiloMuted) }
+                items(trades, key = { it.id }) { trade ->
+                    Surface(color = TomiloSurface, shape = RoundedCornerShape(16.dp), border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder)) {
+                        Column(Modifier.padding(13.dp)) {
+                            Text(trade.fromUsername, fontWeight = FontWeight.Bold)
+                            Text("Отдаёт ${trade.offerCard.name} ×${trade.offerCopies} · хочет ${trade.wantCard.name}", color = TomiloMuted, fontSize = 12.sp)
+                            trade.note?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp)) }
+                            if (!trade.mine) Button(onClick = { scope.launch { gamesRepository.acceptCardTrade(trade.id).onSuccess { actionMessage = "Обмен завершён"; trades = trades.filterNot { it.id == trade.id } }.onFailure { actionMessage = it.message } } }, modifier = Modifier.padding(top = 9.dp)) { Text("Принять обмен") }
+                        }
+                    }
+                }
+            }
+        } else if (tab == "forge") {
+            LazyVerticalGrid(GridCells.Fixed(1), contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { Column { Text("Кузница", fontWeight = FontWeight.Bold); Text("Выберите 3 или 6 карт для перековки", color = TomiloMuted, fontSize = 12.sp); Button(enabled = forgeSelection.size in setOf(3, 6), onClick = { scope.launch { gamesRepository.craftCards(forgeSelection.toList()).onSuccess { actionMessage = "Перековка завершена"; forgeSelection = emptySet() }.onFailure { actionMessage = it.message } } }, modifier = Modifier.padding(top = 8.dp)) { Text("Перековать ${forgeSelection.size} карт") }; actionMessage?.let { Text(it, color = TomiloPrimary, fontSize = 12.sp) } } }
+                items(cards, key = { it.id.ifBlank { it.name } }) { card ->
+                    val key = card.id.ifBlank { card.name }
+                    Surface(onClick = { forgeSelection = if (key in forgeSelection) forgeSelection - key else forgeSelection + key }, color = TomiloSurface, shape = RoundedCornerShape(14.dp), border = androidx.compose.foundation.BorderStroke(1.dp, if (key in forgeSelection) TomiloPrimary else TomiloBorder)) { Row(Modifier.padding(11.dp), verticalAlignment = Alignment.CenterVertically) { Checkbox(key in forgeSelection, onCheckedChange = null); Text(card.characterName ?: card.name, modifier = Modifier.weight(1f)); Text("×${card.copies}", color = TomiloMuted) } }
+                }
             }
         } else if (cards.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {

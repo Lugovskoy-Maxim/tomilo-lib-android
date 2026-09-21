@@ -9,6 +9,8 @@ import ru.tomilo.lib.mobile.data.api.GameBattleResultDto
 import ru.tomilo.lib.mobile.data.api.GameBattleSquadRequest
 import ru.tomilo.lib.mobile.data.api.GameCardsDto
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
+import ru.tomilo.lib.mobile.data.api.GameCardTradesDto
+import ru.tomilo.lib.mobile.data.api.GameCraftRequest
 import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
@@ -40,6 +42,13 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.openGameCardDeck(deckId)
         if (!response.success) error(response.message ?: "Не удалось открыть набор")
     }
+
+    suspend fun cardTrades(): Result<GameCardTradesDto> = runCatching {
+        val response = api.gameCardTrades(); if (!response.success) error(response.message ?: "Не удалось загрузить обмены")
+        response.data ?: GameCardTradesDto()
+    }
+    suspend fun acceptCardTrade(id: String): Result<Unit> = runCatching { val r = api.acceptGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось принять обмен") }
+    suspend fun craftCards(cardIds: List<String>): Result<Unit> = runCatching { val r = api.craftGameCards(GameCraftRequest(cardIds)); if (!r.success) error(r.message ?: "Не удалось перековать карты") }
     suspend fun disciples(): Result<GameDisciplesDto> = runCatching {
         val response = api.gameDisciples()
         if (!response.success) error(response.message ?: "Не удалось обновить секту")

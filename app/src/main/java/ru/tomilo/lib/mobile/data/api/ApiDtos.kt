@@ -896,6 +896,15 @@ data class GameCardDeckDto(
     val isAvailable: Boolean = true,
 ) { fun stableId(): String = id.ifBlank { _id.orEmpty() } }
 
+@Serializable data class GameCardTradeDto(
+    val id: String = "", val fromUsername: String = "Игрок", val note: String? = null, val mine: Boolean = false,
+    val offerCardId: String = "", val wantCardId: String = "", val offerCopies: Int = 1,
+    val offerCard: GameTradeCardDto = GameTradeCardDto(), val wantCard: GameTradeCardDto = GameTradeCardDto(),
+)
+@Serializable data class GameTradeCardDto(val name: String = "Карта", val imageUrl: String? = null, val rarity: String = "")
+@Serializable data class GameCardTradesDto(val offers: List<GameCardTradeDto> = emptyList())
+@Serializable data class GameCraftRequest(val cardIds: List<String>, val targetCardId: String? = null)
+
 @Serializable
 data class GameAlchemyStatusDto(
     val canCraft: Boolean = false,
