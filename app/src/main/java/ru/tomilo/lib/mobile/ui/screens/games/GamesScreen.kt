@@ -86,7 +86,7 @@ private val GamesPurple = Color(0xFF9B8CFF)
 private val GamesCyan = Color(0xFF55C7D9)
 private val GamesGreen = Color(0xFF65B985)
 
-internal enum class GamesPage { HUB, SECT, ARENA }
+internal enum class GamesPage { HUB, SECT, ARENA, CARDS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -133,6 +133,7 @@ fun GamesScreen(
                                 GamesPage.HUB -> "Игры"
                                 GamesPage.SECT -> "Секта"
                                 GamesPage.ARENA -> "Арена"
+                                GamesPage.CARDS -> "Карты"
                             },
                         )
                         Text(
@@ -140,6 +141,7 @@ fun GamesScreen(
                                 GamesPage.HUB -> "Арена наставника · бета"
                                 GamesPage.SECT -> "Ученики и развитие"
                                 GamesPage.ARENA -> "Боевой отряд и PvP"
+                                GamesPage.CARDS -> "Альбом и коллекция"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -191,6 +193,7 @@ fun GamesScreen(
                         onOpenSect = { page = GamesPage.SECT },
                         onOpenArena = { page = GamesPage.ARENA },
                         onOpenWebTab = onOpenWebTab,
+                        onOpenCards = { page = GamesPage.CARDS },
                     )
                     GamesPage.SECT -> SectContent(
                         disciples = currentDashboard.disciples,
@@ -203,6 +206,12 @@ fun GamesScreen(
                         gamesRepository = gamesRepository,
                         onOpenSect = { page = GamesPage.SECT },
                         onChanged = { reload += 1 },
+                    )
+                    GamesPage.CARDS -> CardsScreen(
+                        gamesRepository = gamesRepository,
+                        onBack = { page = GamesPage.HUB },
+                        onOpenSubmit = { onOpenWebTab("cards/submit") },
+                        onOpenWebTab = onOpenWebTab,
                     )
                 }
             }
@@ -250,6 +259,7 @@ private fun GamesContent(
     onOpenSect: () -> Unit,
     onOpenArena: () -> Unit,
     onOpenWebTab: (String) -> Unit,
+    onOpenCards: () -> Unit,
 ) {
     val totalItems = dashboard.inventory.sumOf { it.count }
     val disciples = dashboard.disciples
@@ -345,8 +355,7 @@ private fun GamesContent(
                 subtitle = "Коллекция персонажей и усиление учеников",
                 badge = cards.stats.total.takeIf { it > 0 }?.toString(),
                 accent = TomiloPremium,
-                external = true,
-                onClick = { onOpenWebTab("cards") },
+                onClick = onOpenCards,
             )
         }
         item {
@@ -382,7 +391,7 @@ private fun GamesContent(
         }
         val previewCards = cards.showcase.ifEmpty { cards.cards }.take(6)
         if (previewCards.isNotEmpty()) {
-            item { GamesSectionTitle("Карты духа", "Коллекция", { onOpenWebTab("cards") }) }
+            item { GamesSectionTitle("Карты духа", "Коллекция", onOpenCards, external = false) }
             item { CardsPreview(previewCards) }
         }
         if (dashboard.warnings.isNotEmpty()) {
