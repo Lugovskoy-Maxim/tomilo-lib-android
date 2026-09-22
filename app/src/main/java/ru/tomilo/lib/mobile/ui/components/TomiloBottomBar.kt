@@ -36,6 +36,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Surface
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.TopAppBarColors
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -56,9 +58,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -82,7 +84,7 @@ data class TomiloTabItem(
 
 private val BarShape = RoundedCornerShape(38.dp)
 private val ItemShape = RoundedCornerShape(30.dp)
-private val SearchShape = RoundedCornerShape(38.dp)
+private val MoreShape = RoundedCornerShape(38.dp)
 
 @Composable
 fun TomiloBottomBar(
@@ -149,56 +151,39 @@ fun TomiloBottomBar(
                     modifier = Modifier.weight(1f),
                 )
             }
-            if (moreItems.isNotEmpty()) {
-                NavTabItem(
-                    label = "Ещё",
-                    icon = Icons.Default.MoreVert,
-                    selected = moreItems.any { currentRoute == it.route },
-                    onClick = { moreOpen = true },
-                    modifier = Modifier.weight(1f),
-                )
-            }
         }
 
-        SearchNavItem(
-            onClick = {
-                val catalog = tabs.firstOrNull { it.label == "Каталог" } ?: tabs.firstOrNull()
-                catalog?.let { onTabClick(it.route) }
-            },
-        )
-    }
-
-    if (moreOpen) {
-        Dialog(onDismissRequest = { moreOpen = false }) {
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                shape = RoundedCornerShape(28.dp),
-                color = TomiloSurface,
-                shadowElevation = 24.dp,
+        Box {
+            MoreNavItem(onClick = { moreOpen = true })
+            DropdownMenu(
+                expanded = moreOpen,
+                onDismissRequest = { moreOpen = false },
+                offset = DpOffset((-166).dp, (-330).dp),
+                shape = RoundedCornerShape(20.dp),
+                containerColor = TomiloSurface,
+                tonalElevation = 12.dp,
+                shadowElevation = 16.dp,
             ) {
-                Column(Modifier.padding(vertical = 12.dp)) {
-                    Text(
-                        "Ещё",
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
+                val catalog = tabs.firstOrNull { it.label == "Каталог" } ?: tabs.firstOrNull()
+                if (catalog != null) {
+                    DropdownMenuItem(
+                        text = { Text("Поиск", fontWeight = FontWeight.Medium) },
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                        onClick = {
+                            moreOpen = false
+                            onTabClick(catalog.route)
+                        },
                     )
-                    moreItems.forEach { item ->
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    moreOpen = false
-                                    onTabClick(item.route)
-                                }
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(item.icon, contentDescription = null, tint = TomiloMuted, modifier = Modifier.size(22.dp))
-                            Spacer(Modifier.width(16.dp))
-                            Text(item.label, style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
+                }
+                moreItems.forEach { item ->
+                    DropdownMenuItem(
+                        text = { Text(item.label, fontWeight = FontWeight.Medium) },
+                        leadingIcon = { Icon(item.icon, contentDescription = null) },
+                        onClick = {
+                            moreOpen = false
+                            onTabClick(item.route)
+                        },
+                    )
                 }
             }
         }
@@ -308,16 +293,16 @@ private fun NavTabItem(
 }
 
 @Composable
-private fun SearchNavItem(onClick: () -> Unit) {
+private fun MoreNavItem(onClick: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     Column(
         modifier = Modifier
             .height(82.dp)
             .width(78.dp)
-            .shadow(14.dp, SearchShape, ambientColor = Color.Black.copy(alpha = 0.62f), spotColor = Color.Black.copy(alpha = 0.42f))
-            .clip(SearchShape)
+            .shadow(14.dp, MoreShape, ambientColor = Color.Black.copy(alpha = 0.62f), spotColor = Color.Black.copy(alpha = 0.42f))
+            .clip(MoreShape)
             .background(Color(0xFF27282A))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), SearchShape)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), MoreShape)
             .clickable(
                 role = Role.Tab,
                 onClick = {
@@ -332,13 +317,13 @@ private fun SearchNavItem(onClick: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
         Icon(
-            imageVector = Icons.Outlined.Search,
-            contentDescription = "Поиск",
+            imageVector = Icons.Default.MoreVert,
+            contentDescription = "Ещё",
             tint = TomiloText.copy(alpha = 0.70f),
             modifier = Modifier.size(28.dp),
         )
         Text(
-            text = "Поиск",
+            text = "Ещё",
             color = TomiloText.copy(alpha = 0.70f),
             fontSize = 12.sp,
             maxLines = 1,
