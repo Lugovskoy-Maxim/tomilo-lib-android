@@ -135,7 +135,7 @@ fun GamesScreen(
                                 GamesPage.ARENA -> "Арена"
                                 GamesPage.CARDS -> "Карты"
                                 GamesPage.INVENTORY -> "Хранилище"
-                                GamesPage.ALCHEMY -> "Алхимия"
+                                GamesPage.ALCHEMY -> "Пилюли"
                             },
                         )
                         Text(
@@ -145,7 +145,7 @@ fun GamesScreen(
                                 GamesPage.ARENA -> "Боевой отряд и PvP"
                                 GamesPage.CARDS -> "Альбом и коллекция"
                                 GamesPage.INVENTORY -> "Материалы и расходники"
-                                GamesPage.ALCHEMY -> "Котёл и развитие"
+                                GamesPage.ALCHEMY -> "3 в ряд · рецепты и опыт профиля"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -220,7 +220,7 @@ fun GamesScreen(
                         onOpenWebTab = onOpenWebTab,
                     )
                     GamesPage.INVENTORY -> InventoryScreen(currentDashboard.inventory)
-                    GamesPage.ALCHEMY -> AlchemyScreen(currentDashboard.alchemy)
+                    GamesPage.ALCHEMY -> AlchemyScreen(currentDashboard.alchemy, gamesRepository)
                 }
             }
         }
@@ -370,8 +370,8 @@ private fun GamesContent(
         item {
             GameModeCard(
                 icon = Icons.Default.Science,
-                title = "Алхимия",
-                subtitle = "Котёл ${alchemy.cauldronTier} ур. · алхимик ${alchemy.alchemyLevel} ур.",
+                title = "Пилюли: 3 в ряд",
+                subtitle = "Рецепт бодрости · комбинации 4–5 и опыт профиля",
                 badge = "${alchemy.attemptsLeft}/${alchemy.craftsPerDay}",
                 accent = Color(0xFFCC78E8),
                 onClick = onOpenAlchemy,

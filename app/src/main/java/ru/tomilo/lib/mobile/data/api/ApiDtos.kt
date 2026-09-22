@@ -918,6 +918,22 @@ data class GameAlchemyStatusDto(
     val cauldronTier: Int = 1,
 )
 
+@Serializable data class PillMatchCompleteRequest(val level: Int)
+@Serializable data class PillMatchStateDto(
+    val profileLevel: Int = 1,
+    val experience: Int = 0,
+    val experienceToNext: Int = 100,
+    val completedLevels: List<Int> = emptyList(),
+)
+@Serializable data class PillMatchCompleteDto(
+    val awarded: Boolean = false,
+    val level: Int = 1,
+    val xpGained: Int = 0,
+    val profileLevel: Int = 1,
+    val experience: Int = 0,
+    val experienceToNext: Int = 100,
+)
+
 @Serializable
 data class SearchHitDto(
     val kind: String? = null,

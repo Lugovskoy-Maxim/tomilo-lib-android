@@ -16,6 +16,9 @@ import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
 import ru.tomilo.lib.mobile.data.api.GameTrainResultDto
 import ru.tomilo.lib.mobile.data.api.GameWarehouseRequest
+import ru.tomilo.lib.mobile.data.api.PillMatchCompleteDto
+import ru.tomilo.lib.mobile.data.api.PillMatchCompleteRequest
+import ru.tomilo.lib.mobile.data.api.PillMatchStateDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 
 data class GamesDashboard(
@@ -27,6 +30,16 @@ data class GamesDashboard(
 )
 
 class GamesRepository(private val api: TomiloApi) {
+    suspend fun pillMatchState(): Result<PillMatchStateDto> = runCatching {
+        val response = api.pillMatchState()
+        if (!response.success) error(response.message ?: "Не удалось загрузить прогресс")
+        response.data ?: error("Сервер не вернул прогресс")
+    }
+    suspend fun completePillMatchLevel(level: Int): Result<PillMatchCompleteDto> = runCatching {
+        val response = api.completePillMatchLevel(PillMatchCompleteRequest(level))
+        if (!response.success) error(response.message ?: "Не удалось сохранить прохождение")
+        response.data ?: error("Сервер не вернул награду")
+    }
     suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatching {
         val response = api.gameCardDecks()
         if (!response.success) error(response.message ?: "Не удалось загрузить наборы")

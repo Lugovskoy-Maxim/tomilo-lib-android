@@ -80,6 +80,12 @@ interface TomiloApi {
     @GET("users/profile/alchemy/status")
     suspend fun gameAlchemyStatus(): ApiResponse<GameAlchemyStatusDto>
 
+    @GET("users/profile/pill-match/state")
+    suspend fun pillMatchState(): ApiResponse<PillMatchStateDto>
+
+    @POST("users/profile/pill-match/complete")
+    suspend fun completePillMatchLevel(@Body body: PillMatchCompleteRequest): ApiResponse<PillMatchCompleteDto>
+
     @GET("shop/decks")
     suspend fun gameCardDecks(): ApiResponse<List<GameCardDeckDto>>
 
