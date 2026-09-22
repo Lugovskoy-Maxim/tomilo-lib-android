@@ -108,8 +108,9 @@ class GamesRepository(private val api: TomiloApi) {
     }
 
     /** Независимые игровые блоки загружаются параллельно и не ломают всю страницу при частичном сбое. */
-    suspend fun dashboard(): Result<GamesDashboard> = supervisorScope {
+    suspend fun dashboard(includeAdminModes: Boolean): Result<GamesDashboard> = supervisorScope {
         runCatching {
+            if (!includeAdminModes) return@runCatching GamesDashboard()
             val inventoryCall = async {
                 runCatching {
                     val response = api.gameInventory()

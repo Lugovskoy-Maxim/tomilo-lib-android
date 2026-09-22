@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Style
@@ -108,6 +109,10 @@ fun GamesScreen(
 
     BackHandler(enabled = page != GamesPage.HUB) { page = GamesPage.HUB }
 
+    LaunchedEffect(user?.isAdmin()) {
+        if (user?.isAdmin() != true && page != GamesPage.HUB) page = GamesPage.HUB
+    }
+
     LaunchedEffect(user?.stableId(), reload) {
         if (user == null) {
             dashboard = null
@@ -116,7 +121,7 @@ fun GamesScreen(
         }
         loading = true
         error = null
-        gamesRepository.dashboard()
+        gamesRepository.dashboard(includeAdminModes = user?.isAdmin() == true)
             .onSuccess { dashboard = it }
             .onFailure { error = it.message ?: "Игровой профиль пока недоступен" }
         loading = false
@@ -192,6 +197,7 @@ fun GamesScreen(
                     GamesPage.HUB -> GamesContent(
                         dashboard = currentDashboard,
                         profileBalance = user?.balance ?: 0,
+                        isAdmin = user?.isAdmin() == true,
                         onOpenQuests = onOpenQuests,
                         onOpenWheel = onOpenWheel,
                         onOpenSect = { page = GamesPage.SECT },
@@ -262,6 +268,7 @@ private fun GamesGuest(modifier: Modifier, onLogin: () -> Unit) {
 private fun GamesContent(
     dashboard: GamesDashboard,
     profileBalance: Int,
+    isAdmin: Boolean,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenSect: () -> Unit,
@@ -329,9 +336,10 @@ private fun GamesContent(
             GameModeCard(
                 icon = Icons.Default.Inventory2,
                 title = "Хранилище",
-                subtitle = if (totalItems > 0) "$totalItems предметов · ${dashboard.inventory.size} видов" else "Собирайте материалы и расходники",
-                badge = if (totalItems > 0) "$totalItems" else null,
+                subtitle = if (isAdmin && totalItems > 0) "$totalItems предметов · ${dashboard.inventory.size} видов" else if (isAdmin) "Собирайте материалы и расходники" else "Доступно только администратору",
+                badge = if (isAdmin) totalItems.takeIf { it > 0 }?.toString() else "ADMIN",
                 accent = GamesCyan,
+                enabled = isAdmin,
                 onClick = onOpenInventory,
             )
         }
@@ -339,9 +347,10 @@ private fun GamesContent(
             GameModeCard(
                 icon = Icons.Default.Groups,
                 title = "Секта",
-                subtitle = "${disciples.sectLevelLabel ?: "Уровень ${disciples.sectLevel}"} · сила ${disciples.combatRating}",
-                badge = "${disciples.disciples.size}/${disciples.maxDisciples.coerceAtLeast(disciples.disciples.size)}",
+                subtitle = if (isAdmin) "${disciples.sectLevelLabel ?: "Уровень ${disciples.sectLevel}"} · сила ${disciples.combatRating}" else "Доступно только администратору",
+                badge = if (isAdmin) "${disciples.disciples.size}/${disciples.maxDisciples.coerceAtLeast(disciples.disciples.size)}" else "ADMIN",
                 accent = GamesPurple,
+                enabled = isAdmin,
                 onClick = onOpenSect,
             )
         }
@@ -351,9 +360,10 @@ private fun GamesContent(
             GameModeCard(
                 icon = Icons.Default.MilitaryTech,
                 title = "Арена",
-                subtitle = "Соберите отряд и сразитесь с соперником",
-                badge = "$remaining/$maxBattles",
+                subtitle = if (isAdmin) "Соберите отряд и сразитесь с соперником" else "Доступно только администратору",
+                badge = if (isAdmin) "$remaining/$maxBattles" else "ADMIN",
                 accent = Color(0xFFE98273),
+                enabled = isAdmin,
                 onClick = onOpenArena,
             )
         }
@@ -361,9 +371,10 @@ private fun GamesContent(
             GameModeCard(
                 icon = Icons.Default.Style,
                 title = "Карты духа",
-                subtitle = "Коллекция персонажей и усиление учеников",
-                badge = cards.stats.total.takeIf { it > 0 }?.toString(),
+                subtitle = if (isAdmin) "Коллекция персонажей и усиление учеников" else "Доступно только администратору",
+                badge = if (isAdmin) cards.stats.total.takeIf { it > 0 }?.toString() else "ADMIN",
                 accent = TomiloPremium,
+                enabled = isAdmin,
                 onClick = onOpenCards,
             )
         }
@@ -371,9 +382,10 @@ private fun GamesContent(
             GameModeCard(
                 icon = Icons.Default.Science,
                 title = "Пилюли: 3 в ряд",
-                subtitle = "Рецепт бодрости · комбинации 4–5 и опыт профиля",
-                badge = "${alchemy.attemptsLeft}/${alchemy.craftsPerDay}",
+                subtitle = if (isAdmin) "Рецепт бодрости · комбинации 4–5 и опыт профиля" else "Доступно только администратору",
+                badge = if (isAdmin) "${alchemy.attemptsLeft}/${alchemy.craftsPerDay}" else "ADMIN",
                 accent = Color(0xFFCC78E8),
+                enabled = isAdmin,
                 onClick = onOpenAlchemy,
             )
         }
@@ -387,18 +399,18 @@ private fun GamesContent(
                 onClick = onOpenWheel,
             )
         }
-        if (dashboard.inventory.isNotEmpty()) {
+        if (isAdmin && dashboard.inventory.isNotEmpty()) {
             item { GamesSectionTitle("В хранилище", "Полный инвентарь", onOpenInventory, external = false) }
             item { InventoryPreview(dashboard) }
         }
-        if (disciples.disciples.isNotEmpty()) {
+        if (isAdmin && disciples.disciples.isNotEmpty()) {
             item { GamesSectionTitle("Ученики секты", "Управлять", onOpenSect, external = false) }
             items(disciples.disciples.take(3), key = { it.characterId.ifBlank { it.displayName() } }) {
                 DiscipleRow(it)
             }
         }
         val previewCards = cards.showcase.ifEmpty { cards.cards }.take(6)
-        if (previewCards.isNotEmpty()) {
+        if (isAdmin && previewCards.isNotEmpty()) {
             item { GamesSectionTitle("Карты духа", "Коллекция", onOpenCards, external = false) }
             item { CardsPreview(previewCards) }
         }
@@ -480,10 +492,11 @@ private fun GameModeCard(
     badge: String?,
     accent: Color,
     external: Boolean = false,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
         color = TomiloSurface,
         shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder.copy(alpha = 0.8f)),
@@ -495,7 +508,12 @@ private fun GameModeCard(
             ) { Icon(icon, null, tint = accent, modifier = Modifier.size(24.dp)) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    title,
+                    color = if (enabled) MaterialTheme.colorScheme.onSurface else TomiloMuted,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Text(subtitle, color = TomiloMuted, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (!badge.isNullOrBlank()) {
@@ -508,7 +526,12 @@ private fun GameModeCard(
                 )
                 Spacer(Modifier.width(7.dp))
             }
-            Icon(if (external) Icons.AutoMirrored.Filled.OpenInNew else Icons.Default.AutoAwesome, null, tint = TomiloMuted, modifier = Modifier.size(18.dp))
+            Icon(
+                imageVector = if (!enabled) Icons.Default.Lock else if (external) Icons.AutoMirrored.Filled.OpenInNew else Icons.Default.AutoAwesome,
+                contentDescription = if (!enabled) "Доступно только администратору" else null,
+                tint = TomiloMuted,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

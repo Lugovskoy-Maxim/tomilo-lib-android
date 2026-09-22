@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,7 +24,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.R
@@ -40,7 +40,6 @@ import ru.tomilo.lib.mobile.ui.theme.*
 }
 
 /** Уровень 3-в-ряд: тот же рецепт, поле и прогресс профиля, что и в веб-версии. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable fun AlchemyScreen(status: GameAlchemyStatusDto, gamesRepository: GamesRepository) {
     var moves by remember { mutableIntStateOf(22) }; var target by remember { mutableIntStateOf(0) }; var flash by remember { mutableStateOf(false) }; var effect by remember { mutableStateOf<String?>(null) }; var selected by remember { mutableStateOf<Int?>(null) }
     var completion by remember { mutableStateOf<String?>(null) }; var saving by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope()
@@ -50,12 +49,35 @@ import ru.tomilo.lib.mobile.ui.theme.*
     LaunchedEffect(effect) { if (effect != null) { delay(550); effect = null } }
     val colors = listOf(Color(0xFFE84B68), Color(0xFF35BADA), Color(0xFFFFCD4A), Color(0xFF9255DD), Color(0xFF4EC68D))
     val board = remember { mutableStateListOf(0,1,4,3,0,2,1,4,4,0,1,2,3,4,0,1,2,3,0,0,0,0,4,2,1,4,2,3,4,1,2,0,0,2,4,1,3,0,4,2,3,1,0,2,4,3,1,0,4,0,3,1,2,4,0,3,1,2,4,0,3,1,2,4) }
+    val onPillClick: (Int) -> Unit = { index ->
+        val first = selected
+        if (first == null || !pillAdjacent(first, index)) {
+            selected = index
+        } else {
+            val next = board.toMutableList()
+            val held = next[first]
+            next[first] = next[index]
+            next[index] = held
+            val matches = pillMatches(next)
+            if (matches.isNotEmpty()) {
+                val coral = matches.count { next[it] == 0 }
+                board.indices.forEach { cell ->
+                    board[cell] = if (cell in matches) (cell * 7 + matches.size) % colors.size else next[cell]
+                }
+                moves--
+                target = (target + coral).coerceAtMost(16)
+                flash = matches.size >= 4
+                effect = if (matches.size >= 5) "burst" else if (matches.size == 4) "line" else null
+            }
+            selected = null
+        }
+    }
     Box(Modifier.fillMaxSize()) {
-        AsyncImage(painterResource(R.drawable.pill_lab_backdrop), null, Modifier.fillMaxSize().alpha(.25f), contentScale = ContentScale.Crop)
+        Image(painterResource(R.drawable.pill_lab_backdrop), null, Modifier.fillMaxSize().alpha(.25f), contentScale = ContentScale.Crop)
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Рецепт бодрости", fontWeight = FontWeight.Bold); Text("УРОВЕНЬ 18 · профиль $profileLevel ур. · $profileXp / $profileXpNext XP", color = Color(0xFFFFD36E)) }; Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("$moves", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold); Text("хода", color = TomiloMuted) } }
             Surface(color = Color(0xFF120D2B).copy(alpha = .9f), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFFFFD36E).copy(alpha = .5f))) { Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Pill(Color(0xFFE84B68)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Соберите коралловые пилюли", fontWeight = FontWeight.Bold); Text("4 в ряд — линия · 5 в ряд — вспышка", color = TomiloMuted) }; Text("$target/16", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold) } }
-            Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { FlowRow(Modifier.padding(7.dp), maxItemsInEachRow = 8, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { board.forEachIndexed { index, color -> val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { val first = selected; if (first == null || !pillAdjacent(first, index)) selected = index else { val next = board.toMutableList(); val held = next[first]; next[first] = next[index]; next[index] = held; val matches = pillMatches(next); if (matches.isNotEmpty()) { val coral = matches.count { next[it] == 0 }; board.indices.forEach { i -> board[i] = if (i in matches) (i * 7 + matches.size) % colors.size else next[i] }; moves--; target = (target + coral).coerceAtMost(16); flash = matches.size >= 4; effect = if (matches.size >= 5) "burst" else if (matches.size == 4) "line" else null }; selected = null } }.background(colors[color], shape).border(if (selected == index) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (flash && index % 8 == 3) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
+            Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { column -> val index = row * 8 + column; val color = board[index]; val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { onPillClick(index) }.background(colors[color], shape).border(if (selected == index) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (flash && index % 8 == 3) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
             if (target >= 16 && completion == null) Button(onClick = { scope.launch { saving = true; gamesRepository.completePillMatchLevel(18).onSuccess { profileLevel = it.profileLevel; profileXp = it.experience; profileXpNext = it.experienceToNext; completion = if (it.awarded) "Рецепт готов · +${it.xpGained} XP профиля" else "Этот уровень уже пройден" }.onFailure { completion = it.message ?: "Не удалось сохранить награду" }; saving = false } }, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(if (saving) "Сохраняем…" else "Завершить рецепт · +56 XP") }
             completion?.let { Text(it, color = Color(0xFFFFE7A3), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally)) }
             Text("Перед началом выберите дополнение", color = TomiloMuted, modifier = Modifier.align(Alignment.CenterHorizontally)); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) { Booster("Разбить", "×2", Color(0xFFFFC94A), Modifier.weight(1f)); Booster("Перемешать", "×1", Color(0xFF8D70EB), Modifier.weight(1f)) }

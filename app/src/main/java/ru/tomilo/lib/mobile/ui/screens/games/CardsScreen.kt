@@ -76,7 +76,7 @@ fun CardsScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
-        gamesRepository.dashboard()
+        gamesRepository.dashboard(includeAdminModes = true)
             .onSuccess { cards = it.cards.cards; error = null }
             .onFailure { error = it.message ?: "Не удалось загрузить карточки" }
         gamesRepository.cardDecks().onSuccess { decks = it }

@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Search
 import ru.tomilo.lib.mobile.ui.theme.TomiloActiveBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloActivePill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -79,8 +80,9 @@ data class TomiloTabItem(
     val hasBadgeDot: Boolean = false,
 )
 
-private val BarShape = RoundedCornerShape(28.dp)
-private val ItemShape = RoundedCornerShape(20.dp)
+private val BarShape = RoundedCornerShape(38.dp)
+private val ItemShape = RoundedCornerShape(30.dp)
+private val SearchShape = RoundedCornerShape(38.dp)
 
 @Composable
 fun TomiloBottomBar(
@@ -93,44 +95,40 @@ fun TomiloBottomBar(
     val haptics = LocalHapticFeedback.current
     var moreOpen by remember { mutableStateOf(false) }
 
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 8.dp),
-        contentAlignment = Alignment.Center,
+            .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp)
+            .widthIn(max = 520.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 350.dp)
+                .weight(1f)
                 .selectableGroup()
                 .shadow(
-                    elevation = 22.dp,
+                    elevation = 14.dp,
                     shape = BarShape,
-                    ambientColor = Color.Black.copy(alpha = 0.72f),
-                    spotColor = TomiloPrimary.copy(alpha = 0.35f),
+                    ambientColor = Color.Black.copy(alpha = 0.62f),
+                    spotColor = Color.Black.copy(alpha = 0.42f),
                 )
                 .clip(BarShape)
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xF21C1816),
-                            Color(0xF713100E),
+                            Color(0xFF2A2B2D),
+                            Color(0xFF232426),
                         ),
                     ),
                 )
                 .border(
                     width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.14f),
-                            Color.White.copy(alpha = 0.03f),
-                        ),
-                    ),
+                    color = Color.White.copy(alpha = 0.10f),
                     shape = BarShape,
                 )
-                .padding(horizontal = 7.dp, vertical = 5.dp),
+                .padding(horizontal = 5.dp, vertical = 5.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -161,6 +159,13 @@ fun TomiloBottomBar(
                 )
             }
         }
+
+        SearchNavItem(
+            onClick = {
+                val catalog = tabs.firstOrNull { it.label == "Каталог" } ?: tabs.firstOrNull()
+                catalog?.let { onTabClick(it.route) }
+            },
+        )
     }
 
     if (moreOpen) {
@@ -211,7 +216,7 @@ private fun NavTabItem(
     modifier: Modifier = Modifier,
 ) {
     val contentColor by animateColorAsState(
-        targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.88f),
+        targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.70f),
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabColor",
     )
@@ -224,72 +229,124 @@ private fun NavTabItem(
         label = "tabScale",
     )
     val bg by animateColorAsState(
-        targetValue = if (selected) TomiloPrimary else Color.Transparent,
+        targetValue = if (selected) Color(0xFF824A4B) else Color.Transparent,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabBg",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) TomiloPrimary else Color.Transparent,
+        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.58f) else Color.Transparent,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabBorder",
     )
 
     Box(
         modifier = modifier
-            .height(52.dp)
-            .clip(if (selected) RoundedCornerShape(17.dp) else ItemShape)
+            .height(82.dp)
+            .clip(if (selected) RoundedCornerShape(29.dp) else ItemShape)
             .background(bg)
-            .border(1.dp, border, if (selected) RoundedCornerShape(17.dp) else ItemShape)
+            .border(1.dp, border, if (selected) RoundedCornerShape(29.dp) else ItemShape)
             .clickable(
                 role = Role.Tab,
                 onClick = onClick,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
-            .padding(horizontal = 2.dp, vertical = 6.dp),
+            .padding(horizontal = 2.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.TopEnd) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = contentColor,
-                modifier = Modifier
-                    .size(if (selected) 27.dp else 24.dp)
-                    .scale(scale),
-            )
-
-            if (badgeCount != null && badgeCount > 0) {
-                Box(
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Box(contentAlignment = Alignment.TopEnd) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = contentColor,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(start = 14.dp, bottom = 10.dp)
-                        .clip(CircleShape)
-                        .background(TomiloPrimary)
-                        .padding(horizontal = 4.dp, vertical = 1.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = if (badgeCount > 99) "99+" else badgeCount.toString(),
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
+                        .size(if (selected) 29.dp else 27.dp)
+                        .scale(scale),
+                )
+
+                if (badgeCount != null && badgeCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(start = 14.dp, bottom = 10.dp)
+                            .clip(CircleShape)
+                            .background(TomiloPrimary)
+                            .padding(horizontal = 4.dp, vertical = 1.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = if (badgeCount > 99) "99+" else badgeCount.toString(),
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                } else if (hasBadgeDot) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(TomiloPrimary),
                     )
                 }
-            } else if (hasBadgeDot) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(TomiloPrimary),
-                )
             }
-        }
 
+            Text(
+                text = label,
+                color = if (selected) Color(0xFFFF8B86) else TomiloText.copy(alpha = 0.70f),
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
-val TomiloBottomBarContentGap = 88.dp
+@Composable
+private fun SearchNavItem(onClick: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    Column(
+        modifier = Modifier
+            .height(82.dp)
+            .width(78.dp)
+            .shadow(14.dp, SearchShape, ambientColor = Color.Black.copy(alpha = 0.62f), spotColor = Color.Black.copy(alpha = 0.42f))
+            .clip(SearchShape)
+            .background(Color(0xFF27282A))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), SearchShape)
+            .clickable(
+                role = Role.Tab,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                },
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true, color = TomiloPrimary),
+            )
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = "Поиск",
+            tint = TomiloText.copy(alpha = 0.70f),
+            modifier = Modifier.size(28.dp),
+        )
+        Text(
+            text = "Поиск",
+            color = TomiloText.copy(alpha = 0.70f),
+            fontSize = 12.sp,
+            maxLines = 1,
+        )
+    }
+}
+
+val TomiloBottomBarContentGap = 112.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

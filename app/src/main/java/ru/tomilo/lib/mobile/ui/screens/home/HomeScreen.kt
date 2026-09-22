@@ -639,10 +639,7 @@ private fun HomeHeroCarousel(
 
             Spacer(Modifier.height(12.dp))
 
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom,
-            ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         current?.displayTitle().orEmpty(),
@@ -1225,6 +1222,28 @@ private fun HomeTitleCarouselPage(
 
             Spacer(Modifier.height(12.dp))
 
+            // У превью первой главы есть собственное место: длинные название и описание
+            // больше не могут вытеснить его ниже видимой границы карусели.
+            artPreview?.let { preview ->
+                Row(
+                    Modifier.fillMaxWidth().height(74.dp).clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.48f)),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TomiloCoverImage(
+                        source = preview,
+                        contentDescription = "Фрагмент рисовки ${item.displayTitle()}",
+                        modifier = Modifier.width(112.dp).fillMaxHeight(),
+                        contentScale = ContentScale.Crop,
+                    )
+                    Column(Modifier.padding(horizontal = 12.dp)) {
+                        Text("Рисовка и персонажи", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Фрагмент из первой главы", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom,
@@ -1271,28 +1290,6 @@ private fun HomeTitleCarouselPage(
                     maxLines = 7,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            artPreview?.let { preview ->
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(74.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.48f)),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TomiloCoverImage(
-                        source = preview,
-                        contentDescription = "Фрагмент рисовки ${item.displayTitle()}",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.width(112.dp).fillMaxHeight(),
-                    )
-                    Column(Modifier.padding(horizontal = 12.dp)) {
-                        Text("Рисовка и персонажи", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Фрагмент из первой главы", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                    }
-                }
             }
             Spacer(Modifier.height(8.dp))
         }

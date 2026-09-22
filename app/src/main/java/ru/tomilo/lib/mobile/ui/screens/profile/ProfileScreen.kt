@@ -117,6 +117,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.pow
 import ru.tomilo.lib.mobile.BuildConfig
+import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
@@ -568,7 +569,7 @@ private fun UserProfileHeaderCard(
             Box {
                 if (!backgroundUrl.isNullOrBlank()) {
                     AsyncImage(
-                        model = backgroundUrl,
+                        model = MediaUrl.resolve(backgroundUrl),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize(),
