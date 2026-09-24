@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,21 +48,31 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
+private val LocalShimmerShift = compositionLocalOf<Float?> { null }
+
 @Composable
-fun rememberShimmerBrush(): Brush {
+private fun ShimmerScope(content: @Composable () -> Unit) {
     if (!ValueAnimator.areAnimatorsEnabled()) {
-        return Brush.linearGradient(listOf(TomiloSurface2, TomiloSurface2))
+        CompositionLocalProvider(LocalShimmerShift provides null, content = content)
+        return
     }
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
+    val transition = rememberInfiniteTransition(label = "skeletonShimmer")
+    val shift by transition.animateFloat(
         initialValue = -400f,
         targetValue = 1400f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 1350, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
-        label = "shimmerTranslation",
+        label = "skeletonShimmerShift",
     )
+    CompositionLocalProvider(LocalShimmerShift provides shift, content = content)
+}
+
+@Composable
+fun rememberShimmerBrush(): Brush {
+    val translateAnim = LocalShimmerShift.current
+        ?: return Brush.linearGradient(listOf(TomiloSurface2, TomiloSurface2))
     return Brush.linearGradient(
         colors = listOf(
             TomiloSurface2.copy(alpha = 0.55f),
@@ -77,27 +89,29 @@ fun rememberShimmerBrush(): Brush {
 /** Loading placeholders shaped like the card collection rather than a generic spinner. */
 @Composable
 fun CardsGridSkeleton(modifier: Modifier = Modifier) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(108.dp),
-        modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column {
-                SkeletonBox(Modifier.fillMaxWidth(0.68f).height(16.dp), radius = 6.dp)
-                Spacer(Modifier.height(8.dp))
-                SkeletonBox(Modifier.fillMaxWidth(0.42f).height(12.dp), radius = 5.dp)
+    ShimmerScope {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(108.dp),
+            modifier = modifier,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    SkeletonBox(Modifier.fillMaxWidth(0.68f).height(16.dp), radius = 6.dp)
+                    Spacer(Modifier.height(8.dp))
+                    SkeletonBox(Modifier.fillMaxWidth(0.42f).height(12.dp), radius = 5.dp)
+                }
             }
-        }
-        items((1..9).toList()) {
-            Column {
-                SkeletonBox(Modifier.fillMaxWidth().aspectRatio(0.72f), radius = 15.dp)
-                Spacer(Modifier.height(8.dp))
-                SkeletonBox(Modifier.fillMaxWidth(0.86f).height(12.dp), radius = 5.dp)
-                Spacer(Modifier.height(5.dp))
-                SkeletonBox(Modifier.fillMaxWidth(0.56f).height(10.dp), radius = 5.dp)
+            items((1..9).toList()) {
+                Column {
+                    SkeletonBox(Modifier.fillMaxWidth().aspectRatio(0.72f), radius = 15.dp)
+                    Spacer(Modifier.height(8.dp))
+                    SkeletonBox(Modifier.fillMaxWidth(0.86f).height(12.dp), radius = 5.dp)
+                    Spacer(Modifier.height(5.dp))
+                    SkeletonBox(Modifier.fillMaxWidth(0.56f).height(10.dp), radius = 5.dp)
+                }
             }
         }
     }
@@ -188,84 +202,14 @@ fun ListCardSkeleton(modifier: Modifier = Modifier) {
 
 @Composable
 fun CatalogGridSkeleton(modifier: Modifier = Modifier, rows: Int = 3) {
-    Column(
-        modifier
-            .fillMaxSize()
-            .padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        repeat(rows) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                repeat(2) {
-                    PosterSkeleton(Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .fillMaxSize()
-            .padding(bottom = 110.dp),
-    ) {
-        SkeletonBox(
-            Modifier
-                .fillMaxWidth()
-                .height(460.dp),
-            radius = 0.dp,
-        )
-
-        Spacer(Modifier.height(14.dp))
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            repeat(4) {
-                SkeletonBox(Modifier.size(width = 72.dp, height = 32.dp), radius = 16.dp)
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            repeat(3) {
-                SkeletonBox(Modifier.width(110.dp).height(34.dp), radius = 10.dp)
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            SkeletonBox(Modifier.width(140.dp).height(20.dp), radius = 6.dp)
-            SkeletonBox(Modifier.width(50.dp).height(16.dp), radius = 6.dp)
-        }
-
-        Spacer(Modifier.height(12.dp))
-
+    ShimmerScope {
         Column(
-            Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier
+                .fillMaxSize()
+                .padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            repeat(2) {
+            repeat(rows) {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -276,60 +220,136 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
 
-        Spacer(Modifier.height(24.dp))
+@Composable
+fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
+    ShimmerScope {
+        Column(
+            modifier
+                .fillMaxSize()
+                .padding(bottom = 110.dp),
+        ) {
+            SkeletonBox(
+                Modifier
+                    .fillMaxWidth()
+                    .height(460.dp),
+                radius = 0.dp,
+            )
 
-        // Premium Promo Banner skeleton
-        SkeletonBox(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .height(130.dp),
-            radius = 24.dp,
-        )
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                repeat(4) {
+                    SkeletonBox(Modifier.size(width = 72.dp, height = 32.dp), radius = 16.dp)
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                repeat(3) {
+                    SkeletonBox(Modifier.width(110.dp).height(34.dp), radius = 10.dp)
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                SkeletonBox(Modifier.width(140.dp).height(20.dp), radius = 6.dp)
+                SkeletonBox(Modifier.width(50.dp).height(16.dp), radius = 6.dp)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Column(
+                Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                repeat(2) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        repeat(2) {
+                            PosterSkeleton(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Premium Promo Banner skeleton
+            SkeletonBox(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(130.dp),
+                radius = 24.dp,
+            )
+        }
     }
 }
 
 /** Detail-page loading shape: portrait hero, metadata, actions and chapter rows. */
 @Composable
 fun TitleDetailSkeleton(modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 100.dp),
-    ) {
-        SkeletonBox(Modifier.fillMaxWidth().height(390.dp), radius = 0.dp)
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
-            SkeletonBox(Modifier.fillMaxWidth(0.82f).height(25.dp), radius = 8.dp)
-            Spacer(Modifier.height(9.dp))
-            SkeletonBox(Modifier.fillMaxWidth(0.52f).height(14.dp), radius = 6.dp)
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(3) { SkeletonBox(Modifier.width(78.dp).height(28.dp), radius = 14.dp) }
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SkeletonBox(Modifier.weight(1f).height(46.dp), radius = 23.dp)
-                SkeletonBox(Modifier.weight(1f).height(46.dp), radius = 23.dp)
-            }
-            Spacer(Modifier.height(24.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                SkeletonBox(Modifier.width(120.dp).height(20.dp), radius = 6.dp)
-                SkeletonBox(Modifier.width(72.dp).height(18.dp), radius = 6.dp)
-            }
-            Spacer(Modifier.height(12.dp))
-            repeat(5) { index ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        SkeletonBox(Modifier.fillMaxWidth(if (index % 2 == 0) .72f else .84f).height(15.dp), radius = 6.dp)
-                        Spacer(Modifier.height(6.dp))
-                        SkeletonBox(Modifier.fillMaxWidth(.42f).height(11.dp), radius = 5.dp)
+    ShimmerScope {
+        Column(
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 100.dp),
+        ) {
+            SkeletonBox(Modifier.fillMaxWidth().height(390.dp), radius = 0.dp)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+                SkeletonBox(Modifier.fillMaxWidth(0.82f).height(25.dp), radius = 8.dp)
+                Spacer(Modifier.height(9.dp))
+                SkeletonBox(Modifier.fillMaxWidth(0.52f).height(14.dp), radius = 6.dp)
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    repeat(3) { SkeletonBox(Modifier.width(78.dp).height(28.dp), radius = 14.dp) }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SkeletonBox(Modifier.weight(1f).height(46.dp), radius = 23.dp)
+                    SkeletonBox(Modifier.weight(1f).height(46.dp), radius = 23.dp)
+                }
+                Spacer(Modifier.height(24.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    SkeletonBox(Modifier.width(120.dp).height(20.dp), radius = 6.dp)
+                    SkeletonBox(Modifier.width(72.dp).height(18.dp), radius = 6.dp)
+                }
+                Spacer(Modifier.height(12.dp))
+                repeat(5) { index ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            SkeletonBox(Modifier.fillMaxWidth(if (index % 2 == 0) .72f else .84f).height(15.dp), radius = 6.dp)
+                            Spacer(Modifier.height(6.dp))
+                            SkeletonBox(Modifier.fillMaxWidth(.42f).height(11.dp), radius = 5.dp)
+                        }
+                        SkeletonBox(Modifier.size(width = 34.dp, height = 34.dp), radius = 12.dp)
                     }
-                    SkeletonBox(Modifier.size(width = 34.dp, height = 34.dp), radius = 12.dp)
                 }
             }
         }
@@ -338,98 +358,102 @@ fun TitleDetailSkeleton(modifier: Modifier = Modifier) {
 
 @Composable
 fun ListCardsSkeleton(modifier: Modifier = Modifier, count: Int = 6) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        repeat(count) { ListCardSkeleton() }
+    ShimmerScope {
+        Column(
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            repeat(count) { ListCardSkeleton() }
+        }
     }
 }
 
 @Composable
 fun LeaderboardSkeleton(modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .fillMaxSize()
-            .padding(bottom = 110.dp),
-    ) {
-        // Period switch skeleton
-        SkeletonBox(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-                .height(44.dp),
-            radius = 20.dp,
-        )
-
-        // Categories row skeleton
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ShimmerScope {
+        Column(
+            modifier
+                .fillMaxSize()
+                .padding(bottom = 110.dp),
         ) {
-            repeat(3) {
-                SkeletonBox(Modifier.size(width = 110.dp, height = 34.dp), radius = 16.dp)
-            }
-        }
+            // Period switch skeleton
+            SkeletonBox(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .height(44.dp),
+                radius = 20.dp,
+            )
 
-        Spacer(Modifier.height(14.dp))
-
-        // Olympic podium skeleton
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp),
-            color = TomiloSurface.copy(alpha = 0.65f),
-            shape = RoundedCornerShape(26.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-        ) {
+            // Categories row skeleton
             Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                repeat(3) {
+                    SkeletonBox(Modifier.size(width = 110.dp, height = 34.dp), radius = 16.dp)
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Olympic podium skeleton
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom,
+                    .padding(horizontal = 14.dp),
+                color = TomiloSurface.copy(alpha = 0.65f),
+                shape = RoundedCornerShape(26.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
             ) {
-                // 2nd
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.size(54.dp).clip(CircleShape).background(TomiloSurface2).background(rememberShimmerBrush()))
-                    Spacer(Modifier.height(6.dp))
-                    SkeletonBox(Modifier.width(60.dp).height(12.dp), radius = 6.dp)
-                    Spacer(Modifier.height(8.dp))
-                    SkeletonBox(Modifier.fillMaxWidth().height(60.dp), radius = 14.dp)
-                }
-                // 1st
-                Column(Modifier.weight(1.2f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.size(70.dp).clip(CircleShape).background(TomiloSurface2).background(rememberShimmerBrush()))
-                    Spacer(Modifier.height(6.dp))
-                    SkeletonBox(Modifier.width(75.dp).height(14.dp), radius = 6.dp)
-                    Spacer(Modifier.height(8.dp))
-                    SkeletonBox(Modifier.fillMaxWidth().height(88.dp), radius = 14.dp)
-                }
-                // 3rd
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.size(50.dp).clip(CircleShape).background(TomiloSurface2).background(rememberShimmerBrush()))
-                    Spacer(Modifier.height(6.dp))
-                    SkeletonBox(Modifier.width(55.dp).height(12.dp), radius = 6.dp)
-                    Spacer(Modifier.height(8.dp))
-                    SkeletonBox(Modifier.fillMaxWidth().height(48.dp), radius = 14.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    // 2nd
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(54.dp).clip(CircleShape).background(TomiloSurface2).background(rememberShimmerBrush()))
+                        Spacer(Modifier.height(6.dp))
+                        SkeletonBox(Modifier.width(60.dp).height(12.dp), radius = 6.dp)
+                        Spacer(Modifier.height(8.dp))
+                        SkeletonBox(Modifier.fillMaxWidth().height(60.dp), radius = 14.dp)
+                    }
+                    // 1st
+                    Column(Modifier.weight(1.2f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(70.dp).clip(CircleShape).background(TomiloSurface2).background(rememberShimmerBrush()))
+                        Spacer(Modifier.height(6.dp))
+                        SkeletonBox(Modifier.width(75.dp).height(14.dp), radius = 6.dp)
+                        Spacer(Modifier.height(8.dp))
+                        SkeletonBox(Modifier.fillMaxWidth().height(88.dp), radius = 14.dp)
+                    }
+                    // 3rd
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(50.dp).clip(CircleShape).background(TomiloSurface2).background(rememberShimmerBrush()))
+                        Spacer(Modifier.height(6.dp))
+                        SkeletonBox(Modifier.width(55.dp).height(12.dp), radius = 6.dp)
+                        Spacer(Modifier.height(8.dp))
+                        SkeletonBox(Modifier.fillMaxWidth().height(48.dp), radius = 14.dp)
+                    }
                 }
             }
-        }
 
-        Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.dp))
 
-        // Rest list items skeleton
-        Column(
-            Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            repeat(4) {
-                SkeletonBox(Modifier.fillMaxWidth().height(58.dp), radius = 18.dp)
+            // Rest list items skeleton
+            Column(
+                Modifier.padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                repeat(4) {
+                    SkeletonBox(Modifier.fillMaxWidth().height(58.dp), radius = 18.dp)
+                }
             }
         }
     }
@@ -437,68 +461,70 @@ fun LeaderboardSkeleton(modifier: Modifier = Modifier) {
 
 @Composable
 fun ProfileScreenSkeleton(modifier: Modifier = Modifier) {
-    Column(
-        modifier
-            .fillMaxSize()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 110.dp),
-    ) {
-        // Profile Hero Header Skeleton
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            color = TomiloSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
+    ShimmerScope {
+        Column(
+            modifier
+                .fillMaxSize()
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 110.dp),
         ) {
-            Column(Modifier.padding(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(78.dp)
-                            .clip(CircleShape)
-                            .background(TomiloSurface2)
-                            .background(rememberShimmerBrush()),
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        SkeletonBox(Modifier.fillMaxWidth(0.6f).height(20.dp), radius = 8.dp)
-                        Spacer(Modifier.height(6.dp))
-                        SkeletonBox(Modifier.fillMaxWidth(0.4f).height(14.dp), radius = 6.dp)
-                        Spacer(Modifier.height(8.dp))
-                        SkeletonBox(Modifier.size(width = 80.dp, height = 22.dp), radius = 8.dp)
+            // Profile Hero Header Skeleton
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = TomiloSurface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
+            ) {
+                Column(Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(78.dp)
+                                .clip(CircleShape)
+                                .background(TomiloSurface2)
+                                .background(rememberShimmerBrush()),
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column(Modifier.weight(1f)) {
+                            SkeletonBox(Modifier.fillMaxWidth(0.6f).height(20.dp), radius = 8.dp)
+                            Spacer(Modifier.height(6.dp))
+                            SkeletonBox(Modifier.fillMaxWidth(0.4f).height(14.dp), radius = 6.dp)
+                            Spacer(Modifier.height(8.dp))
+                            SkeletonBox(Modifier.size(width = 80.dp, height = 22.dp), radius = 8.dp)
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    SkeletonBox(Modifier.fillMaxWidth().height(52.dp), radius = 14.dp)
+                    Spacer(Modifier.height(12.dp))
+                    SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 12.dp)
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // Stats grid skeleton (2 rows x 3 cols)
+            repeat(2) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    repeat(3) {
+                        SkeletonBox(Modifier.weight(1f).height(74.dp), radius = 16.dp)
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                SkeletonBox(Modifier.fillMaxWidth().height(52.dp), radius = 14.dp)
-                Spacer(Modifier.height(12.dp))
-                SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 12.dp)
             }
-        }
 
-        Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
-        // Stats grid skeleton (2 rows x 3 cols)
-        repeat(2) {
+            // Services quick cards
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 repeat(3) {
-                    SkeletonBox(Modifier.weight(1f).height(74.dp), radius = 16.dp)
+                    SkeletonBox(Modifier.weight(1f).height(90.dp), radius = 18.dp)
                 }
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // Services quick cards
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            repeat(3) {
-                SkeletonBox(Modifier.weight(1f).height(90.dp), radius = 18.dp)
             }
         }
     }
