@@ -13,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -1036,12 +1037,21 @@ private fun CardTradeCreateDialog(
             ) {
                 when {
                     catalogLoading -> Column(
-                        Modifier.fillMaxWidth().height(230.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         repeat(2) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                repeat(2) { SkeletonBox(Modifier.weight(1f).height(102.dp), radius = 12.dp) }
+                            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                SkeletonBox(Modifier.fillMaxWidth(.36f).height(15.dp), radius = 5.dp)
+                                SkeletonBox(Modifier.fillMaxWidth().height(56.dp), radius = 14.dp)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    repeat(2) {
+                                        SkeletonBox(
+                                            Modifier.weight(1f).aspectRatio(3f / 4.15f),
+                                            radius = 14.dp,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1173,7 +1183,8 @@ private fun CardTradeChoicePicker(
                             model = MediaUrl.resolve(choice.imageUrl),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxWidth().height(108.dp).clip(RoundedCornerShape(9.dp)).background(TomiloBg),
+                            modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4.15f)
+                                .clip(RoundedCornerShape(9.dp)).background(TomiloBg),
                             loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 9.dp) },
                             error = { Box(Modifier.fillMaxSize().background(TomiloSurface2)) },
                         )
