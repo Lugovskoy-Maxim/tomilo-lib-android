@@ -14,25 +14,25 @@ import java.util.UUID
 class PaymentsRepository(private val api: TomiloApi) {
 
     suspend fun createTbankPayment(planId: String): Result<RobokassaPaymentFormDto> =
-        runCatching {
+        runCatchingCancellable {
             unwrap(api.createTbankPayment(CreateTbankPaymentRequest(planId)))
         }
 
-    suspend fun createAdminTestPayment(): Result<RobokassaPaymentFormDto> = runCatching {
+    suspend fun createAdminTestPayment(): Result<RobokassaPaymentFormDto> = runCatchingCancellable {
         unwrap(api.createAdminRobokassaTestPayment())
     }
 
-    suspend fun paymentStatus(invId: String): Result<RobokassaPaymentStatusDto> = runCatching {
+    suspend fun paymentStatus(invId: String): Result<RobokassaPaymentStatusDto> = runCatchingCancellable {
         unwrap(api.robokassaPaymentStatus(invId))
     }
 
-    suspend fun history(): Result<List<PremiumPaymentHistoryItemDto>> = runCatching {
+    suspend fun history(): Result<List<PremiumPaymentHistoryItemDto>> = runCatchingCancellable {
         val res = api.paymentHistory()
         if (!res.success) error(messageOf(res))
         res.data.orEmpty()
     }
 
-    suspend fun buyPremiumWithCoins(): Result<CoinPremiumPurchaseResultDto> = runCatching {
+    suspend fun buyPremiumWithCoins(): Result<CoinPremiumPurchaseResultDto> = runCatchingCancellable {
         unwrap(api.purchasePremiumWithCoins(CoinPremiumPurchaseRequest(UUID.randomUUID().toString())))
     }
 

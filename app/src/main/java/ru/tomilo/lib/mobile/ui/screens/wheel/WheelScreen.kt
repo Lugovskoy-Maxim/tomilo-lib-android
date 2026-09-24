@@ -291,7 +291,7 @@ fun WheelScreen(
                 Icons.Default.Casino,
             )
             else -> {
-                val data = wheel!!
+                val data = wheel ?: return@Scaffold
                 val cooldown = countdown(data.nextSpinAt, nowMs)
                 LazyColumn(
                     modifier = Modifier

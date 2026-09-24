@@ -36,71 +36,71 @@ import java.time.temporal.ChronoUnit
 class AdminRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
 
-    suspend fun dashboard(): Result<AdminDashboardDto> = runCatching {
+    suspend fun dashboard(): Result<AdminDashboardDto> = runCatchingCancellable {
         val res = api.adminDashboard()
         if (!res.success) error(res.message ?: "Нет доступа к дашборду")
         res.data ?: AdminDashboardDto()
     }
 
     suspend fun users(page: Int = 1, search: String? = null): Result<List<AdminUserDto>> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.adminUsers(page = page, search = search?.ifBlank { null })
             if (!res.success) error(res.message ?: "Ошибка пользователей")
             res.data?.users.orEmpty()
         }
 
     suspend fun banUser(id: String, reason: String = "Нарушение правил"): Result<Unit> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.adminBanUser(id, AdminBanRequest(reason = reason))
             if (!res.success) error(res.message ?: "Не удалось забанить")
         }
 
-    suspend fun unbanUser(id: String): Result<Unit> = runCatching {
+    suspend fun unbanUser(id: String): Result<Unit> = runCatchingCancellable {
         val res = api.adminUnbanUser(id)
         if (!res.success) error(res.message ?: "Не удалось разбанить")
     }
 
-    suspend fun setRole(id: String, role: String): Result<Unit> = runCatching {
+    suspend fun setRole(id: String, role: String): Result<Unit> = runCatchingCancellable {
         val res = api.adminSetRole(id, AdminRoleRequest(role))
         if (!res.success) error(res.message ?: "Не удалось сменить роль")
     }
 
-    suspend fun comments(page: Int = 1): Result<List<AdminCommentDto>> = runCatching {
+    suspend fun comments(page: Int = 1): Result<List<AdminCommentDto>> = runCatchingCancellable {
         val res = api.adminComments(page = page)
         if (!res.success) error(res.message ?: "Ошибка комментариев")
         res.data?.comments.orEmpty()
     }
 
-    suspend fun hideComment(id: String, hidden: Boolean): Result<Unit> = runCatching {
+    suspend fun hideComment(id: String, hidden: Boolean): Result<Unit> = runCatchingCancellable {
         val res = api.adminCommentVisibility(id, AdminCommentVisibilityRequest(hidden))
         if (!res.success) error(res.message ?: "Ошибка видимости")
     }
 
-    suspend fun deleteComment(id: String): Result<Unit> = runCatching {
+    suspend fun deleteComment(id: String): Result<Unit> = runCatchingCancellable {
         val res = api.adminDeleteComment(id)
         if (!res.success) error(res.message ?: "Не удалось удалить")
     }
 
     suspend fun titles(page: Int = 1, search: String? = null): Result<List<AdminTitleDto>> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.adminTitles(page = page, search = search?.ifBlank { null })
             if (!res.success) error(res.message ?: "Ошибка тайтлов")
             res.data?.titles.orEmpty()
         }
 
-    suspend fun clearCache(): Result<String> = runCatching {
+    suspend fun clearCache(): Result<String> = runCatchingCancellable {
         val res = api.adminClearCache()
         if (!res.success) error(res.message ?: "Ошибка очистки кеша")
         res.message ?: "Кеш очищен"
     }
 
-    suspend fun activity(): Result<List<String>> = runCatching {
+    suspend fun activity(): Result<List<String>> = runCatchingCancellable {
         val res = api.adminActivity(limit = 40)
         if (!res.success) error(res.message ?: "Ошибка активности")
         parseActivity(res.data)
     }
 
-    suspend fun reports(unresolvedOnly: Boolean = true): Result<List<AdminReportDto>> = runCatching {
+    suspend fun reports(unresolvedOnly: Boolean = true): Result<List<AdminReportDto>> = runCatchingCancellable {
         val res = api.adminReports(
             isResolved = if (unresolvedOnly) "false" else null,
         )
@@ -108,7 +108,7 @@ class AdminRepository(private val api: TomiloApi) {
         res.data?.reports.orEmpty()
     }
 
-    suspend fun resolveReport(id: String, message: String?): Result<Unit> = runCatching {
+    suspend fun resolveReport(id: String, message: String?): Result<Unit> = runCatchingCancellable {
         val res = api.adminUpdateReportStatus(
             id,
             AdminReportStatusRequest(isResolved = true, resolutionMessage = message?.ifBlank { null }),
@@ -116,13 +116,13 @@ class AdminRepository(private val api: TomiloApi) {
         if (!res.success) error(res.message ?: "Не удалось закрыть жалобу")
     }
 
-    suspend fun deleteReport(id: String): Result<Unit> = runCatching {
+    suspend fun deleteReport(id: String): Result<Unit> = runCatchingCancellable {
         val res = api.adminDeleteReport(id)
         if (!res.success) error(res.message ?: "Не удалось удалить жалобу")
     }
 
     suspend fun grantPremiumDays(userId: String, days: Int, currentIso: String?): Result<Unit> =
-        runCatching {
+        runCatchingCancellable {
             val now = Instant.now()
             val base = currentIso?.let { runCatching { Instant.parse(it) }.getOrNull() }
                 ?.takeIf { it.isAfter(now) }
@@ -135,7 +135,7 @@ class AdminRepository(private val api: TomiloApi) {
             if (!res.success) error(res.message ?: "Не удалось выдать Premium")
         }
 
-    suspend fun setPremiumUntil(userId: String, isoOrNull: String?): Result<Unit> = runCatching {
+    suspend fun setPremiumUntil(userId: String, isoOrNull: String?): Result<Unit> = runCatchingCancellable {
         val res = api.adminUpdateUser(
             userId,
             buildJsonObject {
@@ -146,61 +146,61 @@ class AdminRepository(private val api: TomiloApi) {
         if (!res.success) error(res.message ?: "Не удалось обновить Premium")
     }
 
-    suspend fun changeBalance(userId: String, amount: Int, note: String): Result<Unit> = runCatching {
+    suspend fun changeBalance(userId: String, amount: Int, note: String): Result<Unit> = runCatchingCancellable {
         val res = api.adminUpdateUserBalance(userId, AdminBalanceRequest(amount = amount, description = note))
         if (!res.success) error(res.message ?: "Не удалось изменить баланс")
     }
 
-    suspend fun siteSettings(): Result<AdminSiteSettingsDto> = runCatching {
+    suspend fun siteSettings(): Result<AdminSiteSettingsDto> = runCatchingCancellable {
         val res = api.adminSettings()
         if (!res.success) error(res.message ?: "Нет настроек сайта")
         res.data ?: error("Пустые настройки")
     }
 
     suspend fun updateSiteSettings(body: AdminSiteSettingsUpdate): Result<AdminSiteSettingsDto> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.adminUpdateSettings(body)
             if (!res.success) error(res.message ?: "Не удалось сохранить настройки")
             res.data ?: error("Пустой ответ")
         }
 
-    suspend fun updateTitle(id: String, body: AdminTitleUpdateRequest): Result<Unit> = runCatching {
+    suspend fun updateTitle(id: String, body: AdminTitleUpdateRequest): Result<Unit> = runCatchingCancellable {
         val res = api.adminUpdateTitle(id, body)
         if (!res.success) error(res.message ?: "Не удалось сохранить тайтл")
     }
 
-    suspend fun deleteTitle(id: String): Result<Unit> = runCatching {
+    suspend fun deleteTitle(id: String): Result<Unit> = runCatchingCancellable {
         val res = api.adminDeleteTitle(id)
         if (!res.success) error(res.message ?: "Не удалось удалить тайтл")
     }
 
-    suspend fun autoJobs(): Result<List<AutoParseJobDto>> = runCatching {
+    suspend fun autoJobs(): Result<List<AutoParseJobDto>> = runCatchingCancellable {
         parseAutoJobs(api.autoParsingJobsRaw())
     }
 
-    suspend fun createAutoJob(titleId: String, sourceUrl: String?): Result<Unit> = runCatching {
+    suspend fun createAutoJob(titleId: String, sourceUrl: String?): Result<Unit> = runCatchingCancellable {
         val sources = sourceUrl?.trim()?.takeIf { it.isNotBlank() }?.let { listOf(it) }
         api.createAutoParsingJob(AutoParseCreateRequest(titleId = titleId, sources = sources))
     }
 
-    suspend fun setAutoJobEnabled(id: String, enabled: Boolean): Result<Unit> = runCatching {
+    suspend fun setAutoJobEnabled(id: String, enabled: Boolean): Result<Unit> = runCatchingCancellable {
         api.updateAutoParsingJob(id, AutoParseUpdateRequest(enabled = enabled))
     }
 
-    suspend fun deleteAutoJob(id: String): Result<Unit> = runCatching {
+    suspend fun deleteAutoJob(id: String): Result<Unit> = runCatchingCancellable {
         api.deleteAutoParsingJob(id)
     }
 
-    suspend fun runAutoJob(id: String): Result<String> = runCatching {
+    suspend fun runAutoJob(id: String): Result<String> = runCatchingCancellable {
         val raw = api.checkAutoParsingJob(id)
         raw.jsonMessage()
     }
 
-    suspend fun searchSources(titleId: String): Result<List<SourceCandidateDto>> = runCatching {
+    suspend fun searchSources(titleId: String): Result<List<SourceCandidateDto>> = runCatchingCancellable {
         parseCandidates(api.searchMangaSources(SearchSourcesRequest(titleId)))
     }
 
-    suspend fun importByUrl(url: String): Result<String> = runCatching {
+    suspend fun importByUrl(url: String): Result<String> = runCatchingCancellable {
         api.parseMangaTitle(ParseTitleRequest(url = url)).jsonMessage()
     }
 

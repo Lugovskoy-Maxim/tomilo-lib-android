@@ -32,82 +32,82 @@ class SocialRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
 
     // ── Shop ───────────────────────────────────────────────────
-    suspend fun shopDecorations(type: String): Result<List<ShopDecorationDto>> = runCatching {
+    suspend fun shopDecorations(type: String): Result<List<ShopDecorationDto>> = runCatchingCancellable {
         val res = api.shopDecorations(type)
         if (!res.success) error(res.message ?: "Не удалось загрузить магазин")
         res.data.orEmpty().filter { it.stableId().isNotBlank() && it.isAvailable != false }
     }
 
-    suspend fun ownedDecorations(): Result<List<ShopDecorationDto>> = runCatching {
+    suspend fun ownedDecorations(): Result<List<ShopDecorationDto>> = runCatchingCancellable {
         val res = api.ownedDecorations()
         if (!res.success) error(res.message ?: "Не удалось загрузить инвентарь")
         res.data.orEmpty()
     }
 
-    suspend fun purchaseDecoration(type: String, id: String): Result<Unit> = runCatching {
+    suspend fun purchaseDecoration(type: String, id: String): Result<Unit> = runCatchingCancellable {
         val res = api.purchaseDecoration(type, id)
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Покупка не выполнена")
     }
 
-    suspend fun equipDecoration(type: String, id: String): Result<Unit> = runCatching {
+    suspend fun equipDecoration(type: String, id: String): Result<Unit> = runCatchingCancellable {
         val res = api.equipDecoration(type, id)
         if (!res.success) error(res.message ?: "Не удалось надеть украшение")
     }
 
-    suspend fun unequipDecoration(type: String): Result<Unit> = runCatching {
+    suspend fun unequipDecoration(type: String): Result<Unit> = runCatchingCancellable {
         val res = api.unequipDecoration(type)
         if (!res.success) error(res.message ?: "Не удалось снять украшение")
     }
 
     // ── Bookmarks ───────────────────────────────────────────────
-    suspend fun bookmarks(category: String? = null): Result<List<BookmarkEntryDto>> = runCatching {
+    suspend fun bookmarks(category: String? = null): Result<List<BookmarkEntryDto>> = runCatchingCancellable {
         val res = api.bookmarks(category = category, grouped = false)
         if (!res.success) error(res.message ?: "Не удалось загрузить закладки")
         parseBookmarks(res.data)
     }
 
-    suspend fun bookmarkGroups(): Result<List<BookmarkGroupDto>> = runCatching {
+    suspend fun bookmarkGroups(): Result<List<BookmarkGroupDto>> = runCatchingCancellable {
         val res = api.bookmarkGroups()
         if (!res.success) error(res.message ?: "Не удалось загрузить группы")
         res.data.orEmpty()
     }
 
-    suspend fun createBookmarkGroup(name: String): Result<BookmarkGroupDto> = runCatching {
+    suspend fun createBookmarkGroup(name: String): Result<BookmarkGroupDto> = runCatchingCancellable {
         val res = api.createBookmarkGroup(CreateBookmarkGroupRequest(name.trim()))
         if (!res.success) error(res.message ?: "Не удалось создать группу")
         res.data ?: error("Сервер не вернул группу")
     }
 
-    suspend fun renameBookmarkGroup(id: String, name: String): Result<BookmarkGroupDto> = runCatching {
+    suspend fun renameBookmarkGroup(id: String, name: String): Result<BookmarkGroupDto> = runCatchingCancellable {
         val res = api.renameBookmarkGroup(id.removePrefix("group:"), CreateBookmarkGroupRequest(name.trim()))
         if (!res.success) error(res.message ?: "Не удалось переименовать группу")
         res.data ?: error("Сервер не вернул группу")
     }
 
-    suspend fun deleteBookmarkGroup(id: String): Result<Unit> = runCatching {
+    suspend fun deleteBookmarkGroup(id: String): Result<Unit> = runCatchingCancellable {
         val res = api.deleteBookmarkGroup(id.removePrefix("group:"))
         if (!res.success) error(res.message ?: "Не удалось удалить группу")
     }
 
-    suspend fun bookmarkStatus(titleId: String): Result<BookmarkStatusDto> = runCatching {
+    suspend fun bookmarkStatus(titleId: String): Result<BookmarkStatusDto> = runCatchingCancellable {
         val res = api.bookmarkStatus(titleId)
         if (!res.success) error(res.message ?: "Ошибка статуса")
         res.data ?: BookmarkStatusDto()
     }
 
     suspend fun addBookmark(titleId: String, category: String = "reading"): Result<Unit> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.addBookmark(titleId, category)
             if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось добавить")
         }
 
-    suspend fun removeBookmark(titleId: String): Result<Unit> = runCatching {
+    suspend fun removeBookmark(titleId: String): Result<Unit> = runCatchingCancellable {
         val res = api.removeBookmark(titleId)
         if (!res.success) error(res.message ?: "Не удалось удалить")
     }
 
     suspend fun updateBookmarkCategory(titleId: String, category: String): Result<Unit> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.updateBookmark(
                 titleId,
                 ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest(category),
@@ -141,7 +141,7 @@ class SocialRepository(private val api: TomiloApi) {
         entityId: String,
         page: Int = 1,
         sortOrder: String = "newest",
-    ): Result<ru.tomilo.lib.mobile.data.api.CommentsPageDto> = runCatching {
+    ): Result<ru.tomilo.lib.mobile.data.api.CommentsPageDto> = runCatchingCancellable {
         val res = api.comments(
             entityType = entityType,
             entityId = entityId,
@@ -152,7 +152,7 @@ class SocialRepository(private val api: TomiloApi) {
         )
         if (!res.success) error(res.message ?: "Ошибка комментариев")
         val first = res.data ?: ru.tomilo.lib.mobile.data.api.CommentsPageDto()
-        if (first.totalPages <= 1) return@runCatching first
+        if (first.totalPages <= 1) return@runCatchingCancellable first
         val all = first.comments.toMutableList()
         for (nextPage in 2..first.totalPages.coerceAtMost(10)) {
             val next = api.comments(
@@ -175,7 +175,7 @@ class SocialRepository(private val api: TomiloApi) {
         content: String,
         parentId: String? = null,
         isSpoiler: Boolean = false,
-    ): Result<CommentDto> = runCatching {
+    ): Result<CommentDto> = runCatchingCancellable {
         val res = api.createComment(
             CreateCommentRequest(
                 entityType = entityType,
@@ -193,7 +193,7 @@ class SocialRepository(private val api: TomiloApi) {
         commentId: String,
         content: String,
         isSpoiler: Boolean = false,
-    ): Result<CommentDto> = runCatching {
+    ): Result<CommentDto> = runCatchingCancellable {
         if (commentId.isBlank()) error("Комментарий не найден")
         val res = api.updateComment(
             commentId,
@@ -203,7 +203,7 @@ class SocialRepository(private val api: TomiloApi) {
         res.data ?: error("Пустой ответ")
     }
 
-    suspend fun deleteComment(commentId: String): Result<Unit> = runCatching {
+    suspend fun deleteComment(commentId: String): Result<Unit> = runCatchingCancellable {
         if (commentId.isBlank()) error("Комментарий не найден")
         val res = api.deleteComment(commentId)
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось удалить")
@@ -213,7 +213,7 @@ class SocialRepository(private val api: TomiloApi) {
         commentId: String,
         content: String,
         titleId: String? = null,
-    ): Result<Unit> = runCatching {
+    ): Result<Unit> = runCatchingCancellable {
         if (commentId.isBlank()) error("Комментарий не найден")
         val trimmed = content.trim()
         if (trimmed.length < 10) error("Опишите причину не короче 10 символов")
@@ -231,19 +231,19 @@ class SocialRepository(private val api: TomiloApi) {
         }
     }
 
-    suspend fun likeComment(commentId: String): Result<Unit> = runCatching {
+    suspend fun likeComment(commentId: String): Result<Unit> = runCatchingCancellable {
         if (commentId.isBlank()) error("Комментарий не найден")
         val res = api.likeComment(commentId)
         if (!res.success) error(res.message ?: "Не удалось поставить лайк")
     }
 
-    suspend fun commentReactionEmojis(): Result<List<String>> = runCatching {
+    suspend fun commentReactionEmojis(): Result<List<String>> = runCatchingCancellable {
         val res = api.commentReactionEmojis()
         if (!res.success) error(res.message ?: "Не удалось загрузить реакции")
         res.data?.emojis.orEmpty().filter { it.isNotBlank() }.distinct()
     }
 
-    suspend fun toggleCommentReaction(commentId: String, emoji: String): Result<Unit> = runCatching {
+    suspend fun toggleCommentReaction(commentId: String, emoji: String): Result<Unit> = runCatchingCancellable {
         if (commentId.isBlank()) error("Комментарий не найден")
         if (emoji.isBlank()) error("Реакция не выбрана")
         val res = api.toggleCommentReaction(commentId, CommentReactionRequest(emoji))
@@ -273,33 +273,33 @@ class SocialRepository(private val api: TomiloApi) {
         }
     }
 
-    suspend fun conversations(): Result<List<ConversationPreviewDto>> = runCatching {
+    suspend fun conversations(): Result<List<ConversationPreviewDto>> = runCatchingCancellable {
         val res = api.conversations()
         if (!res.success) error(apiError(res, "Ошибка чатов"))
         parseConversationList(res.data)
     }
 
-    suspend fun supportConversation(): Result<ConversationPreviewDto> = runCatching {
+    suspend fun supportConversation(): Result<ConversationPreviewDto> = runCatchingCancellable {
         val res = api.supportConversation()
         if (!res.success) error(apiError(res, "Не удалось открыть поддержку"))
         parseConversation(res.data) ?: error("Пустой диалог поддержки")
     }
 
     /** Admin: inbox of all support tickets from users. */
-    suspend fun supportInbox(): Result<List<ConversationPreviewDto>> = runCatching {
+    suspend fun supportInbox(): Result<List<ConversationPreviewDto>> = runCatchingCancellable {
         val res = api.supportInbox()
         if (!res.success) error(apiError(res, "Не удалось загрузить поддержку"))
         parseConversationList(res.data)
     }
 
-    suspend fun openConversationWith(userId: String): Result<ConversationPreviewDto> = runCatching {
+    suspend fun openConversationWith(userId: String): Result<ConversationPreviewDto> = runCatchingCancellable {
         if (userId.isBlank()) error("Не указан пользователь")
         val res = api.createConversation(CreateConversationRequest(userId))
         if (!res.success) error(apiError(res, "Не удалось создать чат"))
         parseConversation(res.data) ?: error("Пустой диалог")
     }
 
-    suspend fun messages(conversationId: String): Result<List<DirectMessageDto>> = runCatching {
+    suspend fun messages(conversationId: String): Result<List<DirectMessageDto>> = runCatchingCancellable {
         val id = conversationId.trim()
         if (id.isBlank()) error("Пустой id диалога")
         val res = api.messages(id)
@@ -308,7 +308,7 @@ class SocialRepository(private val api: TomiloApi) {
     }
 
     suspend fun sendMessage(conversationId: String, body: String): Result<DirectMessageDto> =
-        runCatching {
+        runCatchingCancellable {
             val id = conversationId.trim()
             if (id.isBlank()) error("Пустой id диалога")
             val text = body.trim()
@@ -320,10 +320,10 @@ class SocialRepository(private val api: TomiloApi) {
 
     suspend fun markConversationRead(conversationId: String) {
         if (conversationId.isBlank()) return
-        runCatching { api.markConversationRead(conversationId) }
+        runCatchingCancellable { api.markConversationRead(conversationId) }
     }
 
-    suspend fun chatsUnread(): Int = runCatching {
+    suspend fun chatsUnread(): Int = runCatchingCancellable {
         val res = api.conversationsUnread()
         val data = res.data
         when (data) {
@@ -333,48 +333,48 @@ class SocialRepository(private val api: TomiloApi) {
         }
     }.getOrDefault(0)
 
-    suspend fun friends(): Result<List<ru.tomilo.lib.mobile.data.api.FriendEntryDto>> = runCatching {
+    suspend fun friends(): Result<List<ru.tomilo.lib.mobile.data.api.FriendEntryDto>> = runCatchingCancellable {
         val res = api.friends()
         if (!res.success) error(apiError(res, "Не удалось загрузить друзей"))
         res.data.orEmpty()
     }
 
-    suspend fun friendRequests(): Result<ru.tomilo.lib.mobile.data.api.FriendRequestsDto> = runCatching {
+    suspend fun friendRequests(): Result<ru.tomilo.lib.mobile.data.api.FriendRequestsDto> = runCatchingCancellable {
         val res = api.friendRequests()
         if (!res.success) error(apiError(res, "Не удалось загрузить заявки"))
         res.data ?: ru.tomilo.lib.mobile.data.api.FriendRequestsDto()
     }
 
-    suspend fun searchFriends(query: String): Result<List<ru.tomilo.lib.mobile.data.api.FriendSearchResultDto>> = runCatching {
+    suspend fun searchFriends(query: String): Result<List<ru.tomilo.lib.mobile.data.api.FriendSearchResultDto>> = runCatchingCancellable {
         val q = query.trim()
-        if (q.length < 2) return@runCatching emptyList()
+        if (q.length < 2) return@runCatchingCancellable emptyList()
         val res = api.searchFriends(q)
         if (!res.success) error(apiError(res, "Не удалось найти пользователей"))
         res.data.orEmpty()
     }
 
-    suspend fun friendStatus(userId: String): Result<String> = runCatching {
+    suspend fun friendStatus(userId: String): Result<String> = runCatchingCancellable {
         val res = api.friendStatus(userId)
         if (!res.success) error(apiError(res, "Не удалось проверить статус дружбы"))
         res.data?.status ?: "none"
     }
 
-    suspend fun sendFriendRequest(userId: String): Result<Unit> = runCatching {
+    suspend fun sendFriendRequest(userId: String): Result<Unit> = runCatchingCancellable {
         val res = api.sendFriendRequest(ru.tomilo.lib.mobile.data.api.SendFriendRequestDto(userId))
         if (!res.success) error(apiError(res, "Не удалось отправить заявку"))
     }
 
-    suspend fun acceptFriendRequest(requestId: String): Result<Unit> = runCatching {
+    suspend fun acceptFriendRequest(requestId: String): Result<Unit> = runCatchingCancellable {
         val res = api.acceptFriendRequest(requestId)
         if (!res.success) error(apiError(res, "Не удалось принять заявку"))
     }
 
-    suspend fun rejectFriendRequest(requestId: String): Result<Unit> = runCatching {
+    suspend fun rejectFriendRequest(requestId: String): Result<Unit> = runCatchingCancellable {
         val res = api.rejectFriendRequest(requestId)
         if (!res.success) error(apiError(res, "Не удалось отклонить заявку"))
     }
 
-    suspend fun removeFriend(userId: String): Result<Unit> = runCatching {
+    suspend fun removeFriend(userId: String): Result<Unit> = runCatchingCancellable {
         val res = api.removeFriend(userId)
         if (!res.success) error(apiError(res, "Не удалось удалить друга"))
     }
@@ -524,39 +524,39 @@ class SocialRepository(private val api: TomiloApi) {
         category: String = "level",
         period: String = "all",
         limit: Int = 50,
-    ): Result<List<LeaderboardUserDto>> = runCatching {
+    ): Result<List<LeaderboardUserDto>> = runCatchingCancellable {
         val res = api.leaderboard(category = category, period = period, limit = limit)
         if (!res.success) error(res.message ?: "Ошибка лидерборда")
         res.data?.users.orEmpty()
     }
 
     // ── Public profile ──────────────────────────────────────────
-    suspend fun publicUser(userId: String): Result<PublicUserDto> = runCatching {
+    suspend fun publicUser(userId: String): Result<PublicUserDto> = runCatchingCancellable {
         val res = api.publicUser(userId)
         if (!res.success) error(res.message ?: "Профиль не найден")
         res.data ?: error("Профиль не найден")
     }
 
     // ── Notifications ───────────────────────────────────────────
-    suspend fun notifications(page: Int = 1): Result<List<NotificationDto>> = runCatching {
+    suspend fun notifications(page: Int = 1): Result<List<NotificationDto>> = runCatchingCancellable {
         val res = api.notifications(page = page, limit = 40)
         if (!res.success) error(res.message ?: "Ошибка уведомлений")
         parseNotifications(res.data)
     }
 
-    suspend fun notificationsUnread(): Int = runCatching {
+    suspend fun notificationsUnread(): Int = runCatchingCancellable {
         api.notificationsUnread().data?.count ?: 0
     }.getOrDefault(0)
 
     suspend fun markNotificationRead(id: String) {
-        runCatching { api.markNotificationRead(id) }
+        runCatchingCancellable { api.markNotificationRead(id) }
     }
 
     suspend fun markAllNotificationsRead() {
-        runCatching { api.markAllNotificationsRead() }
+        runCatchingCancellable { api.markAllNotificationsRead() }
     }
 
-    suspend fun deleteNotification(id: String): Result<Unit> = runCatching {
+    suspend fun deleteNotification(id: String): Result<Unit> = runCatchingCancellable {
         if (id.isBlank()) error("Уведомление не найдено")
         val res = api.deleteNotification(id)
         if (!res.success) error(res.message ?: "Не удалось удалить уведомление")
@@ -567,14 +567,14 @@ class SocialRepository(private val api: TomiloApi) {
         token: String,
         appVersion: String? = null,
         provider: String = "fcm",
-    ): Result<Unit> = runCatching {
+    ): Result<Unit> = runCatchingCancellable {
         val res = api.registerDeviceToken(
             DeviceTokenRequest(token = token, appVersion = appVersion, provider = provider),
         )
         if (!res.success) error(res.message ?: "Не удалось зарегистрировать push-токен")
     }
 
-    suspend fun unregisterDeviceToken(token: String): Result<Unit> = runCatching {
+    suspend fun unregisterDeviceToken(token: String): Result<Unit> = runCatchingCancellable {
         val res = api.unregisterDeviceToken(DeviceTokenUnregisterRequest(token = token))
         if (!res.success) error(res.message ?: "Не удалось удалить push-токен")
     }

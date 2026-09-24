@@ -315,7 +315,7 @@ fun ChatsScreen(
                     if (error != null) {
                         item {
                             Text(
-                                error!!,
+                                error.orEmpty(),
                                 color = TomiloDanger,
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

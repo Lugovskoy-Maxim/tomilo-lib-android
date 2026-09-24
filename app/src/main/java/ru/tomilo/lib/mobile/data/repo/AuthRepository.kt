@@ -27,11 +27,11 @@ class AuthRepository(
     val tokenFlow: Flow<String?> = authStore.tokenFlow
     val userFlow: Flow<UserDto?> = authStore.userFlow
 
-    suspend fun login(email: String, password: String): Result<UserDto> = runCatching {
+    suspend fun login(email: String, password: String): Result<UserDto> = runCatchingCancellable {
         persist(api.login(LoginRequest(email.trim(), password)))
     }
 
-    suspend fun loginYandex(accessToken: String): Result<UserDto> = runCatching {
+    suspend fun loginYandex(accessToken: String): Result<UserDto> = runCatchingCancellable {
         persist(api.loginYandexToken(YandexTokenRequest(accessToken)))
     }
 
@@ -40,7 +40,7 @@ class AuthRepository(
         codeVerifier: String,
         deviceId: String,
         state: String,
-    ): Result<UserDto> = runCatching {
+    ): Result<UserDto> = runCatchingCancellable {
         persist(
             api.loginVkId(
                 VkIdLoginRequest(
@@ -65,7 +65,7 @@ class AuthRepository(
         return payload.user
     }
 
-    suspend fun refreshProfile(): Result<UserDto> = runCatching {
+    suspend fun refreshProfile(): Result<UserDto> = runCatchingCancellable {
         val res = api.profile()
         val user = res.data ?: error(res.message ?: "Не удалось загрузить профиль")
         authStore.updateUser(user)
@@ -83,13 +83,13 @@ class AuthRepository(
 
     suspend fun isLoggedIn(): Boolean = !authStore.token().isNullOrBlank()
 
-    suspend fun dailyQuests(): Result<DailyQuestsDto> = runCatching {
+    suspend fun dailyQuests(): Result<DailyQuestsDto> = runCatchingCancellable {
         val res = api.dailyQuests()
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось загрузить задания")
         res.data ?: DailyQuestsDto()
     }
 
-    suspend fun claimDailyBonus(): Result<DailyBonusResultDto> = runCatching {
+    suspend fun claimDailyBonus(): Result<DailyBonusResultDto> = runCatchingCancellable {
         val res = api.claimDailyBonus()
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Бонус уже получен")
         val data = res.data ?: error(res.message ?: "Бонус не получен")
@@ -97,7 +97,7 @@ class AuthRepository(
         data
     }
 
-    suspend fun claimQuest(questId: String): Result<QuestClaimResultDto> = runCatching {
+    suspend fun claimQuest(questId: String): Result<QuestClaimResultDto> = runCatchingCancellable {
         val res = api.claimDailyQuest(QuestClaimRequest(questId))
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Награда недоступна")
         val data = res.data ?: QuestClaimResultDto()
@@ -105,7 +105,7 @@ class AuthRepository(
         data
     }
 
-    suspend fun claimAllQuests(): Result<QuestClaimResultDto> = runCatching {
+    suspend fun claimAllQuests(): Result<QuestClaimResultDto> = runCatchingCancellable {
         val res = api.claimAllDailyQuests()
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Нет доступных наград")
         val data = res.data ?: QuestClaimResultDto()
@@ -113,13 +113,13 @@ class AuthRepository(
         data
     }
 
-    suspend fun wheel(): Result<WheelDto> = runCatching {
+    suspend fun wheel(): Result<WheelDto> = runCatchingCancellable {
         val res = api.wheel()
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось загрузить колесо")
         res.data ?: error("Колесо временно недоступно")
     }
 
-    suspend fun spinWheel(skipCooldown: Boolean = false): Result<WheelSpinResultDto> = runCatching {
+    suspend fun spinWheel(skipCooldown: Boolean = false): Result<WheelSpinResultDto> = runCatchingCancellable {
         val res = api.spinWheel(WheelSpinRequest(skipCooldown.takeIf { it }))
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось запустить колесо")
         val result = res.data ?: error("Сервер не вернул награду")
@@ -127,7 +127,7 @@ class AuthRepository(
         result
     }
 
-    suspend fun wheelRecentWins(): Result<WheelRecentWinsDto> = runCatching {
+    suspend fun wheelRecentWins(): Result<WheelRecentWinsDto> = runCatchingCancellable {
         val res = api.wheelRecentWins()
         if (!res.success) error(res.message ?: "Не удалось загрузить победителей")
         res.data ?: WheelRecentWinsDto()

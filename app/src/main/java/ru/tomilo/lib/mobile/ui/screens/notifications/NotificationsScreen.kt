@@ -241,9 +241,9 @@ fun NotificationsScreen(
                                 fontWeight = if (n.read()) FontWeight.Normal else FontWeight.SemiBold,
                                 color = if (n.read()) TomiloMuted else MaterialTheme.colorScheme.onBackground,
                             )
-                            if (!n.message.isNullOrBlank()) {
+                            n.message?.takeIf(String::isNotBlank)?.let { message ->
                                 Spacer(Modifier.height(2.dp))
-                                Text(n.message!!, style = MaterialTheme.typography.bodyMedium)
+                                Text(message, style = MaterialTheme.typography.bodyMedium)
                             }
                             n.createdAt?.take(16)?.let {
                                 Spacer(Modifier.height(2.dp))

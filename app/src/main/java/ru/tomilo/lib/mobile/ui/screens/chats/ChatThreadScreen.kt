@@ -251,7 +251,7 @@ fun ChatThreadScreen(
 
             if (error != null && messages.isNotEmpty()) {
                 Text(
-                    error!!,
+                    error.orEmpty(),
                     color = TomiloDanger,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),

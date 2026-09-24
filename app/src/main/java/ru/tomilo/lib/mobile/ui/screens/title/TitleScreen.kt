@@ -488,8 +488,7 @@ fun TitleScreen(
                 modifier = Modifier.padding(padding).statusBarsPadding(),
                 onRetry = { reload++ },
             )
-            title != null -> {
-                val t = title!!
+            title != null -> title?.let { t ->
                 LazyColumn(
                     Modifier.padding(padding).fillMaxSize(),
                 ) {

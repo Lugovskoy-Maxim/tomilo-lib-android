@@ -174,7 +174,7 @@ fun AdminScreen(
                 }
             }
             if (error != null && !loading) {
-                Text(error!!, color = TomiloDanger, modifier = Modifier.padding(horizontal = 16.dp))
+                Text(error.orEmpty(), color = TomiloDanger, modifier = Modifier.padding(horizontal = 16.dp))
             }
             when {
                 loading -> LoadingBox()
@@ -396,7 +396,7 @@ private fun ReportsPane(
             },
             confirmButton = {
                 Button(onClick = {
-                    onResolve(replyId!!, replyText)
+                    replyId?.let { onResolve(it, replyText) }
                     replyId = null
                 }) { Text("Закрыть жалобу") }
             },

@@ -802,7 +802,7 @@ fun CatalogScreen(
                     FilterSectionTitle("Статус перевода")
                     WrapChips(
                         options = listOf("__any") + statusOptions,
-                        selected = if (selectedStatus == null) setOf("__any") else setOf(selectedStatus!!),
+                        selected = selectedStatus?.let(::setOf) ?: setOf("__any"),
                         label = {
                             if (it == "__any") "Любой статус"
                             else STATUS_LABELS[it] ?: ru.tomilo.lib.mobile.core.GenreLabels.status(it)

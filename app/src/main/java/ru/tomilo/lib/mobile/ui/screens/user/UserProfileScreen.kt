@@ -170,7 +170,7 @@ fun UserProfileScreen(
                     }
                 },
                 actions = {
-                    if (me != null && me!!.stableId() != userId) {
+                    if (me?.stableId()?.let { it != userId } == true) {
                         IconButton(
                             onClick = {
                                 scope.launch {
@@ -198,8 +198,7 @@ fun UserProfileScreen(
             error != null && user == null -> Column(Modifier.padding(padding)) {
                 ErrorBox(error ?: "Ошибка")
             }
-            user != null -> {
-                val u = user!!
+            user != null -> user?.let { u ->
                 PublicProfileContent(
                     user = u,
                     modifier = Modifier.padding(padding),

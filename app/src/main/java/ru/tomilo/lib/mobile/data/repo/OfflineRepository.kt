@@ -65,15 +65,15 @@ class OfflineRepository(
         fallbackSlug: String = "",
         fallbackCover: String? = null,
     ): Result<OfflineTitleEntity> = withContext(Dispatchers.IO) {
-        runCatching {
-            val detail = runCatching { api.titleById(titleId) }.getOrNull()
+        runCatchingCancellable {
+            val detail = runCatchingCancellable { api.titleById(titleId) }.getOrNull()
                 ?.takeIf { it.success }?.data
             // серверный MAX_LIST_LIMIT = 200 — грузим все страницы
             var catalogComplete = true
             val chapters = buildList {
                 var page = 1
                 while (page <= 100) {
-                    val res = runCatching {
+                    val res = runCatchingCancellable {
                         api.chaptersByTitle(titleId, page = page, limit = 200, sortOrder = "asc")
                     }.getOrNull()?.takeIf { it.success }?.data
                     if (res == null) {
@@ -232,7 +232,7 @@ class OfflineRepository(
         ) -> Unit = { _, _, _, _ -> },
         onProgress: (downloaded: Int, total: Int) -> Unit = { _, _ -> },
     ): Result<OfflineChapterEntity> = withContext(Dispatchers.IO) {
-        runCatching {
+        runCatchingCancellable {
             onStage(DownloadStage.CheckingAccess, 0, 0, null)
             if (!authRepository.isLoggedIn()) error("Войдите в аккаунт")
             val premium = authRepository.isPremium()
@@ -254,10 +254,13 @@ class OfflineRepository(
                 currentCoroutineContext().ensureActive()
 
                 if (getLocalPages(chapterId)?.isNotEmpty() == true) {
-                    // уже есть — вернём кредит, если списывали
-                    if (usedAdCredit) adRewardStore?.refundOfflineCredit()
-                    onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
-                    return@runCatching dao.get(chapterId)!!
+                    // A concurrent cleanup may remove the Room row after the files
+                    // were checked; only report completion when metadata still exists.
+                    dao.get(chapterId)?.let { existingChapter ->
+                        if (usedAdCredit) adRewardStore?.refundOfflineCredit()
+                        onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
+                        return@runCatchingCancellable existingChapter
+                    }
                 }
 
                 onStage(DownloadStage.FetchingChapter, 0, 0, null)

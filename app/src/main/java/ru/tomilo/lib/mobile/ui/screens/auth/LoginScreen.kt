@@ -217,9 +217,9 @@ fun LoginScreen(
                 keyboardActions = KeyboardActions(onDone = { submit() }),
                 shape = RoundedCornerShape(18.dp),
             )
-            if (error != null) {
+            error?.let { message ->
                 Spacer(Modifier.height(12.dp))
-                Text(error!!, color = TomiloDanger)
+                Text(message, color = TomiloDanger)
             }
             Spacer(Modifier.height(20.dp))
             Button(

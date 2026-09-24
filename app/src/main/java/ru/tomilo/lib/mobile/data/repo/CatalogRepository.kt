@@ -11,7 +11,7 @@ import ru.tomilo.lib.mobile.data.api.TomiloApi
 import kotlinx.coroutines.CancellationException
 
 class CatalogRepository(private val api: TomiloApi) {
-    suspend fun catalog(query: CatalogQuery): Result<CatalogPageDto> = runCatching {
+    suspend fun catalog(query: CatalogQuery): Result<CatalogPageDto> = runCatchingCancellable {
         val res = api.catalogTitles(
             page = query.page,
             limit = query.limit,
@@ -29,44 +29,44 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data ?: CatalogPageDto()
     }
 
-    suspend fun filterOptions(): Result<CatalogFilterOptionsDto> = runCatching {
+    suspend fun filterOptions(): Result<CatalogFilterOptionsDto> = runCatchingCancellable {
         val res = api.catalogFilterOptions()
         if (!res.success) error(res.message ?: "Ошибка фильтров")
         res.data ?: CatalogFilterOptionsDto()
     }
 
-    suspend fun latestUpdates(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatching {
+    suspend fun latestUpdates(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatchingCancellable {
         val res = api.latestUpdates(limit = limit)
         if (!res.success) error(res.message ?: "Ошибка загрузки")
         res.data.orEmpty()
     }
 
-    suspend fun latestUpdatesPage(page: Int, limit: Int = 24): Result<List<CatalogTitleDto>> = runCatching {
+    suspend fun latestUpdatesPage(page: Int, limit: Int = 24): Result<List<CatalogTitleDto>> = runCatchingCancellable {
         val res = api.latestUpdates(limit = limit, page = page)
         if (!res.success) error(res.message ?: "Не удалось загрузить обновления")
         res.data.orEmpty()
     }
 
-    suspend fun popular(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatching {
+    suspend fun popular(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatchingCancellable {
         val res = api.popular(limit = limit)
         if (!res.success) error(res.message ?: "Ошибка загрузки")
         res.data.orEmpty()
     }
 
-    suspend fun randomTitle(includeAdult: Boolean = false): Result<CatalogTitleDto> = runCatching {
+    suspend fun randomTitle(includeAdult: Boolean = false): Result<CatalogTitleDto> = runCatchingCancellable {
         val res = api.randomTitles(limit = 1, includeAdult = includeAdult.takeIf { it })
         if (!res.success) error(res.message ?: "Не удалось выбрать случайный тайтл")
         res.data?.firstOrNull() ?: error("В каталоге пока нет подходящих тайтлов")
     }
 
-    suspend fun randomTitles(limit: Int = 12, includeAdult: Boolean = false): Result<List<CatalogTitleDto>> = runCatching {
+    suspend fun randomTitles(limit: Int = 12, includeAdult: Boolean = false): Result<List<CatalogTitleDto>> = runCatchingCancellable {
         val res = api.randomTitles(limit = limit.coerceIn(1, 24), includeAdult = includeAdult.takeIf { it })
         if (!res.success) error(res.message ?: "Не удалось выбрать случайные тайтлы")
         res.data.orEmpty()
     }
 
-    suspend fun title(idOrSlug: String): Result<TitleDetailDto> = runCatching {
-        val byId = runCatching { api.titleById(idOrSlug) }.getOrNull()
+    suspend fun title(idOrSlug: String): Result<TitleDetailDto> = runCatchingCancellable {
+        val byId = runCatchingCancellable { api.titleById(idOrSlug) }.getOrNull()
         val res = if (byId?.success == true && byId.data != null) {
             byId
         } else {
@@ -77,7 +77,7 @@ class CatalogRepository(private val api: TomiloApi) {
     }
 
     suspend fun chapters(titleId: String, page: Int = 1, limit: Int = 100): Result<List<ChapterDto>> =
-        runCatching {
+        runCatchingCancellable {
             val res = api.chaptersByTitle(titleId, page = page, limit = limit, sortOrder = "asc")
             if (!res.success) error(res.message ?: "Ошибка глав")
             res.data?.chapters.orEmpty()
@@ -87,7 +87,7 @@ class CatalogRepository(private val api: TomiloApi) {
      * Все главы тайтла (сервер режет list limit до 200 — ходим по страницам).
      */
     suspend fun chaptersAll(titleId: String, pageSize: Int = 200): Result<List<ChapterDto>> =
-        runCatching {
+        runCatchingCancellable {
             val all = mutableListOf<ChapterDto>()
             var page = 1
             val limit = pageSize.coerceIn(1, 200)
@@ -111,7 +111,7 @@ class CatalogRepository(private val api: TomiloApi) {
             all.distinctBy { it.stableId() }.filter { it.stableId().isNotBlank() }
         }
 
-    suspend fun chapter(chapterId: String): Result<ChapterDto> = runCatching {
+    suspend fun chapter(chapterId: String): Result<ChapterDto> = runCatchingCancellable {
         val res = api.chapterById(chapterId)
         if (!res.success) error(res.message ?: "Глава недоступна")
         res.data ?: error("Глава недоступна")
@@ -123,13 +123,13 @@ class CatalogRepository(private val api: TomiloApi) {
      */
     suspend fun chapterForReading(chapterId: String): Result<ChapterDto> = chapter(chapterId)
 
-    suspend fun chapterNext(chapterId: String, currentChapter: Double? = null): Result<ChapterDto> = runCatching {
+    suspend fun chapterNext(chapterId: String, currentChapter: Double? = null): Result<ChapterDto> = runCatchingCancellable {
         val res = api.chapterNext(chapterId, currentChapter)
         if (!res.success) error(res.message ?: "Нет следующей главы")
         res.data ?: error("Нет следующей главы")
     }
 
-    suspend fun chapterPrev(chapterId: String, currentChapter: Double? = null): Result<ChapterDto> = runCatching {
+    suspend fun chapterPrev(chapterId: String, currentChapter: Double? = null): Result<ChapterDto> = runCatchingCancellable {
         val res = api.chapterPrev(chapterId, currentChapter)
         if (!res.success) error(res.message ?: "Нет предыдущей главы")
         res.data ?: error("Нет предыдущей главы")

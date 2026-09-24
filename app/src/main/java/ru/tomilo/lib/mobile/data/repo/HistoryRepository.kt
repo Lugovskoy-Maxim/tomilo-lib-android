@@ -24,13 +24,13 @@ data class HistoryReward(
 class HistoryRepository(private val api: TomiloApi) {
     private val json = NetworkModule.json
 
-    suspend fun history(page: Int = 1): Result<List<HistoryEntryDto>> = runCatching {
+    suspend fun history(page: Int = 1): Result<List<HistoryEntryDto>> = runCatchingCancellable {
         val res = api.readingHistory(page = page, limit = 50, light = true)
         if (!res.success) error(res.message ?: "Ошибка истории")
         parseHistory(res.data)
     }
 
-    suspend fun progress(titleId: String): Result<ReadingProgressDto> = runCatching {
+    suspend fun progress(titleId: String): Result<ReadingProgressDto> = runCatchingCancellable {
         if (titleId.isBlank()) error("empty titleId")
         val res = api.readingProgress(titleId)
         if (!res.success) error(res.message ?: "Ошибка прогресса")
@@ -52,34 +52,34 @@ class HistoryRepository(private val api: TomiloApi) {
     /**
      * Id прочитанных глав тайтла — для отметок на списке глав.
      */
-    suspend fun readIds(titleId: String): Result<Set<String>> = runCatching {
-        if (titleId.isBlank()) return@runCatching emptySet()
+    suspend fun readIds(titleId: String): Result<Set<String>> = runCatchingCancellable {
+        if (titleId.isBlank()) return@runCatchingCancellable emptySet()
         val res = api.historyReadIds(titleId)
         if (!res.success) {
             // fallback: full history entry for title
-            return@runCatching readIdsFromTitleHistory(titleId)
+            return@runCatchingCancellable readIdsFromTitleHistory(titleId)
         }
         val data = res.data ?: ReadIdsDto()
         data.chapterIds.filter { it.isNotBlank() }.toSet()
     }
 
-    suspend fun markRead(titleId: String, chapterId: String): Result<HistoryReward> = runCatching {
-        if (titleId.isBlank() || chapterId.isBlank()) return@runCatching HistoryReward()
+    suspend fun markRead(titleId: String, chapterId: String): Result<HistoryReward> = runCatchingCancellable {
+        if (titleId.isBlank() || chapterId.isBlank()) return@runCatchingCancellable HistoryReward()
         val res = api.addHistory(titleId, chapterId)
         if (!res.success) error(res.message ?: "Не удалось сохранить прогресс")
         parseHistoryReward(res.data)
     }
 
-    suspend fun rateTitle(titleId: String, rating: Int): Result<Unit> = runCatching {
+    suspend fun rateTitle(titleId: String, rating: Int): Result<Unit> = runCatchingCancellable {
         val res = api.rateTitle(titleId, RateTitleRequest(rating.coerceIn(1, 10)))
         if (!res.success) error(res.message ?: "Не удалось оценить")
     }
 
-    suspend fun myTitleRating(titleId: String): Result<Int?> = runCatching {
-        if (titleId.isBlank()) return@runCatching null
+    suspend fun myTitleRating(titleId: String): Result<Int?> = runCatchingCancellable {
+        if (titleId.isBlank()) return@runCatchingCancellable null
         val res = api.myTitleRating(titleId)
         if (!res.success) error(res.message ?: "Не удалось загрузить оценку")
-        val data = res.data ?: return@runCatching null
+        val data = res.data ?: return@runCatchingCancellable null
         when (data) {
             is kotlinx.serialization.json.JsonPrimitive -> data.content.toIntOrNull()
             is JsonObject -> data["rating"]?.jsonPrimitive?.content?.toIntOrNull()
@@ -87,16 +87,16 @@ class HistoryRepository(private val api: TomiloApi) {
         }
     }
 
-    suspend fun rateChapter(chapterId: String, rating: Int): Result<Unit> = runCatching {
+    suspend fun rateChapter(chapterId: String, rating: Int): Result<Unit> = runCatchingCancellable {
         val res = api.rateChapter(chapterId, RateChapterRequest(rating.coerceIn(1, 10)))
         if (!res.success) error(res.message ?: "Не удалось оценить главу")
     }
 
-    suspend fun myChapterRating(chapterId: String): Result<Int?> = runCatching {
-        if (chapterId.isBlank()) return@runCatching null
+    suspend fun myChapterRating(chapterId: String): Result<Int?> = runCatchingCancellable {
+        if (chapterId.isBlank()) return@runCatchingCancellable null
         val res = api.chapterRating(chapterId)
         if (!res.success) error(res.message ?: "Не удалось загрузить оценку главы")
-        val data = res.data ?: return@runCatching null
+        val data = res.data ?: return@runCatchingCancellable null
         when (data) {
             is kotlinx.serialization.json.JsonPrimitive -> data.content.toIntOrNull()
             is JsonObject -> data["userRating"]?.jsonPrimitive?.content?.toIntOrNull()
@@ -105,7 +105,7 @@ class HistoryRepository(private val api: TomiloApi) {
         }
     }
 
-    suspend fun deleteTitleHistory(titleId: String): Result<Unit> = runCatching {
+    suspend fun deleteTitleHistory(titleId: String): Result<Unit> = runCatchingCancellable {
         val res = api.deleteTitleHistory(titleId)
         if (!res.success) error(res.message ?: "Не удалось удалить")
     }
