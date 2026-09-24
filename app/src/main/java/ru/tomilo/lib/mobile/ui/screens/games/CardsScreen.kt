@@ -112,7 +112,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
 private enum class CardTab(val label: String) {
-    Album("Альбом"), Shop("Рулетка"), Trade("Обмен"), Forge("Кузница"),
+    Album("Альбом"), Shop("Магазин"), Trade("Обмен"), Forge("Кузница"),
 }
 
 private enum class ForgeMode(val count: Int, val label: String) {
@@ -120,7 +120,11 @@ private enum class ForgeMode(val count: Int, val label: String) {
 }
 
 private enum class CardCatalogSort(val label: String) {
-    Rank("По рангу"), Name("По имени"),
+    Popular("По популярности"), Name("По имени"), Rank("По рангу"),
+}
+
+private enum class CardCatalogRank(val rarity: String?, val label: String) {
+    All(null, "Все"), Common("common", "F"), Rare("rare", "C"), Epic("epic", "B"), Legendary("legendary", "S"),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -256,7 +260,7 @@ fun CardsScreen(
                 title = {
                     Column {
                         Text("Карточки", style = MaterialTheme.typography.titleLarge)
-                        Text("Декоративные карточки · рулетка", style = MaterialTheme.typography.labelSmall, color = TomiloMuted)
+                        Text("Карты · магазин и обмен", style = MaterialTheme.typography.labelSmall, color = TomiloMuted)
                     }
                 },
                 navigationIcon = {
@@ -325,7 +329,7 @@ fun CardsScreen(
                     onOpenDeck = { deck ->
                         launchAction(
                             key = "deck:${deck.stableId()}",
-                            success = "Набор «${deck.name}» открыт. Альбом обновлён.",
+                            success = "Пак «${deck.name}» открыт. Альбом обновлён.",
                             operation = { gamesRepository.openCardDeck(deck.stableId()) },
                             onSuccess = { result ->
                                 shopRewardCards = result.openedCards.mapNotNull { it.card }
@@ -535,15 +539,15 @@ private fun ShopTab(
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Рулетка карточек", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Случайная декоративная карточка или набор по тайтлу за монеты активности.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Случайная карта или пак по тайтлу за монеты активности.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Surface(color = TomiloSurface, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, TomiloBorder)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Один запуск рулетки", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("Случайная карточка · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Покупка без пака · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = onPull, enabled = action == null, modifier = Modifier.fillMaxWidth()) {
                         if (action == "pull") {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -556,7 +560,7 @@ private fun ShopTab(
             }
         }
         if (decks.isEmpty() && error == null) item(span = { GridItemSpan(maxLineSpan) }) {
-            EmptyState("Наборов пока нет", "Загляните позже — новые наборы появятся в магазине.", icon = Icons.Default.Collections)
+            EmptyState("Паков по тайтлам пока нет", "Случайная карта выше всё равно доступна.", icon = Icons.Default.Collections)
         }
         items(decks, key = { it.stableId() }) { deck ->
             val id = deck.stableId()
@@ -604,7 +608,7 @@ private fun CardRewardReveal(cards: List<GameCardDto>) {
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    if (cards.size == 1) "Новая карточка" else "Карточки из набора · ${cards.size}",
+                    if (cards.size == 1) "Новая карта" else "Карты из пака · ${cards.size}",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1136,10 +1140,11 @@ private fun CardCatalogTab(
     onSell: (GameCardDto) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
-    var ownedFirst by remember { mutableStateOf(true) }
-    var sort by remember { mutableStateOf(CardCatalogSort.Rank) }
+    var ownedFirst by remember { mutableStateOf(false) }
+    var sort by remember { mutableStateOf(CardCatalogSort.Popular) }
+    var selectedRank by remember { mutableStateOf(CardCatalogRank.All) }
     val owned = remember(ownedCards) { ownedCards.associateBy(GameCardDto::id) }
-    val entries = remember(catalog, ownedCards, query, ownedFirst, sort) {
+    val entries = remember(catalog, ownedCards, query, ownedFirst, sort, selectedRank) {
         val normalizedQuery = query.trim().lowercase()
         val allEntries = if (catalog.isNotEmpty()) catalog else ownedCards.map { card ->
             GameCardCatalogItemDto(
@@ -1154,17 +1159,19 @@ private fun CardCatalogTab(
             )
         }
         allEntries.filter { card ->
-            normalizedQuery.isBlank() || listOfNotNull(card.characterName, card.name, card.titleName)
-                .any { it.lowercase().contains(normalizedQuery) }
+            (normalizedQuery.isBlank() || listOfNotNull(card.characterName, card.name, card.titleName)
+                .any { it.lowercase().contains(normalizedQuery) }) &&
+                (selectedRank.rarity == null || card.rarity.equals(selectedRank.rarity, ignoreCase = true))
         }.sortedWith(
             compareBy<GameCardCatalogItemDto> { if (ownedFirst && it.id in owned) 0 else 1 }
                 .thenBy {
                     when (sort) {
+                        CardCatalogSort.Popular -> 0
                         CardCatalogSort.Rank -> listOf("F", "C", "B", "A", "S", "SSS").indexOf(CardEconomy.rank(it.rank, it.rarity)).let { rank -> if (rank < 0) Int.MAX_VALUE else rank }
                         CardCatalogSort.Name -> 0
                     }
                 }
-                .thenBy { if (sort == CardCatalogSort.Name) it.characterName ?: it.name else it.name },
+                .thenBy { if (sort == CardCatalogSort.Name) it.characterName ?: it.name else "" },
         )
     }
     val copies = ownedCards.sumOf { it.copies.coerceAtLeast(0) }
@@ -1194,10 +1201,23 @@ private fun CardCatalogTab(
                     FilterChip(
                         selected = ownedFirst,
                         onClick = { ownedFirst = !ownedFirst },
-                        label = { Text("Сначала мои") },
+                        label = { Text("Показать сначала") },
                     )
                     CardCatalogSort.entries.forEach { option ->
                         FilterChip(selected = sort == option, onClick = { sort = option }, label = { Text(option.label) })
+                    }
+                }
+                Text("Ранг карточки", color = TomiloMuted, style = MaterialTheme.typography.labelMedium)
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CardCatalogRank.entries.forEach { rank ->
+                        FilterChip(
+                            selected = selectedRank == rank,
+                            onClick = { selectedRank = rank },
+                            label = { Text(rank.label) },
+                        )
                     }
                 }
                 if (catalogError != null) InlineLoadError(catalogError, onRetryCatalog)

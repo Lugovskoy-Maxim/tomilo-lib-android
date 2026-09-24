@@ -10,6 +10,7 @@ import ru.tomilo.lib.mobile.data.api.GameBattleSquadRequest
 import ru.tomilo.lib.mobile.data.api.GameCardsDto
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
+import ru.tomilo.lib.mobile.data.api.GameCardCatalogDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradesDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeCatalogDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeCreateRequest
@@ -55,14 +56,26 @@ class GamesRepository(private val api: TomiloApi) {
     }
     suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatchingCancellable {
         val response = api.gameCardDecks()
-        if (!response.success) error(response.message ?: "Не удалось загрузить наборы")
+        if (!response.success) error(response.message ?: "Не удалось загрузить паки")
         response.data.orEmpty()
     }
 
     suspend fun cardCatalog(): Result<List<GameCardCatalogItemDto>> = runCatchingCancellable {
-        val response = api.gameCardCatalog(limit = 1_000)
-        if (!response.success) error(response.message ?: "Не удалось загрузить каталог карточек")
-        response.data?.cards.orEmpty()
+        val pageSize = 1_000
+        val firstResponse = api.gameCardCatalog(page = 1, limit = pageSize)
+        if (!firstResponse.success) error(firstResponse.message ?: "Не удалось загрузить каталог карточек")
+        val firstPage = firstResponse.data ?: GameCardCatalogDto()
+        val catalog = firstPage.cards.toMutableList()
+        val totalPages = ((firstPage.total.coerceAtLeast(catalog.size) + pageSize - 1) / pageSize)
+            .coerceIn(1, 10)
+        for (page in 2..totalPages) {
+            val response = api.gameCardCatalog(page = page, limit = pageSize)
+            if (!response.success) error(response.message ?: "Не удалось загрузить каталог карточек")
+            val data = response.data ?: break
+            if (data.cards.isEmpty()) break
+            catalog += data.cards
+        }
+        catalog.distinctBy { it.id }
     }
 
     suspend fun pullCard(): Result<GameCardOpenResultDto> = runCatchingCancellable {
@@ -73,8 +86,8 @@ class GamesRepository(private val api: TomiloApi) {
 
     suspend fun openCardDeck(deckId: String): Result<GameCardOpenResultDto> = runCatchingCancellable {
         val response = api.openGameCardDeck(deckId)
-        if (!response.success) error(response.message ?: "Не удалось открыть набор")
-        response.data ?: error("Сервер не вернул карты из набора")
+        if (!response.success) error(response.message ?: "Не удалось открыть пак")
+        response.data ?: error("Сервер не вернул карты из пака")
     }
 
     suspend fun cardTrades(): Result<GameCardTradesDto> = runCatchingCancellable {
