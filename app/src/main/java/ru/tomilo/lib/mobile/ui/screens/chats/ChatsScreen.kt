@@ -309,6 +309,7 @@ fun ChatsScreen(
                         },
                         icon = Icons.Outlined.Forum,
                         modifier = Modifier.fillMaxWidth().height(360.dp).padding(ScreenPadding),
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                     )
                 }
                 else -> {

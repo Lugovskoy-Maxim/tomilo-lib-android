@@ -179,6 +179,7 @@ fun FriendsScreen(
                     title = "Добавьте друзей",
                     message = "Найдите пользователя по никнейму. С друзьями можно начинать личные диалоги.",
                     icon = Icons.Outlined.Group,
+                    illustration = ru.tomilo.lib.mobile.R.drawable.illust_success_mascot,
                     actionLabel = "Найти людей",
                     onAction = { tab = FriendsTab.Search },
                 ) else LazyColumn(contentPadding = ScreenPadding) {

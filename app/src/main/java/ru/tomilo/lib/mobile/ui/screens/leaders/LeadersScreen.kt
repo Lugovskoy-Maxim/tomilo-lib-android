@@ -205,6 +205,7 @@ fun LeadersScreen(
                     title = "Рейтинг пока пуст",
                     message = "За выбранный период ещё нет результатов. Попробуйте другой период или категорию.",
                     icon = Icons.Default.EmojiEvents,
+                    illustration = ru.tomilo.lib.mobile.R.drawable.illust_success_mascot,
                 )
                 else -> LeaderboardContent(
                     users = users,

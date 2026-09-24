@@ -634,6 +634,7 @@ fun CatalogScreen(
                         title = "Ничего не найдено",
                         message = "Попробуйте изменить запрос или сбросить выбранные фильтры.",
                         icon = Icons.Outlined.SearchOff,
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_offline_mascot,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(390.dp),

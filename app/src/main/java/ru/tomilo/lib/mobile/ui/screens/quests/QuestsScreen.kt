@@ -145,6 +145,7 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                             title = "Заданий сегодня нет",
                             message = "Новый список появится после ежедневного обновления.",
                             icon = Icons.Outlined.TaskAlt,
+                            illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                         )
                     }
                 } else {

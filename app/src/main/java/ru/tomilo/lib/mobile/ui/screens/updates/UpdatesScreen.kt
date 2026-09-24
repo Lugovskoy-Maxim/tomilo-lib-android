@@ -135,6 +135,7 @@ fun UpdatesScreen(
                 message = "Новые главы появятся здесь сразу после публикации.",
                 icon = Icons.Outlined.Update,
                 modifier = Modifier.padding(padding),
+                illustration = ru.tomilo.lib.mobile.R.drawable.illust_success_mascot,
             )
             else -> LazyColumn(
                 state = listState,
