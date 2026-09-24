@@ -116,8 +116,11 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
-private enum class CardTab(val label: String) {
-    Album("Альбом"), Shop("Магазин"), Trade("Обмен"), Forge("Кузница"),
+private enum class CardTab(val label: String, val pageTitle: String) {
+    Album("Альбом", "Альбом карт"),
+    Shop("Магазин", "Магазин карт"),
+    Trade("Обмен", "Обмен карт"),
+    Forge("Кузница", "Кузница"),
 }
 
 private enum class ForgeMode(val count: Int, val label: String) {
@@ -275,10 +278,7 @@ fun CardsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Карточки", style = MaterialTheme.typography.titleLarge)
-                        Text("Карты · магазин и обмен", style = MaterialTheme.typography.labelSmall, color = TomiloMuted)
-                    }
+                    Text(tab.pageTitle, style = MaterialTheme.typography.titleLarge)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад") }
