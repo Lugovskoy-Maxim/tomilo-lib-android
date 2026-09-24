@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +85,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import kotlinx.coroutines.launch
@@ -225,7 +229,9 @@ fun LoadingBox(
     modifier: Modifier = Modifier,
     message: String? = null,
 ) {
-    val motion = if (ValueAnimator.areAnimatorsEnabled()) {
+    val screenStarted = rememberScreenStarted()
+    val motionEnabled = ValueAnimator.areAnimatorsEnabled() && screenStarted
+    val motion = if (motionEnabled) {
         val transition = rememberInfiniteTransition(label = "loadingMotion")
         val pulse by transition.animateFloat(
             initialValue = 0.55f,
@@ -277,6 +283,26 @@ fun LoadingBox(
             )
         }
     }
+}
+
+@Composable
+internal fun rememberScreenStarted(): Boolean {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var screenStarted by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> screenStarted = true
+                Lifecycle.Event.ON_STOP -> screenStarted = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return screenStarted
 }
 
 /** Нижняя полоска «подгружаем ещё…» для каталога / лент. */
@@ -376,6 +402,7 @@ fun EmptyState(
     onAction: (() -> Unit)? = null,
     illustration: Int? = null,
 ) {
+    val screenStarted = rememberScreenStarted()
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val configuration = LocalConfiguration.current
         val veryShort = maxHeight < 260.dp
@@ -387,7 +414,7 @@ fun EmptyState(
             else -> 76.dp
         }
         val illustrationHeight = if (compactLayout) 100.dp else 144.dp
-        val iconPulse = if (showVisual && ValueAnimator.areAnimatorsEnabled()) {
+        val iconPulse = if (showVisual && ValueAnimator.areAnimatorsEnabled() && screenStarted) {
             val pulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
                 initialValue = 0.97f,
                 targetValue = 1.03f,
