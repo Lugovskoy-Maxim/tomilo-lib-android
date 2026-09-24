@@ -11,8 +11,15 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import ru.tomilo.lib.mobile.TomiloApp
 import java.util.concurrent.TimeUnit
+
+private data class PollOutcome(
+    val deliveredCount: Int = 0,
+    val succeeded: Boolean = true,
+)
 
 /**
  * Polling in-app уведомлений (в т.ч. new_chapter для тайтлов в закладках).
@@ -35,17 +42,16 @@ class NotificationsPollWorker(
         val list = listResult.getOrElse {
             // Серверная лента может временно не ответить, но проверка закладок
             // и сообщений остаётся независимым резервным каналом.
-            pollBookmarkChapters(app, prefs, emptySet())
-            pollConversations(app, prefs)
+            pollAuxiliarySources(app, prefs, emptySet())
             return if (runAttemptCount < 3) Result.retry() else Result.success()
         }
 
         if (list.isEmpty()) {
             val unreadResult = app.container.socialRepository.notificationsUnread()
             val lastCount = prefs.getInt(KEY_LAST_UNREAD, 0)
-            val bookmarkNotifications = pollBookmarkChapters(app, prefs, emptySet())
-            val messageNotifications = pollConversations(app, prefs)
-            val specificNotificationDelivered = bookmarkNotifications > 0 || messageNotifications > 0
+            val (bookmarkPoll, conversationPoll) = pollAuxiliarySources(app, prefs, emptySet())
+            val specificNotificationDelivered =
+                bookmarkPoll.deliveredCount > 0 || conversationPoll.deliveredCount > 0
             val unread = unreadResult.getOrElse {
                 // A failed count request is not evidence that unread reached zero.
                 // Keep the old baseline so recovery cannot create a false summary.
@@ -70,7 +76,8 @@ class NotificationsPollWorker(
                 // POST_NOTIFICATIONS was denied) so a later poll can retry it.
                 prefs.edit().putInt(KEY_LAST_UNREAD, unread).apply()
             }
-            return Result.success()
+            return if (!bookmarkPoll.succeeded || !conversationPoll.succeeded) retryTransientPoll()
+            else Result.success()
         }
 
         val firstRun = lastSeenId.isBlank() && knownIds.isEmpty()
@@ -129,10 +136,20 @@ class NotificationsPollWorker(
             .putInt(KEY_LAST_UNREAD, unread)
             .apply()
 
-        pollBookmarkChapters(app, prefs, deliveredChapterTitles)
-        pollConversations(app, prefs)
+        val (bookmarkPoll, conversationPoll) =
+            pollAuxiliarySources(app, prefs, deliveredChapterTitles)
+        return if (!bookmarkPoll.succeeded || !conversationPoll.succeeded) retryTransientPoll()
+        else Result.success()
+    }
 
-        return Result.success()
+    private suspend fun pollAuxiliarySources(
+        app: TomiloApp,
+        prefs: android.content.SharedPreferences,
+        deliveredChapterTitles: Set<String>,
+    ): Pair<PollOutcome, PollOutcome> = supervisorScope {
+        val bookmarks = async { pollBookmarkChapters(app, prefs, deliveredChapterTitles) }
+        val conversations = async { pollConversations(app, prefs) }
+        bookmarks.await() to conversations.await()
     }
 
     /**
@@ -142,12 +159,15 @@ class NotificationsPollWorker(
     private suspend fun pollConversations(
         app: TomiloApp,
         prefs: android.content.SharedPreferences,
-    ): Int {
-        val conversations = app.container.socialRepository.conversations().getOrElse { return 0 }
+    ): PollOutcome {
+        val conversationsResult = app.container.socialRepository.conversations()
+        val conversations = conversationsResult.getOrElse { return PollOutcome(succeeded = false) }
             .toMutableList()
+        var succeeded = true
         if (app.container.authStore.user()?.isAdmin() == true) {
             app.container.socialRepository.supportInbox()
                 .onSuccess { support -> conversations.addAll(support) }
+                .onFailure { succeeded = false }
         }
         val current = conversations.mapNotNull { conversation ->
             val id = conversation.stableId().takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -204,15 +224,16 @@ class NotificationsPollWorker(
             }
         }
         editor.apply()
-        return deliveredIds.size
+        return PollOutcome(deliveredCount = deliveredIds.size, succeeded = succeeded)
     }
 
     private suspend fun pollBookmarkChapters(
         app: TomiloApp,
         prefs: android.content.SharedPreferences,
         alreadyDeliveredTitleIds: Set<String>,
-    ): Int {
-        val bookmarks = app.container.socialRepository.bookmarks().getOrElse { return 0 }
+    ): PollOutcome {
+        val bookmarksResult = app.container.socialRepository.bookmarks()
+        val bookmarks = bookmarksResult.getOrElse { return PollOutcome(succeeded = false) }
         val current = bookmarks.mapNotNull { bookmark ->
             if (bookmark.category.equals("dropped", ignoreCase = true)) return@mapNotNull null
             val title = bookmark.resolvedTitle() ?: return@mapNotNull null
@@ -274,8 +295,11 @@ class NotificationsPollWorker(
             if (safeToAdvance) editor.putInt(bookmarkCountKey(item.titleId), item.chapterCount)
         }
         editor.apply()
-        return deliveredIds.size
+        return PollOutcome(deliveredCount = deliveredIds.size)
     }
+
+    private fun retryTransientPoll(): Result =
+        if (runAttemptCount < MAX_TRANSIENT_RETRIES) Result.retry() else Result.success()
 
     private fun isChapterRelated(type: String?): Boolean {
         val t = type?.lowercase().orEmpty()
@@ -285,6 +309,7 @@ class NotificationsPollWorker(
     companion object {
         private const val UNIQUE_PERIODIC = "tomilo_notifications_poll"
         private const val UNIQUE_ONCE = "tomilo_notifications_poll_once"
+        private const val MAX_TRANSIENT_RETRIES = 3
         private const val PREFS = "tomilo_push"
         private const val KEY_LAST_SEEN_ID = "last_seen_notif_id"
         private const val KEY_KNOWN_IDS = "known_notif_ids"
