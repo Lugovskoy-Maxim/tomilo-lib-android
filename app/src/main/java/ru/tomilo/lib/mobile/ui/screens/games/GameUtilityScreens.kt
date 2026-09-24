@@ -30,6 +30,7 @@ import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.data.api.GameAlchemyStatusDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.ui.theme.*
 
 @Composable fun InventoryScreen(items: List<GameInventoryItemDto>) {
@@ -78,7 +79,37 @@ import ru.tomilo.lib.mobile.ui.theme.*
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Рецепт бодрости", fontWeight = FontWeight.Bold); Text("УРОВЕНЬ 18 · профиль $profileLevel ур. · $profileXp / $profileXpNext XP", color = Color(0xFFFFD36E)) }; Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("$moves", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold); Text("хода", color = TomiloMuted) } }
             Surface(color = Color(0xFF120D2B).copy(alpha = .9f), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFFFFD36E).copy(alpha = .5f))) { Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Pill(Color(0xFFE84B68)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Соберите коралловые пилюли", fontWeight = FontWeight.Bold); Text("4 в ряд — линия · 5 в ряд — вспышка", color = TomiloMuted) }; Text("$target/16", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold) } }
             Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { column -> val index = row * 8 + column; val color = board[index]; val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { onPillClick(index) }.background(colors[color], shape).border(if (selected == index) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (flash && index % 8 == 3) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
-            if (target >= 16 && completion == null) Button(onClick = { scope.launch { saving = true; gamesRepository.completePillMatchLevel(18).onSuccess { profileLevel = it.profileLevel; profileXp = it.experience; profileXpNext = it.experienceToNext; completion = if (it.awarded) "Рецепт готов · +${it.xpGained} XP профиля" else "Этот уровень уже пройден" }.onFailure { completion = it.message ?: "Не удалось сохранить награду" }; saving = false } }, enabled = !saving, modifier = Modifier.fillMaxWidth()) { Text(if (saving) "Сохраняем…" else "Завершить рецепт · +56 XP") }
+            if (target >= 16 && completion == null) {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            saving = true
+                            try {
+                                gamesRepository.completePillMatchLevel(18)
+                                    .onSuccess {
+                                        profileLevel = it.profileLevel
+                                        profileXp = it.experience
+                                        profileXpNext = it.experienceToNext
+                                        completion = if (it.awarded) {
+                                            "Рецепт готов · +${it.xpGained} XP профиля"
+                                        } else {
+                                            "Этот уровень уже пройден"
+                                        }
+                                    }
+                                    .onFailure {
+                                        completion = it.toUserFacingError("Не удалось сохранить награду.")
+                                    }
+                            } finally {
+                                saving = false
+                            }
+                        }
+                    },
+                    enabled = !saving,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (saving) "Сохраняем…" else "Завершить рецепт · +56 XP")
+                }
+            }
             completion?.let { Text(it, color = Color(0xFFFFE7A3), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally)) }
             Text("Перед началом выберите дополнение", color = TomiloMuted, modifier = Modifier.align(Alignment.CenterHorizontally)); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) { Booster("Разбить", "×2", Color(0xFFFFC94A), Modifier.weight(1f)); Booster("Перемешать", "×1", Color(0xFF8D70EB), Modifier.weight(1f)) }
         }

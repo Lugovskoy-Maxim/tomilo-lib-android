@@ -42,6 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
+import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.data.api.AdminCommentDto
 import ru.tomilo.lib.mobile.data.api.AdminDashboardDto
 import ru.tomilo.lib.mobile.data.api.AdminReportDto
@@ -101,7 +103,7 @@ fun AdminScreen(
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
-    fun flash(msg: String?) { error = msg }
+    fun flash(msg: String?) { error = msg?.let(::userFacingError) }
 
     fun load() {
         scope.launch {
@@ -110,26 +112,27 @@ fun AdminScreen(
             when (tab) {
                 AdminTab.Reports -> adminRepository.reports()
                     .onSuccess { reports = it }
-                    .onFailure { error = it.message }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить жалобы.") }
                 AdminTab.Users -> adminRepository.users(search = userSearch.ifBlank { null })
                     .onSuccess { users = it }
-                    .onFailure { error = it.message }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить пользователей.") }
                 AdminTab.AutoSearch -> adminRepository.autoJobs()
                     .onSuccess { jobs = it }
-                    .onFailure { error = it.message }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить задания автопоиска.") }
                 AdminTab.Site -> adminRepository.siteSettings()
                     .onSuccess { settings = it }
-                    .onFailure { error = it.message }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить настройки сайта.") }
                 AdminTab.Titles -> adminRepository.titles(search = titleSearch.ifBlank { null })
                     .onSuccess { titles = it }
-                    .onFailure { error = it.message }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить тайтлы.") }
                 AdminTab.Dashboard -> {
-                    adminRepository.dashboard().onSuccess { dashboard = it }.onFailure { error = it.message }
+                    adminRepository.dashboard().onSuccess { dashboard = it }
+                        .onFailure { error = it.toUserFacingError("Не удалось загрузить сводку.") }
                     adminRepository.activity().onSuccess { activity = it }
                 }
                 AdminTab.Comments -> adminRepository.comments()
                     .onSuccess { comments = it }
-                    .onFailure { error = it.message }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить комментарии.") }
                 AdminTab.Tools -> Unit
             }
             loading = false
@@ -333,7 +336,7 @@ fun AdminScreen(
                         scope.launch {
                             adminRepository.clearCache()
                                 .onSuccess { toolMsg = it }
-                                .onFailure { toolMsg = it.message }
+                                .onFailure { toolMsg = it.toUserFacingError("Не удалось выполнить задачу.") }
                         }
                     },
                     onRefresh = { reload += 1 },
