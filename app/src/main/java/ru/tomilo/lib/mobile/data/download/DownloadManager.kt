@@ -101,7 +101,7 @@ class DownloadManager(
             try {
                 executeBatch(request, onProgress)
                 if (batchGeneration != generation) return@withLock false
-                queueStore.clear()
+                persistIncompleteChapters(request, _state.value)
                 pendingRequest = null
                 onProgress(_state.value)
                 true
@@ -211,7 +211,7 @@ class DownloadManager(
                 if (generation == batchGeneration) {
                     _state.update { it.copy(finished = true, activeIndex = -1, runningInBackground = false) }
                     onProgressNotify(_state.value)
-                    queueStore.clear()
+                    persistIncompleteChapters(request, _state.value)
                     DownloadForegroundService.stop(appContext)
                 }
             }
@@ -300,6 +300,8 @@ class DownloadManager(
 
     fun clear() {
         if (isBusy()) return
+        pendingRequest = null
+        queueStore.clear()
         _state.value = BatchDownloadState()
     }
 
@@ -342,6 +344,19 @@ class DownloadManager(
                 items = s.items.map { if (it.chapterId == chapterId) transform(it) else it },
             )
         }
+    }
+
+    /** Persist only unfinished chapters so completed work is never repeated on recovery. */
+    private fun persistIncompleteChapters(
+        request: DownloadBatchRequest,
+        state: BatchDownloadState,
+    ) {
+        val incompleteIds = state.items
+            .filter { it.stage != DownloadStage.Completed }
+            .mapTo(hashSetOf()) { it.chapterId }
+        val incomplete = request.chapters.filter { it.chapterId in incompleteIds }
+        if (incomplete.isEmpty()) queueStore.clear()
+        else queueStore.save(request.copy(chapters = incomplete))
     }
 
     private fun queuedState(request: DownloadBatchRequest) = BatchDownloadState(
