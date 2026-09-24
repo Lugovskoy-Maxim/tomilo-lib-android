@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -63,10 +64,11 @@ fun SearchScreen(
     var loading by remember { mutableStateOf(false) }
     var results by remember { mutableStateOf<List<SearchHitDto>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    var retryCount by remember { mutableIntStateOf(0) }
     val recent by searchHistoryPrefs.queriesFlow.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(query) {
+    LaunchedEffect(query, retryCount) {
         val q = query.trim()
         if (q.length < 2) {
             results = emptyList()
@@ -125,8 +127,8 @@ fun SearchScreen(
             )
             if (query.trim().length >= 2 && !loading && error == null) {
                 PageIntro(
-                    title = if (results.isEmpty()) "Ищем точное совпадение" else "Найдено: ${results.size}",
-                    subtitle = "Результаты обновляются автоматически по мере ввода",
+                    title = "Результаты поиска",
+                    subtitle = if (results.isEmpty()) "Подходящих тайтлов не найдено" else "Найдено: ${results.size}",
                     icon = Icons.Default.Search,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                     trailing = { if (results.isNotEmpty()) StatusPill("${results.size}") },
@@ -134,7 +136,10 @@ fun SearchScreen(
             }
             when {
                 loading -> ListCardsSkeleton()
-                error != null -> ErrorBox(error ?: "Ошибка поиска")
+                error != null -> ErrorBox(
+                    message = error ?: "Не удалось выполнить поиск.",
+                    onRetry = { retryCount++ },
+                )
                 query.trim().length < 2 && recent.isNotEmpty() -> Column(Modifier.fillMaxSize()) {
                     Row(
                         Modifier
