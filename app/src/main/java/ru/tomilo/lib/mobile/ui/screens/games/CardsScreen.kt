@@ -872,6 +872,8 @@ private fun CardTradeCreateDialog(
     }
     var offerId by remember { mutableStateOf("") }
     var wantId by remember { mutableStateOf("") }
+    var offerQuery by remember { mutableStateOf("") }
+    var wantQuery by remember { mutableStateOf("") }
     var offerCopies by remember { mutableStateOf(1) }
     var note by remember { mutableStateOf("") }
     LaunchedEffect(offerChoices) {
@@ -911,7 +913,14 @@ private fun CardTradeCreateDialog(
                     offerChoices.isEmpty() -> Text("Нет доступных карт с копиями для обмена.", color = TomiloMuted)
                     wantChoices.size < 2 -> Text("Для обмена пока недостаточно доступных карт.", color = TomiloMuted)
                     else -> {
-                        CardTradeChoicePicker("Вы отдаёте", offerChoices, offerId, onSelect = {
+                        CardTradeChoicePicker(
+                            title = "Вы отдаёте",
+                            choices = offerChoices,
+                            selectedId = offerId,
+                            query = offerQuery,
+                            searchPlaceholder = "Найти свою карту",
+                            onQueryChange = { offerQuery = it },
+                            onSelect = {
                             offerId = it
                             offerCopies = offerCopies.coerceAtMost(offerChoices.firstOrNull { card -> card.id == it }?.let { card ->
                                 ownedCards.firstOrNull { owned -> owned.id == card.id }?.copies
@@ -935,7 +944,15 @@ private fun CardTradeCreateDialog(
                                 ) { Icon(Icons.Default.Add, contentDescription = "Увеличить количество") }
                             }
                         }
-                        CardTradeChoicePicker("Вы хотите получить", wantChoices.filterNot { it.id == offerId }, wantId, onSelect = { wantId = it })
+                        CardTradeChoicePicker(
+                            title = "Вы хотите получить",
+                            choices = wantChoices.filterNot { it.id == offerId },
+                            selectedId = wantId,
+                            query = wantQuery,
+                            searchPlaceholder = "Найти желаемую карту",
+                            onQueryChange = { wantQuery = it },
+                            onSelect = { wantId = it },
+                        )
                         OutlinedTextField(
                             value = note,
                             onValueChange = { note = it.take(80) },
@@ -976,15 +993,32 @@ private fun CardTradeChoicePicker(
     title: String,
     choices: List<CardTradeChoice>,
     selectedId: String,
+    query: String,
+    searchPlaceholder: String,
+    onQueryChange: (String) -> Unit,
     onSelect: (String) -> Unit,
 ) {
     val fontScale = LocalConfiguration.current.fontScale
     val choiceWidth = if (fontScale > 1.3f) 144.dp else 104.dp
     val labelLines = if (fontScale > 1.15f) 3 else 2
+    val visibleChoices = remember(choices, query) {
+        val normalizedQuery = query.trim().lowercase()
+        if (normalizedQuery.isEmpty()) choices else choices.filter {
+            it.name.lowercase().contains(normalizedQuery) || it.subtitle.lowercase().contains(normalizedQuery)
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.labelLarge)
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            placeholder = { Text(searchPlaceholder) },
+            shape = RoundedCornerShape(14.dp),
+        )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(choices, key = { it.id }) { choice ->
+            items(visibleChoices, key = { it.id }) { choice ->
                 val isSelected = choice.id == selectedId
                 Surface(
                     onClick = { onSelect(choice.id) },
@@ -1007,6 +1041,9 @@ private fun CardTradeChoicePicker(
                     }
                 }
             }
+        }
+        if (visibleChoices.isEmpty()) {
+            Text("Подходящие карты не найдены.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
