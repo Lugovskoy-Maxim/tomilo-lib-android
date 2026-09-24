@@ -29,7 +29,8 @@ object NetworkModule {
         context: Context,
         tokenProvider: () -> String?,
         refreshTokenProvider: () -> String?,
-        onTokensRefreshed: (String, String?) -> Unit,
+        onTokensRefreshed: (String, String?, String, String) -> Boolean,
+        onRefreshRejected: (String, String) -> Unit,
     ): TomiloApi {
         val cacheDir = File(context.cacheDir, "http_cache")
         val cache = Cache(cacheDir, 50L * 1024L * 1024L) // 50 MB
@@ -112,9 +113,15 @@ object NetworkModule {
 
         val offlineCacheInterceptor = Interceptor { chain ->
             var request = chain.request()
-            val isPublicGet = request.method == "GET" &&
-                request.header("Authorization").isNullOrBlank()
-            if (isPublicGet && !isNetworkAvailable(context)) {
+            val isAuthenticated = !request.header("Authorization").isNullOrBlank()
+            val isPublicGet = request.method == "GET" && !isAuthenticated
+            if (isAuthenticated) {
+                // Bypass cache lookup as well as writes: a previous anonymous public
+                // response for the same URL must never satisfy an account request.
+                request = request.newBuilder()
+                    .header("Cache-Control", "no-store")
+                    .build()
+            } else if (isPublicGet && !isNetworkAvailable(context)) {
                 request = request.newBuilder()
                     .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
                     .build()
@@ -134,7 +141,10 @@ object NetworkModule {
         val tokenAuthenticator = okhttp3.Authenticator { _, response ->
             if (response.request.url.encodedPath.contains("/auth/refresh")) return@Authenticator null
             synchronized(refreshLock) {
-                val failedToken = response.request.header("Authorization")?.removePrefix("Bearer ")
+                val failedToken = response.request.header("Authorization")
+                    ?.removePrefix("Bearer ")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: return@synchronized null
                 val currentToken = tokenProvider()
                 if (!currentToken.isNullOrBlank() && currentToken != failedToken) {
                     return@synchronized response.request.newBuilder()
@@ -162,13 +172,22 @@ object NetworkModule {
                     .build()
                 val refreshed = runCatching {
                     refreshClient.newCall(refreshRequest).execute().use { refreshResponse ->
-                        if (!refreshResponse.isSuccessful) return@use null
+                        if (!refreshResponse.isSuccessful) {
+                            if (refreshResponse.code == 401) onRefreshRejected(failedToken, refreshToken)
+                            return@use null
+                        }
                         val raw = refreshResponse.body?.string().orEmpty()
                         json.decodeFromString<ApiResponse<RefreshTokenPayload>>(raw).data
                     }
                 }.getOrNull() ?: return@synchronized null
                 if (refreshed.accessToken.isBlank()) return@synchronized null
-                onTokensRefreshed(refreshed.accessToken, refreshed.refreshToken)
+                if (!onTokensRefreshed(
+                        refreshed.accessToken,
+                        refreshed.refreshToken,
+                        failedToken,
+                        refreshToken,
+                    )
+                ) return@synchronized null
                 response.request.newBuilder()
                     .header("Authorization", "Bearer ${refreshed.accessToken}")
                     .build()

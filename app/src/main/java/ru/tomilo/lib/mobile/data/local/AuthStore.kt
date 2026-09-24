@@ -52,11 +52,41 @@ class AuthStore(private val context: Context) {
         }
     }
 
-    suspend fun updateTokens(token: String, refreshToken: String?) {
+    /** Rotates credentials only while the same account session is still stored. */
+    suspend fun updateTokensIfCurrent(
+        expectedAccessToken: String,
+        expectedRefreshToken: String,
+        token: String,
+        refreshToken: String,
+    ): Boolean {
+        var updated = false
         context.authDataStore.edit { prefs ->
-            prefs[tokenKey] = SessionSecretCipher.encrypt(token)
-            if (!refreshToken.isNullOrBlank()) prefs[refreshTokenKey] = SessionSecretCipher.encrypt(refreshToken)
+            val currentAccess = SessionSecretCipher.decrypt(prefs[tokenKey])
+            val currentRefresh = SessionSecretCipher.decrypt(prefs[refreshTokenKey])
+            if (currentAccess == expectedAccessToken && currentRefresh == expectedRefreshToken) {
+                prefs[tokenKey] = SessionSecretCipher.encrypt(token)
+                prefs[refreshTokenKey] = SessionSecretCipher.encrypt(refreshToken)
+                updated = true
+            }
         }
+        return updated
+    }
+
+    /** Clears only the credentials that received the confirmed invalid-refresh response. */
+    suspend fun clearSessionIfCurrent(
+        expectedAccessToken: String,
+        expectedRefreshToken: String,
+    ): Boolean {
+        var cleared = false
+        context.authDataStore.edit { prefs ->
+            val currentAccess = SessionSecretCipher.decrypt(prefs[tokenKey])
+            val currentRefresh = SessionSecretCipher.decrypt(prefs[refreshTokenKey])
+            if (currentAccess == expectedAccessToken && currentRefresh == expectedRefreshToken) {
+                prefs.clear()
+                cleared = true
+            }
+        }
+        return cleared
     }
 
     suspend fun updateUser(user: UserDto) {

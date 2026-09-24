@@ -71,8 +71,10 @@ class TomiloApp : Application(), ImageLoaderFactory {
         // Синхронно подтянуть токен до UI — иначе чаты/закладки уходят без Authorization
         val initialUser = runBlocking {
             container.authStore.encryptLegacySessionSecrets()
-            TokenBridge.setCached(container.authStore.token())
-            TokenBridge.setCachedRefreshToken(container.authStore.refreshToken())
+            TokenBridge.setCachedSession(
+                token = container.authStore.token(),
+                refreshToken = container.authStore.refreshToken(),
+            )
             container.authStore.user()
         }
         // У Premium реклама отключена полностью: SDK не запрашивает и не кеширует объявления.

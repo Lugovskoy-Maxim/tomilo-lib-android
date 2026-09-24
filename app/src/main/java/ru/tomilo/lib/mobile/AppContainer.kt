@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.ads.InterstitialAdManager
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
@@ -55,10 +56,34 @@ class AppContainer(context: Context) {
         context = appContext,
         tokenProvider = { tokenHolder.token ?: TokenBridge.peekToken() },
         refreshTokenProvider = { TokenBridge.peekRefreshToken() },
-        onTokensRefreshed = { access, refresh ->
-            TokenBridge.setCached(access)
-            TokenBridge.setCachedRefreshToken(refresh ?: TokenBridge.peekRefreshToken())
-            kotlinx.coroutines.runBlocking { authStore.updateTokens(access, refresh) }
+        onTokensRefreshed = { access, refresh, failedAccess, usedRefresh ->
+            val nextRefresh = refresh ?: usedRefresh
+            if (!TokenBridge.rotateIfCurrent(failedAccess, usedRefresh, access, nextRefresh)) {
+                false
+            } else {
+                val persisted = runCatching {
+                    runBlocking(Dispatchers.IO) {
+                        authStore.updateTokensIfCurrent(
+                            expectedAccessToken = failedAccess,
+                            expectedRefreshToken = usedRefresh,
+                            token = access,
+                            refreshToken = nextRefresh,
+                        )
+                    }
+                }.getOrDefault(false)
+                if (!persisted) {
+                    TokenBridge.rollbackRotation(access, nextRefresh, failedAccess, usedRefresh)
+                }
+                persisted
+            }
+        },
+        onRefreshRejected = { failedAccess, usedRefresh ->
+            val cleared = runCatching {
+                runBlocking(Dispatchers.IO) {
+                    authStore.clearSessionIfCurrent(failedAccess, usedRefresh)
+                }
+            }.getOrDefault(false)
+            if (cleared) TokenBridge.clearIfCurrent(failedAccess, usedRefresh)
         },
     )
 
@@ -99,8 +124,9 @@ object TokenBridge {
     @Volatile
     private var cachedToken: String? = null
     @Volatile private var cachedRefreshToken: String? = null
+    private val sessionLock = Any()
 
-    fun setCached(token: String?) {
+    fun setCached(token: String?) = synchronized(sessionLock) {
         cachedToken = token
         if (::holder.isInitialized) holder.token = token
     }
@@ -112,8 +138,58 @@ object TokenBridge {
         return cachedToken
     }
 
-    fun setCachedRefreshToken(token: String?) {
+    fun setCachedRefreshToken(token: String?) = synchronized(sessionLock) {
         cachedRefreshToken = token
+    }
+
+    fun setCachedSession(token: String?, refreshToken: String?) = synchronized(sessionLock) {
+        cachedToken = token
+        cachedRefreshToken = refreshToken
+        if (::holder.isInitialized) holder.token = token
+    }
+
+    fun clearCachedSession() = setCachedSession(null, null)
+
+    fun clearIfCurrent(expectedAccessToken: String, expectedRefreshToken: String): Boolean =
+        synchronized(sessionLock) {
+            val activeAccess = if (::holder.isInitialized) holder.token ?: cachedToken else cachedToken
+            if (activeAccess != expectedAccessToken || cachedRefreshToken != expectedRefreshToken) {
+                return@synchronized false
+            }
+            cachedToken = null
+            cachedRefreshToken = null
+            if (::holder.isInitialized) holder.token = null
+            true
+        }
+
+    fun rotateIfCurrent(
+        expectedAccessToken: String,
+        expectedRefreshToken: String,
+        accessToken: String,
+        refreshToken: String,
+    ): Boolean = synchronized(sessionLock) {
+        val activeAccess = if (::holder.isInitialized) holder.token ?: cachedToken else cachedToken
+        if (activeAccess != expectedAccessToken || cachedRefreshToken != expectedRefreshToken) {
+            return@synchronized false
+        }
+        cachedToken = accessToken
+        cachedRefreshToken = refreshToken
+        if (::holder.isInitialized) holder.token = accessToken
+        true
+    }
+
+    fun rollbackRotation(
+        rotatedAccessToken: String,
+        rotatedRefreshToken: String,
+        previousAccessToken: String,
+        previousRefreshToken: String,
+    ) = synchronized(sessionLock) {
+        val activeAccess = if (::holder.isInitialized) holder.token ?: cachedToken else cachedToken
+        if (activeAccess == rotatedAccessToken && cachedRefreshToken == rotatedRefreshToken) {
+            cachedToken = previousAccessToken
+            cachedRefreshToken = previousRefreshToken
+            if (::holder.isInitialized) holder.token = previousAccessToken
+        }
     }
 
     fun peekRefreshToken(): String? = cachedRefreshToken

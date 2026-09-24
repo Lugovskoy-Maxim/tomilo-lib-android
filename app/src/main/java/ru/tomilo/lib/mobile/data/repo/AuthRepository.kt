@@ -59,10 +59,9 @@ class AuthRepository(
         if (!res.success || payload.accessToken.isBlank()) {
             error(res.message ?: "Ошибка авторизации")
         }
-        // Сразу кладём токен — иначе первый GET (чаты/закладки) уходит без Authorization
-        TokenBridge.setCached(payload.accessToken)
-        TokenBridge.setCachedRefreshToken(payload.refreshToken)
         authStore.saveSession(payload.accessToken, payload.refreshToken, payload.user)
+        // Publish both credentials together only after the durable session write succeeds.
+        TokenBridge.setCachedSession(payload.accessToken, payload.refreshToken)
         return payload.user
     }
 
@@ -74,8 +73,9 @@ class AuthRepository(
     }
 
     suspend fun logout() {
-        TokenBridge.setCached(null)
-        TokenBridge.setCachedRefreshToken(null)
+        // Remove in-memory credentials before the suspendable DataStore clear, so an
+        // in-flight 401 refresh cannot restore a session after logout.
+        TokenBridge.clearCachedSession()
         authStore.clear()
     }
 
