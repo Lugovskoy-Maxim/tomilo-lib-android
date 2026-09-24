@@ -1,5 +1,9 @@
 package ru.tomilo.lib.mobile.data.download
 
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
 enum class DownloadStage {
     Queued,
     CheckingAccess,
@@ -107,3 +111,13 @@ data class DownloadChapterRef(
     val chapterId: String,
     val chapterLabel: String,
 )
+
+/** Serialization boundary for the durable service checkpoint. */
+internal object DownloadBatchRequestCodec {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun encode(request: DownloadBatchRequest): String = json.encodeToString(request)
+
+    fun decode(encoded: String): DownloadBatchRequest? =
+        runCatching { json.decodeFromString<DownloadBatchRequest>(encoded) }.getOrNull()
+}

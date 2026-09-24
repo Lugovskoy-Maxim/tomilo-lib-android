@@ -1,28 +1,23 @@
 package ru.tomilo.lib.mobile.data.download
 
 import android.content.Context
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /** Small durable checkpoint so a sticky service can recover after process recreation. */
 internal class DownloadQueueStore(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
-    private val json = Json { ignoreUnknownKeys = true }
 
     fun save(request: DownloadBatchRequest) {
-        check(preferences.edit().putString(KEY_REQUEST, json.encodeToString(request)).commit()) {
+        check(preferences.edit().putString(KEY_REQUEST, DownloadBatchRequestCodec.encode(request)).commit()) {
             "Не удалось сохранить очередь офлайн-загрузки"
         }
     }
 
     fun load(): DownloadBatchRequest? {
         val value = preferences.getString(KEY_REQUEST, null) ?: return null
-        return runCatching { json.decodeFromString<DownloadBatchRequest>(value) }
-            .getOrElse {
-                clear()
-                null
-            }
+        return DownloadBatchRequestCodec.decode(value) ?: run {
+            clear()
+            null
+        }
     }
 
     fun clear() {
