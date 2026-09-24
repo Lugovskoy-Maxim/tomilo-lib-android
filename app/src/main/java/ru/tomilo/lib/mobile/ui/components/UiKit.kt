@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,6 +43,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -74,6 +77,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -311,8 +315,12 @@ fun ErrorBox(
     onRetry: (() -> Unit)? = null,
 ) {
     val friendlyMessage = remember(message) { userFacingError(message) }
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 640
+    val illustrationWidth = if (compactHeight) 92.dp else 132.dp
+    val illustrationHeight = if (compactHeight) 108.dp else 154.dp
     Box(
-        modifier = modifier.fillMaxSize().padding(20.dp),
+        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = if (compactHeight) 8.dp else 20.dp)
+            .verticalScroll(rememberScrollState()),
         contentAlignment = Alignment.Center,
     ) {
         Surface(
@@ -325,7 +333,7 @@ fun ErrorBox(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                    .padding(horizontal = 24.dp, vertical = if (compactHeight) 16.dp else 24.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -333,7 +341,7 @@ fun ErrorBox(
                 painter = painterResource(R.drawable.illust_error_mascot),
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                modifier = Modifier.size(width = 132.dp, height = 154.dp),
+                modifier = Modifier.size(width = illustrationWidth, height = illustrationHeight),
             )
             Spacer(Modifier.height(8.dp))
             Text("Что-то пошло не так", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
@@ -341,7 +349,11 @@ fun ErrorBox(
             Text(friendlyMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
             if (onRetry != null) {
                 Spacer(Modifier.height(18.dp))
-                Button(onClick = onRetry, shape = RoundedCornerShape(22.dp)) {
+                Button(
+                    onClick = onRetry,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(22.dp),
+                ) {
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("Попробовать снова")
