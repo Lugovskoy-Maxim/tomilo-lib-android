@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.screens.wheel
 
+import android.animation.ValueAnimator
 import android.graphics.Paint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -573,17 +574,23 @@ private fun CasinoWheelPanel(
     spinning: Boolean,
     pointerFlap: Float,
 ) {
-    // LED Bulbs animation
-    val infiniteTransition = rememberInfiniteTransition()
-    val bulbOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 24f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(if (spinning) 700 else 2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "bulbOffset",
-    )
+    // Keep the decorative LEDs still when system animations are disabled;
+    // the wheel's outcome animation remains a separate, meaningful interaction.
+    val bulbOffset = if (ValueAnimator.areAnimatorsEnabled()) {
+        val infiniteTransition = rememberInfiniteTransition(label = "wheelBulbs")
+        val offset by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 24f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(if (spinning) 700 else 2400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "bulbOffset",
+        )
+        offset
+    } else {
+        0f
+    }
 
     Box(
         Modifier
