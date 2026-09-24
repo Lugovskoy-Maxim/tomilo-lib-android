@@ -176,7 +176,9 @@ private fun groupCardTitleOffers(decks: List<GameCardDeckDto>): List<CardTitleOf
 fun CardsScreen(
     gamesRepository: GamesRepository,
     authRepository: AuthRepository,
+    isAuthenticated: Boolean,
     onBack: () -> Unit,
+    onLogin: () -> Unit,
     onOpenSubmit: () -> Unit,
     onOpenWebTab: (String) -> Unit,
 ) {
@@ -224,13 +226,13 @@ fun CardsScreen(
         try {
             if (showLoading) loading = true else refreshing = true
             error = null
-            val (result, decksResult, tradesResult) = supervisorScope {
-                val cardsRequest = async { gamesRepository.cards() }
+            val (cardsResult, decksResult, tradesResult) = supervisorScope {
+                val cardsRequest = async { if (isAuthenticated) gamesRepository.cards() else null }
                 val decksRequest = async { gamesRepository.cardDecks() }
-                val tradesRequest = async { gamesRepository.cardTrades() }
+                val tradesRequest = async { if (isAuthenticated) gamesRepository.cardTrades() else null }
                 Triple(cardsRequest.await(), decksRequest.await(), tradesRequest.await())
             }
-            result.onSuccess { response ->
+            cardsResult?.onSuccess { response ->
                 cards = response.cards
                 val availableCopies = response.cards.associate { it.id.trim() to it.copies.coerceAtLeast(0) }
                 val reconciledSelection = CardForgeSelection.reconcile(forgeSelection.toList(), availableCopies)
@@ -240,11 +242,13 @@ fun CardsScreen(
                     forgeTargetId = null
                 }
             }
-                .onFailure { error = it.message ?: "Не удалось загрузить коллекцию карточек" }
+                ?.onFailure { error = it.message ?: "Не удалось загрузить коллекцию карточек" }
+                ?: run { cards = emptyList(); error = null }
             decksResult.onSuccess { decks = it; deckError = null }
                 .onFailure { deckError = it.message ?: "Не удалось загрузить магазин карточек" }
-            tradesResult.onSuccess { trades = it.offers; tradeError = null }
-                .onFailure { tradeError = it.message ?: "Не удалось загрузить обмены" }
+            tradesResult?.onSuccess { trades = it.offers; tradeError = null }
+                ?.onFailure { tradeError = it.message ?: "Не удалось загрузить обмены" }
+                ?: run { trades = emptyList(); tradeError = null }
         } finally {
             loading = false
             refreshing = false
@@ -279,7 +283,10 @@ fun CardsScreen(
         }
     }
 
-    LaunchedEffect(Unit) { refresh(showLoading = true) }
+    LaunchedEffect(isAuthenticated) {
+        if (!isAuthenticated && tab != CardTab.Album && tab != CardTab.Shop) tab = CardTab.Album
+        refresh(showLoading = true)
+    }
     LaunchedEffect(notice) { notice?.let { snackbar.showSnackbar(it); notice = null } }
     LaunchedEffect(tab, forgeMode) {
         if (tab == CardTab.Album || tab == CardTab.Forge && forgeMode == ForgeMode.Choose) {
@@ -298,6 +305,7 @@ fun CardsScreen(
             targetRank != null && cardRank(item) == targetRank &&
             (commonTitle == null || item.titleId.isNullOrBlank() || item.titleId == commonTitle)
     }
+    val visibleTabs = if (isAuthenticated) CardTab.entries else listOf(CardTab.Album, CardTab.Shop)
 
     fun <T> launchAction(
         key: String,
@@ -346,7 +354,13 @@ fun CardsScreen(
                         if (refreshing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         else Icon(Icons.Default.Refresh, contentDescription = "Обновить карточки")
                     }
-                    IconButton(onClick = onOpenSubmit) { Icon(Icons.Default.Add, contentDescription = "Предложить карточку", tint = TomiloPrimary) }
+                    IconButton(onClick = { if (isAuthenticated) onOpenSubmit() else onLogin() }) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = if (isAuthenticated) "Предложить карточку" else "Войти, чтобы предложить обмен",
+                            tint = TomiloPrimary,
+                        )
+                    }
                 },
                 colors = tomiloTopBarColors(),
             )
@@ -358,8 +372,8 @@ fun CardsScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(CardTab.entries.size) { index ->
-                    val item = CardTab.entries[index]
+                items(visibleTabs.size) { index ->
+                    val item = visibleTabs[index]
                     FilterChip(selected = tab == item, onClick = { tab = item }, label = { Text(item.label) })
                 }
             }
@@ -384,6 +398,8 @@ fun CardsScreen(
                     decks = decks,
                     loading = loading && decks.isEmpty(),
                     revealedCards = shopRewardCards,
+                    isAuthenticated = isAuthenticated,
+                    onLogin = onLogin,
                     randomCardPrice = decks.firstOrNull { it.kind == "roulette" }?.price
                         ?: decks.firstOrNull { !it.isTitleDeck }?.price
                         ?: 250,
@@ -391,36 +407,42 @@ fun CardsScreen(
                     onRetry = { scope.launch { refresh(showLoading = true) } },
                     action = action,
                     onPull = {
-                        shopRewardCards = emptyList()
-                        launchAction(
-                            key = "pull",
-                            success = "Случайная карточка получена. Альбом обновлён.",
-                            operation = {
-                                gamesRepository.pullCard().also { result ->
-                                    if (result.isSuccess) authRepository.refreshProfile()
-                                }
-                            },
-                            onSuccess = { result ->
-                                shopRewardCards = result.openedCards.mapNotNull { it.card }
-                                rewardNotice(shopRewardCards)
-                            },
-                        )
+                        if (!isAuthenticated) onLogin()
+                        else {
+                            shopRewardCards = emptyList()
+                            launchAction(
+                                key = "pull",
+                                success = "Случайная карточка получена. Альбом обновлён.",
+                                operation = {
+                                    gamesRepository.pullCard().also { result ->
+                                        if (result.isSuccess) authRepository.refreshProfile()
+                                    }
+                                },
+                                onSuccess = { result ->
+                                    shopRewardCards = result.openedCards.mapNotNull { it.card }
+                                    rewardNotice(shopRewardCards)
+                                },
+                            )
+                        }
                     },
                     onOpenDeck = { deck ->
-                        shopRewardCards = emptyList()
-                        launchAction(
-                            key = "deck:${deck.stableId()}",
-                            success = "Пак «${deck.name}» открыт. Альбом обновлён.",
-                            operation = {
-                                gamesRepository.openCardDeck(deck.stableId()).also { result ->
-                                    if (result.isSuccess) authRepository.refreshProfile()
-                                }
-                            },
-                            onSuccess = { result ->
-                                shopRewardCards = result.openedCards.mapNotNull { it.card }
-                                rewardNotice(shopRewardCards)
-                            },
-                        )
+                        if (!isAuthenticated) onLogin()
+                        else {
+                            shopRewardCards = emptyList()
+                            launchAction(
+                                key = "deck:${deck.stableId()}",
+                                success = "Пак «${deck.name}» открыт. Альбом обновлён.",
+                                operation = {
+                                    gamesRepository.openCardDeck(deck.stableId()).also { result ->
+                                        if (result.isSuccess) authRepository.refreshProfile()
+                                    }
+                                },
+                                onSuccess = { result ->
+                                    shopRewardCards = result.openedCards.mapNotNull { it.card }
+                                    rewardNotice(shopRewardCards)
+                                },
+                            )
+                        }
                     },
                     )
                     currentTab == CardTab.Trade -> TradeTab(
@@ -596,6 +618,8 @@ private fun ShopTab(
     decks: List<GameCardDeckDto>,
     loading: Boolean,
     revealedCards: List<GameCardDto>,
+    isAuthenticated: Boolean,
+    onLogin: () -> Unit,
     randomCardPrice: Int,
     action: String?,
     error: String?,
@@ -635,12 +659,16 @@ private fun ShopTab(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text("Покупка без пака · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                    Button(onClick = onPull, enabled = action == null, modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { if (isAuthenticated) onPull() else onLogin() },
+                        enabled = action == null,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         if (action == "pull") {
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(8.dp))
                             Text("Крутим…")
-                        } else Text("Крутить рулетку")
+                        } else Text(if (isAuthenticated) "Крутить рулетку" else "Войти · $randomCardPrice монет")
                     }
                 }
             }
@@ -681,7 +709,7 @@ private fun ShopTab(
                         val pending = action == "deck:$id"
                         val available = deck.isAvailable && (deck.poolSize ?: 0) > 0
                         Button(
-                            onClick = { onOpenDeck(deck) },
+                            onClick = { if (isAuthenticated) onOpenDeck(deck) else onLogin() },
                             enabled = available && action == null,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
@@ -690,7 +718,14 @@ private fun ShopTab(
                                 Spacer(Modifier.width(8.dp))
                                 Text("Открываем…")
                             } else {
-                                Text(if (available) "Рулетка · ${deck.price} монет" else if (deck.isAvailable) "Нет карт в пуле" else "Сейчас недоступно")
+                                Text(
+                                    when {
+                                        !available && deck.isAvailable -> "Нет карт в пуле"
+                                        !deck.isAvailable -> "Сейчас недоступно"
+                                        isAuthenticated -> "Рулетка · ${deck.price} монет"
+                                        else -> "Войти · рулетка ${deck.price} монет"
+                                    },
+                                )
                             }
                         }
                     }
@@ -699,7 +734,7 @@ private fun ShopTab(
                         val pending = action == "deck:$id"
                         val available = deck.isAvailable && (deck.poolSize ?: 0) > 0
                         Button(
-                            onClick = { onOpenDeck(deck) },
+                            onClick = { if (isAuthenticated) onOpenDeck(deck) else onLogin() },
                             enabled = available && action == null,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
@@ -708,7 +743,14 @@ private fun ShopTab(
                                 Spacer(Modifier.width(8.dp))
                                 Text("Открываем…")
                             } else {
-                                Text(if (available) "Пак ${deck.cardsPerOpen} · ${deck.price} монет" else if (deck.isAvailable) "Нет карт в пуле" else "Сейчас недоступно")
+                                Text(
+                                    when {
+                                        !available && deck.isAvailable -> "Нет карт в пуле"
+                                        !deck.isAvailable -> "Сейчас недоступно"
+                                        isAuthenticated -> "Пак ${deck.cardsPerOpen} · ${deck.price} монет"
+                                        else -> "Войти · пак ${deck.cardsPerOpen} · ${deck.price} монет"
+                                    },
+                                )
                             }
                         }
                     }

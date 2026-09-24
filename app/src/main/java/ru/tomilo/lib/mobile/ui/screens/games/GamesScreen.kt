@@ -29,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -101,7 +102,11 @@ fun GamesScreen(
         },
     ) { padding ->
         when {
-            user == null -> GamesGuest(Modifier.padding(padding), onLogin)
+            user == null && page == GamesPage.HUB -> GamesGuest(
+                modifier = Modifier.padding(padding),
+                onLogin = onLogin,
+                onExploreCards = { page = GamesPage.CARDS },
+            )
             page == GamesPage.HUB -> GamesContent(
                 balance = user?.balance ?: 0,
                 onOpenQuests = onOpenQuests,
@@ -112,7 +117,9 @@ fun GamesScreen(
             else -> CardsScreen(
                 gamesRepository = gamesRepository,
                 authRepository = authRepository,
+                isAuthenticated = user != null,
                 onBack = { page = GamesPage.HUB },
+                onLogin = onLogin,
                 onOpenSubmit = { onOpenWebTab("cards/submit") },
                 onOpenWebTab = onOpenWebTab,
             )
@@ -121,7 +128,11 @@ fun GamesScreen(
 }
 
 @Composable
-private fun GamesGuest(modifier: Modifier, onLogin: () -> Unit) {
+private fun GamesGuest(
+    modifier: Modifier,
+    onLogin: () -> Unit,
+    onExploreCards: () -> Unit,
+) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -137,12 +148,14 @@ private fun GamesGuest(modifier: Modifier, onLogin: () -> Unit) {
         Text("Игры и награды", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Войдите, чтобы собирать декоративные карточки, открывать рулетку и получать награды за чтение.",
+            "Альбом и магазин декоративных карточек доступны без входа. Чтобы собирать карты, открывать рулетку и получать награды, войдите в аккаунт.",
             color = TomiloMuted,
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(22.dp))
-        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
+        Button(onClick = onExploreCards, modifier = Modifier.fillMaxWidth()) { Text("Открыть каталог карт") }
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти в аккаунт") }
     }
 }
 

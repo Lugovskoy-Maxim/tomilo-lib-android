@@ -296,7 +296,7 @@ private fun NavTabItem(
 
             Text(
                 text = label,
-                modifier = Modifier.offset(y = (-2).dp),
+                modifier = Modifier.offset(y = (-5).dp),
                 color = if (selected) Color(0xFFFF8B86) else TomiloText.copy(alpha = 0.70f),
                 fontSize = 12.sp,
                 lineHeight = 14.sp,
@@ -341,7 +341,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
         )
         Text(
             text = "Ещё",
-            modifier = Modifier.offset(y = (-2).dp),
+            modifier = Modifier.offset(y = (-5).dp),
             color = TomiloText.copy(alpha = 0.70f),
             fontSize = 12.sp,
             maxLines = 1,
