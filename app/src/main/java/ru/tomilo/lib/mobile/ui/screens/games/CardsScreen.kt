@@ -321,7 +321,11 @@ fun CardsScreen(
                         launchAction(
                             key = "pull",
                             success = "Случайная карточка получена. Альбом обновлён.",
-                            operation = { gamesRepository.pullCard() },
+                            operation = {
+                                gamesRepository.pullCard().also { result ->
+                                    if (result.isSuccess) authRepository.refreshProfile()
+                                }
+                            },
                             onSuccess = { result ->
                                 shopRewardCards = result.openedCards.mapNotNull { it.card }
                                 rewardNotice(shopRewardCards)
@@ -333,7 +337,11 @@ fun CardsScreen(
                         launchAction(
                             key = "deck:${deck.stableId()}",
                             success = "Пак «${deck.name}» открыт. Альбом обновлён.",
-                            operation = { gamesRepository.openCardDeck(deck.stableId()) },
+                            operation = {
+                                gamesRepository.openCardDeck(deck.stableId()).also { result ->
+                                    if (result.isSuccess) authRepository.refreshProfile()
+                                }
+                            },
                             onSuccess = { result ->
                                 shopRewardCards = result.openedCards.mapNotNull { it.card }
                                 rewardNotice(shopRewardCards)
