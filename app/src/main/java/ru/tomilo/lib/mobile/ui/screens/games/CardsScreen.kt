@@ -464,20 +464,15 @@ fun CardsScreen(
                     onPrepareCreate = ::loadTradeCatalog,
                     onRetryCatalog = ::loadTradeCatalog,
                     onCreate = { request, onComplete ->
-                        if (action == null) scope.launch {
-                            action = "trade:create"
-                            gamesRepository.createCardTrade(request)
-                                .onSuccess {
-                                    notice = "Предложение обмена выставлено."
-                                    onComplete()
-                                    refresh()
-                                }
-                                .onFailure {
-                                    notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
-                                        ?: "Не удалось выставить обмен. Попробуйте ещё раз."
-                                }
-                            action = null
-                        }
+                        launchAction(
+                            key = "trade:create",
+                            success = "Предложение обмена выставлено.",
+                            operation = { gamesRepository.createCardTrade(request) },
+                            onSuccess = {
+                                onComplete()
+                                null
+                            },
+                        )
                     },
                     onRetry = { scope.launch { refresh(showLoading = true) } },
                     onAccept = { trade ->
@@ -535,27 +530,24 @@ fun CardsScreen(
                     },
                     onSell = { card -> cardToSell = card },
                     onForge = {
-                        if (action == null) scope.launch {
-                            action = "forge"
-                            gamesRepository.craftCards(
-                                cardIds = forgeSelection.toList(),
-                                targetCardId = forgeTargetId.takeIf { forgeMode == ForgeMode.Choose },
-                            ).onSuccess { result ->
+                        launchAction(
+                            key = "forge",
+                            success = "Карты перекованы. Коллекция обновлена.",
+                            operation = {
+                                gamesRepository.craftCards(
+                                    cardIds = forgeSelection.toList(),
+                                    targetCardId = forgeTargetId.takeIf { forgeMode == ForgeMode.Choose },
+                                )
+                            },
+                            onSuccess = { result ->
                                 forgedCard = result.granted?.card
                                 val cardName = result.granted?.card?.let { card ->
                                     card.characterName?.takeIf(String::isNotBlank)
                                         ?: card.name.takeIf(String::isNotBlank)
                                 }
-                                notice = cardName?.let { "Получена карточка «$it»." }
-                                    ?: "Карты перекованы. Коллекция обновлена."
-                                forgeSelection.clear()
-                                refresh()
-                            }.onFailure {
-                                notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
-                                    ?: "Не удалось перековать карточки. Попробуйте ещё раз."
-                            }
-                            action = null
-                        }
+                                cardName?.let { "Получена карточка «$it»." }
+                            },
+                        )
                     },
                     resultCard = forgedCard,
                     )
