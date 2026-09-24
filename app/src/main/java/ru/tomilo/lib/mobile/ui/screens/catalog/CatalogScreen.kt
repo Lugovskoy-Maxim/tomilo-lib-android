@@ -81,6 +81,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
@@ -166,6 +167,7 @@ fun CatalogScreen(
     )
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
+    val configuration = LocalConfiguration.current
 
     var searchInput by remember { mutableStateOf("") }
     var debouncedSearch by remember { mutableStateOf("") }
@@ -179,6 +181,12 @@ fun CatalogScreen(
     var includeAdult by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
     var layoutMode by rememberSaveable { mutableStateOf(CatalogLayoutMode.GRID_2) }
+    val compactGridAvailable = configuration.screenWidthDp >= 360 && configuration.fontScale <= 1.15f
+    val effectiveLayoutMode = if (layoutMode == CatalogLayoutMode.GRID_3 && !compactGridAvailable) {
+        CatalogLayoutMode.GRID_2
+    } else {
+        layoutMode
+    }
 
     var options by remember { mutableStateOf(CatalogFilterOptionsDto()) }
     var items by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
@@ -335,8 +343,9 @@ fun CatalogScreen(
                             Triple(CatalogLayoutMode.GRID_2, Icons.Default.GridView, "Большой"),
                             Triple(CatalogLayoutMode.GRID_3, Icons.Default.ViewModule, "Компактный"),
                             Triple(CatalogLayoutMode.LIST, Icons.Default.ViewAgenda, "Список"),
-                        ).forEach { (mode, icon, label) ->
-                            val isSelected = layoutMode == mode
+                        ).filter { (mode, _, _) -> mode != CatalogLayoutMode.GRID_3 || compactGridAvailable }
+                            .forEach { (mode, icon, label) ->
+                            val isSelected = effectiveLayoutMode == mode
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
@@ -395,7 +404,7 @@ fun CatalogScreen(
             )
         },
     ) { padding ->
-        val gridColumns = when (layoutMode) {
+        val gridColumns = when (effectiveLayoutMode) {
             CatalogLayoutMode.GRID_2 -> GridCells.Fixed(2)
             CatalogLayoutMode.GRID_3 -> GridCells.Fixed(3)
             CatalogLayoutMode.LIST -> GridCells.Fixed(1)
@@ -411,10 +420,10 @@ fun CatalogScreen(
                 bottom = 100.dp,
             ),
             horizontalArrangement = Arrangement.spacedBy(
-                if (layoutMode == CatalogLayoutMode.GRID_3) 6.dp else 10.dp,
+                if (effectiveLayoutMode == CatalogLayoutMode.GRID_3) 6.dp else 10.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(
-                if (layoutMode == CatalogLayoutMode.LIST) 12.dp else 12.dp,
+                if (effectiveLayoutMode == CatalogLayoutMode.LIST) 12.dp else 12.dp,
             ),
             modifier = Modifier
                 .padding(padding)
@@ -613,8 +622,8 @@ fun CatalogScreen(
                 loading && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_loading") {
                     CatalogGridSkeleton(
                         modifier = Modifier.fillMaxWidth(),
-                        columns = if (layoutMode == CatalogLayoutMode.GRID_3) 3 else 2,
-                        list = layoutMode == CatalogLayoutMode.LIST,
+                        columns = if (effectiveLayoutMode == CatalogLayoutMode.GRID_3) 3 else 2,
+                        list = effectiveLayoutMode == CatalogLayoutMode.LIST,
                     )
                 }
                 error != null && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_error") {
@@ -647,7 +656,7 @@ fun CatalogScreen(
                             }
                         },
                     ) { item ->
-                        when (layoutMode) {
+                        when (effectiveLayoutMode) {
                             CatalogLayoutMode.GRID_2 -> {
                                 TitlePosterCard(
                                     title = item.displayTitle(),
