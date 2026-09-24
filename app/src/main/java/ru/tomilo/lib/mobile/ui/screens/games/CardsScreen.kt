@@ -79,6 +79,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -953,28 +956,32 @@ private fun CardTradeChoicePicker(
     selectedId: String,
     onSelect: (String) -> Unit,
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val choiceWidth = if (fontScale > 1.3f) 144.dp else 104.dp
+    val labelLines = if (fontScale > 1.15f) 3 else 2
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.labelLarge)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(choices, key = { it.id }) { choice ->
-                val selected = choice.id == selectedId
+                val isSelected = choice.id == selectedId
                 Surface(
                     onClick = { onSelect(choice.id) },
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .28f) else TomiloSurface,
+                    modifier = Modifier.semantics { selected = isSelected },
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .28f) else TomiloSurface,
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, if (selected) TomiloPrimary else TomiloBorder),
+                    border = BorderStroke(1.dp, if (isSelected) TomiloPrimary else TomiloBorder),
                 ) {
-                    Column(Modifier.width(104.dp).padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(Modifier.width(choiceWidth).padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         SubcomposeAsyncImage(
                             model = MediaUrl.resolve(choice.imageUrl),
-                            contentDescription = choice.name,
+                            contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxWidth().height(108.dp).clip(RoundedCornerShape(9.dp)).background(TomiloBg),
                             loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 9.dp) },
                             error = { Box(Modifier.fillMaxSize().background(TomiloSurface2)) },
                         )
-                        Text(choice.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
-                        Text(choice.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+                        Text(choice.name, maxLines = labelLines, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
+                        Text(choice.subtitle, maxLines = labelLines, overflow = TextOverflow.Ellipsis, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
