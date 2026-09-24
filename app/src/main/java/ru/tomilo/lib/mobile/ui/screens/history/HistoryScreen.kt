@@ -118,6 +118,7 @@ fun HistoryScreen(
                 message = "Откройте любую главу — прогресс чтения сохранится автоматически.",
                 icon = Icons.Default.History,
                 modifier = Modifier.padding(padding),
+                illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
             )
             else -> LazyColumn(
                 Modifier.padding(padding).fillMaxSize(),

@@ -185,6 +185,7 @@ fun NotificationsScreen(
                         title = "Пока тихо",
                         message = "Новые главы, ответы и системные сообщения появятся здесь.",
                         icon = Icons.Default.NotificationsNone,
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_success_mascot,
                     )
                     else -> LazyColumn(
                         Modifier.fillMaxSize(),

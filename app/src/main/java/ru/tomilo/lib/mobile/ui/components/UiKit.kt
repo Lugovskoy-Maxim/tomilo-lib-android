@@ -372,9 +372,11 @@ fun EmptyState(
     icon: ImageVector? = null,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    illustration: Int? = null,
 ) {
     val compactLayout = LocalConfiguration.current.let { it.screenHeightDp < 640 || it.fontScale > 1.3f }
     val iconSize = if (compactLayout) 60.dp else 76.dp
+    val illustrationHeight = if (compactLayout) 124.dp else 160.dp
     val iconPulse = if (ValueAnimator.areAnimatorsEnabled()) {
         val pulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
             initialValue = 0.97f,
@@ -392,7 +394,20 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        if (icon != null) {
+        if (illustration != null) {
+            Image(
+                painter = painterResource(illustration),
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier
+                    .size(width = illustrationHeight * 0.68f, height = illustrationHeight)
+                    .graphicsLayer {
+                        scaleX = iconPulse
+                        scaleY = iconPulse
+                    },
+            )
+            Spacer(Modifier.height(12.dp))
+        } else if (icon != null) {
             Box(
                 Modifier
                     .size(iconSize)

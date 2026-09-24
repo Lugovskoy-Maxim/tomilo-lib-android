@@ -155,6 +155,7 @@ fun BookmarksScreen(
                         "В категории «${CATEGORIES[catIndex].second}» пока нет тайтлов."
                     },
                     icon = Icons.Outlined.BookmarkBorder,
+                    illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                 )
             }
             else -> LazyColumn(

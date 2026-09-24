@@ -281,6 +281,7 @@ fun OfflineLibraryScreen(
                     },
                     icon = Icons.Default.CloudOff,
                     modifier = Modifier.weight(1f),
+                    illustration = ru.tomilo.lib.mobile.R.drawable.illust_offline_mascot,
                 )
             }
         } else {

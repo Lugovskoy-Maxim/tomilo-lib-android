@@ -399,6 +399,7 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth().height(380.dp),
                         actionLabel = "Войти в аккаунт",
                         onAction = onLogin,
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                     )
                 }
                 loading && tab != ShelfTab.Offline -> item(key = "library_loading") {
@@ -420,6 +421,7 @@ fun LibraryScreen(
                         },
                         icon = Icons.Outlined.BookmarkBorder,
                         modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                     )
                 }
                 tab == ShelfTab.History && filteredHistory.isEmpty() -> item(key = "library_empty_history") {
@@ -428,6 +430,7 @@ fun LibraryScreen(
                         message = "Откройте главу — продолжение чтения появится на полке и на ленте.",
                         icon = Icons.Outlined.History,
                         modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                     )
                 }
                 tab == ShelfTab.Offline && offlineGroups.isEmpty() -> item(key = "library_empty_offline") {
@@ -436,6 +439,7 @@ fun LibraryScreen(
                         message = "Скачайте главы со страницы тайтла — они откроются без сети.",
                         icon = Icons.Outlined.CloudOff,
                         modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                        illustration = ru.tomilo.lib.mobile.R.drawable.illust_offline_mascot,
                     )
                 }
                 else -> {

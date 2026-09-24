@@ -177,6 +177,7 @@ fun SearchScreen(
                     title = "Ничего не найдено",
                     message = "Попробуйте другое название или проверьте написание.",
                     icon = Icons.Default.Search,
+                    illustration = ru.tomilo.lib.mobile.R.drawable.illust_offline_mascot,
                 )
                 else -> LazyColumn(
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 100.dp),
