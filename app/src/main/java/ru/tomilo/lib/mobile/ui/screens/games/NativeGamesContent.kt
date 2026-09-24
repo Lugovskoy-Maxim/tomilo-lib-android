@@ -58,6 +58,7 @@ import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
+import ru.tomilo.lib.mobile.ui.components.userFacingError
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
@@ -91,7 +92,8 @@ internal fun SectContent(
                     onChanged()
                 }
                 .onFailure {
-                    notice = it.message ?: "Действие не выполнено"
+                    notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                        ?: "Действие не выполнено"
                     noticeIsError = true
                 }
             busyKey = null
@@ -395,12 +397,14 @@ internal fun ArenaContent(
                                 onChanged()
                             }
                             .onFailure {
-                                notice = it.message ?: "Не удалось найти соперника"
+                                notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                                    ?: "Не удалось найти соперника"
                                 noticeIsError = true
                             }
                     },
                     onFailure = {
-                        notice = it.message ?: "Не удалось сохранить боевой отряд"
+                        notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                            ?: "Не удалось сохранить боевой отряд"
                         noticeIsError = true
                     },
                 )
@@ -426,7 +430,8 @@ internal fun ArenaContent(
                     onChanged()
                 }
                 .onFailure {
-                    notice = it.message ?: "Бой не удалось завершить"
+                    notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                        ?: "Бой не удалось завершить"
                     noticeIsError = true
                 }
             busy = null
