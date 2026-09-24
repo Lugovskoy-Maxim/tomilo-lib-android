@@ -859,7 +859,7 @@ data class GameBattleResultDto(
 @Serializable
 data class GameCardDto(
     val id: String = "",
-    val name: String = "Карта духа",
+    val name: String = "Карточка",
     val description: String? = null,
     val imageUrl: String? = null,
     val stageImageUrl: String? = null,

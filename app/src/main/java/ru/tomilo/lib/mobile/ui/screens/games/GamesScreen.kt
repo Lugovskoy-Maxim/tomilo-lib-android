@@ -4,10 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,41 +17,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.SportsEsports
-import androidx.compose.material.icons.filled.Style
-import androidx.compose.material.icons.filled.TaskAlt
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.MonetizationOn
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,20 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import ru.tomilo.lib.mobile.core.MediaUrl
-import ru.tomilo.lib.mobile.data.api.GameCardDto
-import ru.tomilo.lib.mobile.data.api.GameDiscipleDto
+import androidx.compose.ui.unit.sp
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
-import ru.tomilo.lib.mobile.data.repo.GamesDashboard
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
-import ru.tomilo.lib.mobile.ui.components.ErrorBox
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
@@ -81,13 +57,9 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
-import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private val GamesPurple = Color(0xFF9B8CFF)
-private val GamesCyan = Color(0xFF55C7D9)
-private val GamesGreen = Color(0xFF65B985)
-
-internal enum class GamesPage { HUB, SECT, ARENA, CARDS, INVENTORY, ALCHEMY }
+private enum class GamesPage { HUB, CARDS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,31 +73,9 @@ fun GamesScreen(
     onOpenWebTab: (String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
-    var dashboard by remember { mutableStateOf<GamesDashboard?>(null) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var reload by remember { mutableIntStateOf(0) }
     var page by remember { mutableStateOf(GamesPage.HUB) }
 
     BackHandler(enabled = page != GamesPage.HUB) { page = GamesPage.HUB }
-
-    LaunchedEffect(user?.isAdmin()) {
-        if (user?.isAdmin() != true && page != GamesPage.HUB) page = GamesPage.HUB
-    }
-
-    LaunchedEffect(user?.stableId(), reload) {
-        if (user == null) {
-            dashboard = null
-            error = null
-            return@LaunchedEffect
-        }
-        loading = true
-        error = null
-        gamesRepository.dashboard(includeAdminModes = user?.isAdmin() == true)
-            .onSuccess { dashboard = it }
-            .onFailure { error = it.message ?: "Игровой профиль пока недоступен" }
-        loading = false
-    }
 
     Scaffold(
         containerColor = TomiloBg,
@@ -133,25 +83,9 @@ fun GamesScreen(
             TopAppBar(
                 title = {
                     Column {
+                        Text(if (page == GamesPage.HUB) "Игры и награды" else "Карточки")
                         Text(
-                            when (page) {
-                                GamesPage.HUB -> "Игры"
-                                GamesPage.SECT -> "Секта"
-                                GamesPage.ARENA -> "Арена"
-                                GamesPage.CARDS -> "Карты"
-                                GamesPage.INVENTORY -> "Хранилище"
-                                GamesPage.ALCHEMY -> "Пилюли"
-                            },
-                        )
-                        Text(
-                            when (page) {
-                                GamesPage.HUB -> "Арена наставника · бета"
-                                GamesPage.SECT -> "Ученики и развитие"
-                                GamesPage.ARENA -> "Боевой отряд и PvP"
-                                GamesPage.CARDS -> "Альбом и коллекция"
-                                GamesPage.INVENTORY -> "Материалы и расходники"
-                                GamesPage.ALCHEMY -> "3 в ряд · рецепты и опыт профиля"
-                            },
+                            if (page == GamesPage.HUB) "Колесо и коллекция" else "Декоративная коллекция",
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
                         )
@@ -162,73 +96,25 @@ fun GamesScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
-                actions = {
-                    if (user != null) {
-                        IconButton(onClick = { reload += 1 }, enabled = !loading) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Обновить игровой профиль")
-                        }
-                    }
-                },
                 colors = tomiloTopBarColors(),
             )
         },
     ) { padding ->
         when {
-            user == null -> GamesGuest(
+            user == null -> GamesGuest(Modifier.padding(padding), onLogin)
+            page == GamesPage.HUB -> GamesContent(
+                balance = user?.balance ?: 0,
+                onOpenQuests = onOpenQuests,
+                onOpenWheel = onOpenWheel,
+                onOpenCards = { page = GamesPage.CARDS },
                 modifier = Modifier.padding(padding),
-                onLogin = onLogin,
             )
-            loading && dashboard == null -> LoadingBox(
-                modifier = Modifier.padding(padding),
-                message = "Собираем данные секты…",
+            else -> CardsScreen(
+                gamesRepository = gamesRepository,
+                onBack = { page = GamesPage.HUB },
+                onOpenSubmit = { onOpenWebTab("cards/submit") },
+                onOpenWebTab = onOpenWebTab,
             )
-            error != null && dashboard == null -> ErrorBox(
-                message = error.orEmpty(),
-                modifier = Modifier.padding(padding),
-                onRetry = { reload += 1 },
-            )
-            else -> PullToRefreshBox(
-                isRefreshing = loading,
-                onRefresh = { reload += 1 },
-                modifier = Modifier.padding(padding).fillMaxSize(),
-            ) {
-                val currentDashboard = dashboard ?: GamesDashboard()
-                when (page) {
-                    GamesPage.HUB -> GamesContent(
-                        dashboard = currentDashboard,
-                        profileBalance = user?.balance ?: 0,
-                        isAdmin = user?.isAdmin() == true,
-                        onOpenQuests = onOpenQuests,
-                        onOpenWheel = onOpenWheel,
-                        onOpenSect = { page = GamesPage.SECT },
-                        onOpenArena = { page = GamesPage.ARENA },
-                        onOpenWebTab = onOpenWebTab,
-                        onOpenCards = { page = GamesPage.CARDS },
-                        onOpenInventory = { page = GamesPage.INVENTORY },
-                        onOpenAlchemy = { page = GamesPage.ALCHEMY },
-                    )
-                    GamesPage.SECT -> SectContent(
-                        disciples = currentDashboard.disciples,
-                        gamesRepository = gamesRepository,
-                        onOpenArena = { page = GamesPage.ARENA },
-                        onChanged = { reload += 1 },
-                    )
-                    GamesPage.ARENA -> ArenaContent(
-                        disciples = currentDashboard.disciples,
-                        gamesRepository = gamesRepository,
-                        onOpenSect = { page = GamesPage.SECT },
-                        onChanged = { reload += 1 },
-                    )
-                    GamesPage.CARDS -> CardsScreen(
-                        gamesRepository = gamesRepository,
-                        onBack = { page = GamesPage.HUB },
-                        onOpenSubmit = { onOpenWebTab("cards/submit") },
-                        onOpenWebTab = onOpenWebTab,
-                    )
-                    GamesPage.INVENTORY -> InventoryScreen(currentDashboard.inventory)
-                    GamesPage.ALCHEMY -> AlchemyScreen(currentDashboard.alchemy, gamesRepository)
-                }
-            }
         }
     }
 }
@@ -236,397 +122,124 @@ fun GamesScreen(
 @Composable
 private fun GamesGuest(modifier: Modifier, onLogin: () -> Unit) {
     Column(
-        modifier
-            .fillMaxSize()
-            .padding(20.dp),
+        modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier
-                .size(88.dp)
-                .clip(RoundedCornerShape(30.dp))
-                .background(Brush.linearGradient(listOf(GamesPurple, TomiloPrimary))),
+            Modifier.size(72.dp).clip(RoundedCornerShape(24.dp)).background(TomiloPrimary.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Default.SportsEsports, null, tint = Color.White, modifier = Modifier.size(44.dp))
+            Icon(Icons.Default.Casino, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(36.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("Арена наставника", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Игры и награды", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Войдите, чтобы развивать секту, собирать карты духа, выполнять поручения и получать награды.",
+            "Войдите, чтобы собирать декоративные карточки, открывать рулетку и получать награды за чтение.",
             color = TomiloMuted,
             style = MaterialTheme.typography.bodyLarge,
         )
         Spacer(Modifier.height(22.dp))
-        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти и начать") }
+        Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
     }
 }
 
 @Composable
 private fun GamesContent(
-    dashboard: GamesDashboard,
-    profileBalance: Int,
-    isAdmin: Boolean,
+    balance: Int,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
-    onOpenSect: () -> Unit,
-    onOpenArena: () -> Unit,
-    onOpenWebTab: (String) -> Unit,
     onOpenCards: () -> Unit,
-    onOpenInventory: () -> Unit,
-    onOpenAlchemy: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val totalItems = dashboard.inventory.sumOf { it.count }
-    val disciples = dashboard.disciples
-    val cards = dashboard.cards
-    val alchemy = dashboard.alchemy
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 14.dp,
-            top = 12.dp,
-            end = 14.dp,
-            bottom = 110.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            GamesHero(
-                balance = disciples.balance.takeIf { it > 0 } ?: profileBalance,
-                combatRating = disciples.combatRating,
-                sectLevel = disciples.sectLevel,
-                itemCount = totalItems,
-            )
-        }
-        item {
-            Text("Цикл наставника", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(
-                "Зарабатывайте → собирайте ресурсы → усиливайте доступные разделы секты.",
-                color = TomiloMuted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        item {
             Surface(
-                color = GamesPurple.copy(alpha = 0.09f),
-                shape = RoundedCornerShape(16.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GamesPurple.copy(alpha = 0.22f)),
+                color = TomiloSurface,
+                shape = RoundedCornerShape(22.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, TomiloPrimary.copy(alpha = 0.24f)),
             ) {
-                Text(
-                    "Показаны только механики, уже включённые в публичной бете сайта. Остальные режимы появятся здесь после их запуска.",
-                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-        item {
-            GameModeCard(
-                icon = Icons.Default.TaskAlt,
-                title = "Поручения",
-                subtitle = "Ежедневные задания, опыт и монеты",
-                badge = "Нативно",
-                accent = GamesGreen,
-                onClick = onOpenQuests,
-            )
-        }
-        item {
-            GameModeCard(
-                icon = Icons.Default.Inventory2,
-                title = "Хранилище",
-                subtitle = if (isAdmin && totalItems > 0) "$totalItems предметов · ${dashboard.inventory.size} видов" else if (isAdmin) "Собирайте материалы и расходники" else "Доступно только администратору",
-                badge = if (isAdmin) totalItems.takeIf { it > 0 }?.toString() else "ADMIN",
-                accent = GamesCyan,
-                enabled = isAdmin,
-                onClick = onOpenInventory,
-            )
-        }
-        item {
-            GameModeCard(
-                icon = Icons.Default.Groups,
-                title = "Секта",
-                subtitle = if (isAdmin) "${disciples.sectLevelLabel ?: "Уровень ${disciples.sectLevel}"} · сила ${disciples.combatRating}" else "Доступно только администратору",
-                badge = if (isAdmin) "${disciples.disciples.size}/${disciples.maxDisciples.coerceAtLeast(disciples.disciples.size)}" else "ADMIN",
-                accent = GamesPurple,
-                enabled = isAdmin,
-                onClick = onOpenSect,
-            )
-        }
-        item {
-            val maxBattles = disciples.maxBattlesPerDay.takeIf { it > 0 } ?: 3
-            val remaining = (maxBattles - disciples.dailyBattlesCount).coerceAtLeast(0)
-            GameModeCard(
-                icon = Icons.Default.MilitaryTech,
-                title = "Арена",
-                subtitle = if (isAdmin) "Соберите отряд и сразитесь с соперником" else "Доступно только администратору",
-                badge = if (isAdmin) "$remaining/$maxBattles" else "ADMIN",
-                accent = Color(0xFFE98273),
-                enabled = isAdmin,
-                onClick = onOpenArena,
-            )
-        }
-        item {
-            GameModeCard(
-                icon = Icons.Default.Style,
-                title = "Карты духа",
-                subtitle = if (isAdmin) "Коллекция персонажей и усиление учеников" else "Доступно только администратору",
-                badge = if (isAdmin) cards.stats.total.takeIf { it > 0 }?.toString() else "ADMIN",
-                accent = TomiloPremium,
-                enabled = isAdmin,
-                onClick = onOpenCards,
-            )
-        }
-        item {
-            GameModeCard(
-                icon = Icons.Default.Science,
-                title = "Пилюли: 3 в ряд",
-                subtitle = if (isAdmin) "Рецепт бодрости · комбинации 4–5 и опыт профиля" else "Доступно только администратору",
-                badge = if (isAdmin) "${alchemy.attemptsLeft}/${alchemy.craftsPerDay}" else "ADMIN",
-                accent = Color(0xFFCC78E8),
-                enabled = isAdmin,
-                onClick = onOpenAlchemy,
-            )
-        }
-        item {
-            GameModeCard(
-                icon = Icons.Default.Casino,
-                title = "Судьба",
-                subtitle = "Колесо наград, монеты и редкие предметы",
-                badge = "Нативно",
-                accent = TomiloPrimary,
-                onClick = onOpenWheel,
-            )
-        }
-        if (isAdmin && dashboard.inventory.isNotEmpty()) {
-            item { GamesSectionTitle("В хранилище", "Полный инвентарь", onOpenInventory, external = false) }
-            item { InventoryPreview(dashboard) }
-        }
-        if (isAdmin && disciples.disciples.isNotEmpty()) {
-            item { GamesSectionTitle("Ученики секты", "Управлять", onOpenSect, external = false) }
-            items(disciples.disciples.take(3), key = { it.characterId.ifBlank { it.displayName() } }) {
-                DiscipleRow(it)
-            }
-        }
-        val previewCards = cards.showcase.ifEmpty { cards.cards }.take(6)
-        if (isAdmin && previewCards.isNotEmpty()) {
-            item { GamesSectionTitle("Карты духа", "Коллекция", onOpenCards, external = false) }
-            item { CardsPreview(previewCards) }
-        }
-        if (dashboard.warnings.isNotEmpty()) {
-            item {
-                Surface(
-                    color = TomiloSurface,
-                    shape = RoundedCornerShape(18.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
+                Column(
+                    Modifier.fillMaxWidth()
+                        .background(Brush.linearGradient(listOf(Color(0xFF32201F), Color(0xFF211B1C), TomiloSurface)))
+                        .padding(18.dp),
                 ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text("Часть данных обновится позже", fontWeight = FontWeight.SemiBold)
-                        Text(dashboard.warnings.joinToString(" · "), color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Casino, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Колесо наград", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("Попробуйте удачу за монеты активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = TomiloPremium, modifier = Modifier.size(20.dp))
+                            Text("$balance", fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text("монет", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Button(onClick = onOpenWheel) { Text("Открыть") }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun GamesHero(balance: Int, combatRating: Int, sectLevel: Int, itemCount: Int) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF35276A), Color(0xFF171329), TomiloSurface)))
-            .border(1.dp, GamesPurple.copy(alpha = 0.35f), RoundedCornerShape(28.dp))
-            .padding(18.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(GamesPurple.copy(alpha = 0.24f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Default.SportsEsports, null, tint = Color.White, modifier = Modifier.size(28.dp))
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Коллекция и задания", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                GameModeRow(
+                    icon = Icons.Default.Collections,
+                    title = "Карточки тайтлов",
+                    subtitle = "Декоративные карточки, наборы и обмен",
+                    onClick = onOpenCards,
+                )
+                GameModeRow(
+                    icon = Icons.Default.TaskAlt,
+                    title = "Поручения",
+                    subtitle = "Задания, опыт и монеты активности",
+                    onClick = onOpenQuests,
+                )
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Арена наставника", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(7.dp))
-                    Text("БЕТА", color = GamesPurple, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                }
-                Text("Пока вы читаете, секта растёт", color = Color.White.copy(alpha = 0.68f))
-            }
-            Icon(Icons.Default.AutoAwesome, null, tint = TomiloPremium)
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            HeroStat(Icons.Default.MonetizationOn, "$balance", "монет", Modifier.weight(1f))
-            HeroStat(Icons.Default.MilitaryTech, "$combatRating", "сила", Modifier.weight(1f))
-            HeroStat(Icons.Default.Groups, "$sectLevel", "секта", Modifier.weight(1f))
-            HeroStat(Icons.Default.Inventory2, "$itemCount", "вещи", Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun HeroStat(icon: ImageVector, value: String, label: String, modifier: Modifier) {
-    Column(
-        modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.07f))
-            .padding(vertical = 9.dp, horizontal = 5.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(icon, null, tint = GamesPurple, modifier = Modifier.size(16.dp))
-        Text(value, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(label, color = Color.White.copy(alpha = 0.55f), style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-private fun GameModeCard(
-    icon: ImageVector,
+private fun GameModeRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
-    badge: String?,
-    accent: Color,
-    external: Boolean = false,
-    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         color = TomiloSurface,
-        shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder.copy(alpha = 0.8f)),
+        shape = RoundedCornerShape(17.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(13.dp),
+        ) {
             Box(
-                Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(accent.copy(alpha = 0.14f)),
+                Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(TomiloPrimary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, null, tint = accent, modifier = Modifier.size(24.dp)) }
-            Spacer(Modifier.width(12.dp))
+            ) { Icon(icon, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(22.dp)) }
             Column(Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = if (enabled) MaterialTheme.colorScheme.onSurface else TomiloMuted,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(subtitle, color = TomiloMuted, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            if (!badge.isNullOrBlank()) {
-                Text(
-                    badge,
-                    color = accent,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clip(CircleShape).background(accent.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 5.dp),
-                )
-                Spacer(Modifier.width(7.dp))
-            }
-            Icon(
-                imageVector = if (!enabled) Icons.Default.Lock else if (external) Icons.AutoMirrored.Filled.OpenInNew else Icons.Default.AutoAwesome,
-                contentDescription = if (!enabled) "Доступно только администратору" else null,
-                tint = TomiloMuted,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun GamesSectionTitle(title: String, action: String, onAction: () -> Unit, external: Boolean = true) {
-    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-        OutlinedButton(onClick = onAction) {
-            Text(action)
-            Spacer(Modifier.width(5.dp))
-            Icon(if (external) Icons.AutoMirrored.Filled.OpenInNew else Icons.Default.AutoAwesome, null, modifier = Modifier.size(15.dp))
-        }
-    }
-}
-
-@Composable
-private fun InventoryPreview(dashboard: GamesDashboard) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        dashboard.inventory.take(8).forEach { item ->
-            Surface(color = TomiloSurface2, shape = RoundedCornerShape(17.dp), modifier = Modifier.width(126.dp)) {
-                Column(Modifier.padding(12.dp)) {
-                    AsyncImage(
-                        model = MediaUrl.resolve(item.icon),
-                        contentDescription = item.name,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(TomiloBg),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(item.name ?: item.itemId.replace('_', ' '), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                    Text("×${item.count}", color = GamesCyan, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DiscipleRow(disciple: GameDiscipleDto) {
-    Surface(color = TomiloSurface, shape = RoundedCornerShape(19.dp), border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder)) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(
-                model = MediaUrl.resolve(disciple.avatar),
-                contentDescription = disciple.displayName(),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(GamesPurple.copy(alpha = 0.13f)),
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(disciple.displayName(), fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    listOfNotNull(disciple.titleName, disciple.rank?.let { "ранг $it" }, disciple.level?.let { "$it ур." }).joinToString(" · "),
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("${disciple.cp ?: (disciple.attack + disciple.defense + disciple.speed)}", color = GamesPurple, fontWeight = FontWeight.Bold)
-                Text(if (disciple.inMeditation == true) "медитация" else if (disciple.inWarehouse == true) "склад" else "в строю", color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
-            }
-        }
-    }
-}
-
-@Composable
-private fun CardsPreview(cards: List<GameCardDto>) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
-    ) {
-        cards.forEach { card ->
-            Surface(color = TomiloSurface2, shape = RoundedCornerShape(18.dp), modifier = Modifier.width(142.dp)) {
-                Column {
-                    AsyncImage(
-                        model = MediaUrl.resolve(card.stageImageUrl ?: card.imageUrl),
-                        contentDescription = card.characterName ?: card.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().height(158.dp).background(TomiloBg),
-                    )
-                    Column(Modifier.padding(10.dp)) {
-                        Text(card.characterName?.takeIf { it.isNotBlank() } ?: card.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            listOfNotNull(card.currentStage?.let { "Этап $it" }, card.titleName).joinToString(" · "),
-                            color = TomiloMuted,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
+            Text("›", color = TomiloMuted, fontSize = 24.sp)
         }
     }
 }

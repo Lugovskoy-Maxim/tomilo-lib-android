@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -121,7 +123,6 @@ import ru.tomilo.lib.mobile.ui.components.TitleDetailSkeleton
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.formatRating
-import ru.tomilo.lib.mobile.ui.components.statusColor
 import ru.tomilo.lib.mobile.ui.components.statusLabel
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -1098,6 +1099,7 @@ private fun TitleSectionHeader(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TitleHero(
     title: TitleDetailDto,
@@ -1266,19 +1268,17 @@ private fun TitleHero(
                 }
             }
 
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(top = 9.dp),
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 title.releaseYear?.let { TitleHeroMetadataChip("$it") }
-                title.type?.takeIf { it.isNotBlank() }?.let { TitleHeroMetadataChip(titleTypeLabel(it), TomiloPrimary) }
-                title.averageRating?.takeIf { it > 0 }?.let { TitleHeroMetadataChip("✦ ${formatRating(it)}", TomiloPremium) }
-                title.status?.takeIf { it.isNotBlank() }?.let {
-                    TitleHeroMetadataChip(titleStatusLabel(it), statusColor(it))
+                title.type?.takeIf { it.isNotBlank() }?.let { TitleHeroMetadataChip(titleTypeLabel(it)) }
+                title.averageRating?.takeIf { it > 0 }?.let {
+                    TitleHeroMetadataChip("${formatRating(it)}", TomiloPremium, Icons.Default.Star)
                 }
+                title.status?.takeIf { it.isNotBlank() }?.let { TitleHeroMetadataChip(titleStatusLabel(it)) }
                 title.totalChapters?.takeIf { it > 0 }?.let { TitleHeroMetadataChip("$it глав") }
             }
         }
@@ -1286,19 +1286,25 @@ private fun TitleHero(
 }
 
 @Composable
-private fun TitleHeroMetadataChip(label: String, accent: Color = Color.White) {
-    Surface(
-        color = Color.Black.copy(alpha = 0.46f),
-        shape = RoundedCornerShape(12.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.32f)),
-    ) {
-        Text(
-            label,
-            color = accent,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-        )
+private fun TitleHeroMetadataChip(
+    label: String,
+    accent: Color = TomiloMuted,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+) {
+    Surface(color = Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(9.dp)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            icon?.let { Icon(it, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp)) }
+            Text(
+                label,
+                color = Color.White.copy(alpha = 0.88f),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+            )
+        }
     }
 }
 

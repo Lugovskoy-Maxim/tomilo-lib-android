@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -157,6 +158,7 @@ fun TomiloBottomBar(
             DropdownMenu(
                 expanded = moreOpen,
                 onDismissRequest = { moreOpen = false },
+                offset = DpOffset(0.dp, 36.dp),
                 shape = RoundedCornerShape(20.dp),
                 containerColor = TomiloSurface,
                 tonalElevation = 12.dp,

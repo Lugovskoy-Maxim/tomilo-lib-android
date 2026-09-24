@@ -22,6 +22,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "tomilo-lib-android"
 include(":app")
-
-include(":mangalink")
-project(":mangalink").projectDir = file("mangalink/android")

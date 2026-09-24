@@ -105,7 +105,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
 private enum class CardTab(val label: String) {
-    Album("Альбом"), Shop("Магазин"), Trade("Обмен"), Forge("Кузница"),
+    Album("Альбом"), Shop("Рулетка"), Trade("Обмен"), Forge("Кузница"),
 }
 
 private enum class ForgeMode(val count: Int, val label: String) {
@@ -226,7 +226,7 @@ fun CardsScreen(
                 title = {
                     Column {
                         Text("Карточки", style = MaterialTheme.typography.titleLarge)
-                        Text("Коллекция, наборы и обмен", style = MaterialTheme.typography.labelSmall, color = TomiloMuted)
+                        Text("Декоративные карточки · рулетка", style = MaterialTheme.typography.labelSmall, color = TomiloMuted)
                     }
                 },
                 navigationIcon = {
@@ -462,22 +462,22 @@ private fun ShopTab(
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Случайная карта или пак по тайтлу за монеты активности.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Рулетка карточек", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Случайная декоративная карточка или набор по тайтлу за монеты активности.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Surface(color = TomiloSurface, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, TomiloBorder)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("Покупка без набора · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    Text("Один запуск рулетки", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Случайная карточка · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = onPull, enabled = action == null, modifier = Modifier.fillMaxWidth()) {
                         if (action == "pull") {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                                 Text("Покупаем…")
                             }
-                        } else Text("Купить случайную карту")
+                        } else Text("Крутить рулетку")
                     }
                 }
             }
