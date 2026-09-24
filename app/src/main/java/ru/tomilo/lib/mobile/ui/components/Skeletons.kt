@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -285,6 +287,52 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
                 .height(130.dp),
             radius = 24.dp,
         )
+    }
+}
+
+/** Detail-page loading shape: portrait hero, metadata, actions and chapter rows. */
+@Composable
+fun TitleDetailSkeleton(modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 100.dp),
+    ) {
+        SkeletonBox(Modifier.fillMaxWidth().height(390.dp), radius = 0.dp)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+            SkeletonBox(Modifier.fillMaxWidth(0.82f).height(25.dp), radius = 8.dp)
+            Spacer(Modifier.height(9.dp))
+            SkeletonBox(Modifier.fillMaxWidth(0.52f).height(14.dp), radius = 6.dp)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) { SkeletonBox(Modifier.width(78.dp).height(28.dp), radius = 14.dp) }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SkeletonBox(Modifier.weight(1f).height(46.dp), radius = 23.dp)
+                SkeletonBox(Modifier.weight(1f).height(46.dp), radius = 23.dp)
+            }
+            Spacer(Modifier.height(24.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                SkeletonBox(Modifier.width(120.dp).height(20.dp), radius = 6.dp)
+                SkeletonBox(Modifier.width(72.dp).height(18.dp), radius = 6.dp)
+            }
+            Spacer(Modifier.height(12.dp))
+            repeat(5) { index ->
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        SkeletonBox(Modifier.fillMaxWidth(if (index % 2 == 0) .72f else .84f).height(15.dp), radius = 6.dp)
+                        Spacer(Modifier.height(6.dp))
+                        SkeletonBox(Modifier.fillMaxWidth(.42f).height(11.dp), radius = 5.dp)
+                    }
+                    SkeletonBox(Modifier.size(width = 34.dp, height = 34.dp), radius = 12.dp)
+                }
+            }
+        }
     }
 }
 

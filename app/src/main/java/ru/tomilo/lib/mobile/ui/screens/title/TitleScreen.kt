@@ -117,7 +117,7 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
 import ru.tomilo.lib.mobile.ui.components.DownloadProgressSheet
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
-import ru.tomilo.lib.mobile.ui.components.LoadingBox
+import ru.tomilo.lib.mobile.ui.components.TitleDetailSkeleton
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.formatRating
@@ -172,6 +172,8 @@ fun TitleScreen(
     val activity = context as? Activity
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var chapterError by remember { mutableStateOf<String?>(null) }
+    var reload by remember { mutableIntStateOf(0) }
     var title by remember { mutableStateOf<TitleDetailDto?>(null) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
     var recommendations by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
@@ -348,9 +350,12 @@ fun TitleScreen(
         rewardedAdManager.preload()
     }
 
-    LaunchedEffect(titleKey) {
+    LaunchedEffect(titleKey, reload) {
         loading = true
         error = null
+        chapterError = null
+        title = null
+        chapters = emptyList()
         selectMode = false
         selected = emptySet()
         val t = catalogRepository.title(titleKey)
@@ -362,8 +367,11 @@ fun TitleScreen(
         val detail = t.getOrThrow()
         title = detail
         catalogRepository.chaptersAll(detail.stableId())
-            .onSuccess { chapters = it }
-            .onFailure { error = it.message }
+            .onSuccess {
+                chapters = it
+                chapterError = null
+            }
+            .onFailure { chapterError = it.message ?: "Не удалось загрузить главы тайтла" }
         loading = false
         recommendations = catalogRepository.popular(8).getOrDefault(emptyList())
             .filter { it.stableId() != detail.stableId() }
@@ -474,8 +482,12 @@ fun TitleScreen(
         },
     ) { padding ->
         when {
-            loading -> LoadingBox(Modifier.padding(padding).statusBarsPadding())
-            error != null && title == null -> ErrorBox(error ?: "Ошибка", Modifier.padding(padding).statusBarsPadding())
+            loading -> TitleDetailSkeleton(Modifier.padding(padding).statusBarsPadding())
+            error != null && title == null -> ErrorBox(
+                message = error ?: "Не удалось загрузить тайтл.",
+                modifier = Modifier.padding(padding).statusBarsPadding(),
+                onRetry = { reload++ },
+            )
             title != null -> {
                 val t = title!!
                 LazyColumn(
@@ -884,7 +896,15 @@ fun TitleScreen(
                             }
                         }
                     }
-                    if (visibleChapters.isEmpty()) {
+                    if (chapterError != null) {
+                        item(key = "chapters-error") {
+                            ErrorBox(
+                                message = chapterError ?: "Не удалось загрузить главы тайтла.",
+                                modifier = Modifier.fillMaxWidth().height(390.dp),
+                                onRetry = { reload++ },
+                            )
+                        }
+                    } else if (visibleChapters.isEmpty()) {
                         item(key = "chapters-empty") {
                             Surface(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
