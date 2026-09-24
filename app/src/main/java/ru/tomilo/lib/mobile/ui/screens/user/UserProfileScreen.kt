@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.PublicUserDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
@@ -111,7 +112,7 @@ fun UserProfileScreen(
         error = null
         socialRepository.publicUser(userId)
             .onSuccess { user = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить профиль пользователя.") }
         loading = false
     }
 
@@ -129,7 +130,9 @@ fun UserProfileScreen(
                     friendStatus = "pending_outgoing"
                     snackbar.showSnackbar("Заявка в друзья отправлена")
                 }
-                .onFailure { snackbar.showSnackbar(it.message ?: "Не удалось отправить заявку") }
+                .onFailure {
+                    snackbar.showSnackbar(it.toUserFacingError("Не удалось отправить заявку в друзья."))
+                }
             friendActionLoading = false
         }
     }
@@ -143,7 +146,9 @@ fun UserProfileScreen(
                     confirmRemove = false
                     snackbar.showSnackbar("Пользователь удалён из друзей")
                 }
-                .onFailure { snackbar.showSnackbar(it.message ?: "Не удалось удалить друга") }
+                .onFailure {
+                    snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить пользователя из друзей."))
+                }
             friendActionLoading = false
         }
     }
@@ -181,7 +186,9 @@ fun UserProfileScreen(
                                                 user?.username ?: "Чат",
                                             )
                                         }
-                                        .onFailure { error = it.message }
+                                        .onFailure {
+                                            snackbar.showSnackbar(it.toUserFacingError("Не удалось открыть чат."))
+                                        }
                                 }
                             },
                         ) {
@@ -213,7 +220,7 @@ fun UserProfileScreen(
                         scope.launch {
                             socialRepository.openConversationWith(userId)
                                 .onSuccess { onOpenChat(it.stableId(), u.username ?: "Чат") }
-                                .onFailure { snackbar.showSnackbar(it.message ?: "Не удалось открыть чат") }
+                                .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось открыть чат.")) }
                         }
                     },
                     onLogin = onLogin,

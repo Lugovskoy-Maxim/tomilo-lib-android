@@ -143,6 +143,7 @@ import ru.tomilo.lib.mobile.core.ReaderLayout
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.core.WebtoonTile
 import ru.tomilo.lib.mobile.core.WebtoonTiles
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.local.AdRewardStore
 import ru.tomilo.lib.mobile.data.local.ReadingPosition
@@ -490,7 +491,7 @@ fun ReaderScreen(
                         }
                         catalogRepository.chapter(id)
                             .onSuccess { applyChapter(it, allowRetry = false) }
-                            .onFailure { error = it.message ?: "Не удалось открыть главу" }
+                            .onFailure { error = it.toUserFacingError("Не удалось открыть главу.") }
                     }
                     canRead -> error = "Страницы пока недоступны. Откройте главу снова."
                     else -> error = "Страницы недоступны"
@@ -499,7 +500,7 @@ fun ReaderScreen(
 
             catalogRepository.chapter(id)
                 .onSuccess { applyChapter(it, allowRetry = true) }
-                .onFailure { error = it.message ?: "Не удалось открыть главу" }
+                .onFailure { error = it.toUserFacingError("Не удалось открыть главу.") }
             loading = false
         }
     }
@@ -894,7 +895,9 @@ fun ReaderScreen(
                                     myChapterRating = rating
                                     chapterNavMessage = "Спасибо! Оценка главы: $rating/10"
                                 }
-                                .onFailure { chapterNavMessage = it.message ?: "Не удалось сохранить оценку" }
+                                .onFailure {
+                                    chapterNavMessage = it.toUserFacingError("Не удалось сохранить оценку.")
+                                }
                             ratingBusy = false
                         }
                     }
@@ -1241,7 +1244,9 @@ fun ReaderScreen(
                                         chapterNavMessage = "Спасибо! Оценка главы: $rating/10"
                                         showRating = false
                                     }
-                                    .onFailure { chapterNavMessage = it.message ?: "Не удалось сохранить оценку" }
+                                    .onFailure {
+                                        chapterNavMessage = it.toUserFacingError("Не удалось сохранить оценку.")
+                                    }
                                 ratingBusy = false
                             }
                         }
