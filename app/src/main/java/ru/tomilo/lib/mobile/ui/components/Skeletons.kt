@@ -274,7 +274,12 @@ fun ListCardSkeleton(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CatalogGridSkeleton(modifier: Modifier = Modifier, rows: Int = 3) {
+fun CatalogGridSkeleton(
+    modifier: Modifier = Modifier,
+    rows: Int = 3,
+    columns: Int = 2,
+    list: Boolean = false,
+) {
     ShimmerScope {
         Column(
             modifier
@@ -282,13 +287,19 @@ fun CatalogGridSkeleton(modifier: Modifier = Modifier, rows: Int = 3) {
                 .padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            repeat(rows) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    repeat(2) {
-                        PosterSkeleton(Modifier.weight(1f))
+            if (list) {
+                repeat(rows) {
+                    ListCardSkeleton()
+                }
+            } else {
+                repeat(rows) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        repeat(columns.coerceIn(2, 3)) {
+                            PosterSkeleton(Modifier.weight(1f))
+                        }
                     }
                 }
             }

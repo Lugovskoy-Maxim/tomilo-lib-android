@@ -83,6 +83,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.FlowPreview
@@ -337,9 +339,10 @@ fun CatalogScreen(
                             val isSelected = layoutMode == mode
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(48.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (isSelected) TomiloPrimary else Color.Transparent)
+                                    .semantics { selected = isSelected }
                                     .clickable {
                                         if (layoutMode != mode) {
                                             layoutMode = mode
@@ -352,7 +355,7 @@ fun CatalogScreen(
                                     imageVector = icon,
                                     contentDescription = label,
                                     tint = if (isSelected) Color.White else TomiloMuted,
-                                    modifier = Modifier.size(18.dp),
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                         }
@@ -608,7 +611,11 @@ fun CatalogScreen(
 
             when {
                 loading && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_loading") {
-                    CatalogGridSkeleton(Modifier.fillMaxWidth())
+                    CatalogGridSkeleton(
+                        modifier = Modifier.fillMaxWidth(),
+                        columns = if (layoutMode == CatalogLayoutMode.GRID_3) 3 else 2,
+                        list = layoutMode == CatalogLayoutMode.LIST,
+                    )
                 }
                 error != null && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_error") {
                     ErrorBox(error ?: "Ошибка", modifier = Modifier.fillMaxWidth().height(390.dp)) { reload += 1 }
