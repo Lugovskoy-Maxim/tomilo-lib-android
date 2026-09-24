@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
@@ -309,6 +310,7 @@ fun CatalogGridSkeleton(
 
 @Composable
 fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
+    val heroHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.62f).coerceIn(440.dp, 580.dp)
     ShimmerScope {
         Column(
             modifier
@@ -319,7 +321,7 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
             SkeletonBox(
                 Modifier
                     .fillMaxWidth()
-                    .height(460.dp),
+                    .height(heroHeight),
                 radius = 0.dp,
             )
 
