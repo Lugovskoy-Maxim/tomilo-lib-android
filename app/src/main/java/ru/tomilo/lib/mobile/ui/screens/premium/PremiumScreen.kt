@@ -127,13 +127,14 @@ fun PremiumScreen(
     onBack: () -> Unit,
     onLogin: () -> Unit,
 ) {
-    val user by authRepository.userFlow.collectAsState(initial = null)
+    val userState by authRepository.userFlow.collectAsState(initial = null)
+    val currentUser = userState
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var selectedMonths by rememberSaveable { mutableStateOf(3) }
     val selectedPlan = plans.first { it.months == selectedMonths }
-    val isPremium = Premium.isActive(user?.subscriptionExpiresAt)
+    val isPremium = Premium.isActive(currentUser?.subscriptionExpiresAt)
     var paying by remember { mutableStateOf(false) }
     var pendingInvId by rememberSaveable { mutableStateOf<String?>(null) }
     var waitingPayment by rememberSaveable { mutableStateOf(false) }
@@ -148,7 +149,7 @@ fun PremiumScreen(
     }
 
     fun reloadHistory() {
-        if (user == null) return
+        if (currentUser == null) return
         scope.launch {
             historyLoading = true
             paymentsRepository.history().fold(
@@ -213,7 +214,7 @@ fun PremiumScreen(
     }
 
     fun startRobokassa(adminTest: Boolean = false) {
-        if (user == null) {
+        if (currentUser == null) {
             onLogin()
             return
         }
@@ -233,7 +234,7 @@ fun PremiumScreen(
         }
     }
 
-    LaunchedEffect(user?.stableId()) {
+    LaunchedEffect(currentUser?.stableId()) {
         reloadHistory()
         val invId = pendingInvId
         if (!invId.isNullOrBlank() && !waitingPayment) watchInvoice(invId)
@@ -275,7 +276,7 @@ fun PremiumScreen(
         ) {
             PremiumHero(
                 isPremium = isPremium,
-                expiresAt = user?.subscriptionExpiresAt,
+                expiresAt = currentUser?.subscriptionExpiresAt,
             )
 
             SectionHeading(
@@ -331,7 +332,7 @@ fun PremiumScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(12.dp))
-                if (user == null) {
+                if (currentUser == null) {
                     Button(onClick = onLogin, modifier = Modifier.fillMaxWidth().height(50.dp)) {
                         Text("Войти и перейти к оплате")
                     }
@@ -366,7 +367,7 @@ fun PremiumScreen(
                         )
                     }
                 }
-                if (user?.isAdmin() == true) {
+                if (currentUser?.isAdmin() == true) {
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
                         onClick = { startRobokassa(adminTest = true) },
@@ -398,18 +399,18 @@ fun PremiumScreen(
                 title = "Премиум за монеты",
                 subtitle = "30 000 монет = 30 дней. Начисляется сразу.",
             ) {
-                val balance = user?.balance ?: 0
+                val balance = currentUser?.balance ?: 0
                 Text(
-                    if (user == null) {
+                    if (currentUser == null) {
                         "Войдите, чтобы обменять монеты на 30 дней премиума."
                     } else {
-                        "Баланс: ${"%,d".format(Locale("ru"), balance)} монет. Нужно $PREMIUM_COIN_PRICE."
+                        "Баланс: ${"%,d".format(Locale.forLanguageTag("ru"), balance)} монет. Нужно $PREMIUM_COIN_PRICE."
                     },
                     color = TomiloMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(12.dp))
-                if (user == null) {
+                if (currentUser == null) {
                     OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
                         Text("Войти")
                     }
@@ -445,18 +446,18 @@ fun PremiumScreen(
                 Spacer(Modifier.height(12.dp))
                 TBankCardVisual(pan = TBANK_CARD, onCopy = { copy(TBANK_CARD, "Номер карты") })
                 Spacer(Modifier.height(12.dp))
-                if (user == null) {
+                if (currentUser == null) {
                     OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
                         Text("Войти, чтобы скопировать ник и уровень")
                     }
                 } else {
-                    val tbankBlock = "Никнейм: ${user!!.username.orEmpty()}\nУровень: ${user!!.level ?: 0}"
+                    val tbankBlock = "Никнейм: ${currentUser.username.orEmpty()}\nУровень: ${currentUser.level ?: 0}"
                     AccountDataBlock(
                         title = "Для сообщения получателю",
                         hint = "Два поля — этого достаточно для перевода на карту.",
                         rows = listOf(
-                            "Ник" to user!!.username.orEmpty(),
-                            "Уровень" to "${user!!.level ?: 0}",
+                            "Ник" to currentUser.username.orEmpty(),
+                            "Уровень" to "${currentUser.level ?: 0}",
                         ),
                         copyAll = tbankBlock,
                         onCopy = { text, label -> copy(text, label) },
@@ -482,23 +483,23 @@ fun PremiumScreen(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(12.dp))
-                if (user == null) {
+                if (currentUser == null) {
                     OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
                         Text("Войти для данных Boosty")
                     }
                 } else {
                     val fullBlock = buildString {
-                        appendLine("ID аккаунта: ${user!!.stableId()}")
-                        appendLine("Никнейм: ${user!!.username.orEmpty()}")
-                        append("Email: ${user!!.email.orEmpty()}")
+                        appendLine("ID аккаунта: ${currentUser.stableId()}")
+                        appendLine("Никнейм: ${currentUser.username.orEmpty()}")
+                        append("Email: ${currentUser.email.orEmpty()}")
                     }
                     AccountDataBlock(
                         title = "Для комментария Boosty",
                         hint = "Три поля: без них донат не привяжут к аккаунту.",
                         rows = listOf(
-                            "ID" to user!!.stableId(),
-                            "Ник" to user!!.username.orEmpty(),
-                            "Почта" to user!!.email.orEmpty(),
+                            "ID" to currentUser.stableId(),
+                            "Ник" to currentUser.username.orEmpty(),
+                            "Почта" to currentUser.email.orEmpty(),
                         ),
                         copyAll = fullBlock,
                         onCopy = { text, label -> copy(text, label) },
@@ -925,7 +926,7 @@ private fun PaymentHistoryRow(item: PremiumPaymentHistoryItemDto) {
 }
 
 private fun formatExpiry(value: String?): String? = runCatching {
-    val formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru"))
+    val formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ru"))
     Instant.parse(value).atZone(ZoneId.systemDefault()).format(formatter)
 }.getOrNull()
 
