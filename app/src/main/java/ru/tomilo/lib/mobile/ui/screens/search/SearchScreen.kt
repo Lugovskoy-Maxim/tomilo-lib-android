@@ -35,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.local.SearchHistoryPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
@@ -76,6 +78,7 @@ fun SearchScreen(
         loading = true
         error = null
         val res = catalogRepository.search(q)
+        if (!currentCoroutineContext().isActive || query.trim() != q) return@LaunchedEffect
         loading = false
         res.onSuccess {
             results = it

@@ -23,6 +23,12 @@ class DownloadForegroundService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    /** Android 15+ gives data-sync foreground services a bounded background budget. */
+    override fun onTimeout(startId: Int, foregroundServiceType: Int) {
+        (application as? TomiloApp)?.container?.downloadManager?.cancel()
+        stopSelfSafely()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             (application as? TomiloApp)?.container?.downloadManager?.cancel()

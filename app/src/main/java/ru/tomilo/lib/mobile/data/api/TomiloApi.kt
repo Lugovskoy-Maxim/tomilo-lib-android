@@ -89,6 +89,12 @@ interface TomiloApi {
     @GET("shop/decks")
     suspend fun gameCardDecks(): ApiResponse<List<GameCardDeckDto>>
 
+    @GET("shop/cards/catalog")
+    suspend fun gameCardCatalog(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 1_000,
+    ): ApiResponse<GameCardCatalogDto>
+
     @POST("shop/decks/{deckId}/open")
     suspend fun openGameCardDeck(@Path("deckId") deckId: String): ApiResponse<JsonElement>
 

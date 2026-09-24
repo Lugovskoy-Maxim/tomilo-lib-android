@@ -9,6 +9,7 @@ import ru.tomilo.lib.mobile.data.api.GameBattleResultDto
 import ru.tomilo.lib.mobile.data.api.GameBattleSquadRequest
 import ru.tomilo.lib.mobile.data.api.GameCardsDto
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
+import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradesDto
 import ru.tomilo.lib.mobile.data.api.GameCraftRequest
 import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
@@ -30,6 +31,12 @@ data class GamesDashboard(
 )
 
 class GamesRepository(private val api: TomiloApi) {
+    suspend fun cards(): Result<GameCardsDto> = runCatching {
+        val response = api.gameCards()
+        if (!response.success) error(response.message ?: "Не удалось загрузить коллекцию карточек")
+        response.data ?: GameCardsDto()
+    }
+
     suspend fun pillMatchState(): Result<PillMatchStateDto> = runCatching {
         val response = api.pillMatchState()
         if (!response.success) error(response.message ?: "Не удалось загрузить прогресс")
@@ -44,6 +51,12 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.gameCardDecks()
         if (!response.success) error(response.message ?: "Не удалось загрузить наборы")
         response.data.orEmpty()
+    }
+
+    suspend fun cardCatalog(): Result<List<GameCardCatalogItemDto>> = runCatching {
+        val response = api.gameCardCatalog(limit = 1_000)
+        if (!response.success) error(response.message ?: "Не удалось загрузить каталог карточек")
+        response.data?.cards.orEmpty()
     }
 
     suspend fun pullCard(): Result<Unit> = runCatching {
@@ -61,7 +74,10 @@ class GamesRepository(private val api: TomiloApi) {
         response.data ?: GameCardTradesDto()
     }
     suspend fun acceptCardTrade(id: String): Result<Unit> = runCatching { val r = api.acceptGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось принять обмен") }
-    suspend fun craftCards(cardIds: List<String>): Result<Unit> = runCatching { val r = api.craftGameCards(GameCraftRequest(cardIds)); if (!r.success) error(r.message ?: "Не удалось перековать карты") }
+    suspend fun craftCards(cardIds: List<String>, targetCardId: String? = null): Result<Unit> = runCatching {
+        val r = api.craftGameCards(GameCraftRequest(cardIds, targetCardId))
+        if (!r.success) error(r.message ?: "Не удалось перековать карточки")
+    }
     suspend fun disciples(): Result<GameDisciplesDto> = runCatching {
         val response = api.gameDisciples()
         if (!response.success) error(response.message ?: "Не удалось обновить секту")

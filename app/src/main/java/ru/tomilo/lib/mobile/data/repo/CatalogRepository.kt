@@ -8,6 +8,7 @@ import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
+import kotlinx.coroutines.CancellationException
 
 class CatalogRepository(private val api: TomiloApi) {
     suspend fun catalog(query: CatalogQuery): Result<CatalogPageDto> = runCatching {
@@ -134,16 +135,24 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data ?: error("Нет предыдущей главы")
     }
 
-    suspend fun search(query: String): Result<List<SearchHitDto>> = runCatching {
+    suspend fun search(query: String): Result<List<SearchHitDto>> = try {
         val q = query.trim()
-        if (q.length < 2) return@runCatching emptyList()
-        val auto = api.searchAutocomplete(q = q, limit = 20, type = "titles")
-        if (auto.success) {
-            auto.data.orEmpty().filter { it.kind == null || it.kind == "title" }
+        val result = if (q.length < 2) {
+            emptyList()
         } else {
-            val full = api.search(q = q, limit = 20, type = "titles")
-            if (!full.success) error(full.message ?: "Ошибка поиска")
-            full.data.orEmpty().filter { it.kind == null || it.kind == "title" }
+            val auto = api.searchAutocomplete(q = q, limit = 20, type = "titles")
+            if (auto.success) {
+                auto.data.orEmpty()
+            } else {
+                val full = api.search(q = q, limit = 20, type = "titles")
+                if (!full.success) error(full.message ?: "Ошибка поиска")
+                full.data.orEmpty()
+            }
         }
+        Result.success(result.filter { it.kind == null || it.kind == "title" })
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (failure: Exception) {
+        Result.failure(failure)
     }
 }

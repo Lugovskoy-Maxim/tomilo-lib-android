@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.components
 
+import android.animation.ValueAnimator
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -20,9 +21,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -33,12 +39,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
 @Composable
 fun rememberShimmerBrush(): Brush {
+    if (!ValueAnimator.areAnimatorsEnabled()) {
+        return Brush.linearGradient(listOf(TomiloSurface2, TomiloSurface2))
+    }
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
         initialValue = -400f,
@@ -60,6 +70,35 @@ fun rememberShimmerBrush(): Brush {
         start = Offset(translateAnim - 250f, translateAnim - 250f),
         end = Offset(translateAnim + 250f, translateAnim + 250f),
     )
+}
+
+/** Loading placeholders shaped like the card collection rather than a generic spinner. */
+@Composable
+fun CardsGridSkeleton(modifier: Modifier = Modifier) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(108.dp),
+        modifier = modifier,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Column {
+                SkeletonBox(Modifier.fillMaxWidth(0.68f).height(16.dp), radius = 6.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonBox(Modifier.fillMaxWidth(0.42f).height(12.dp), radius = 5.dp)
+            }
+        }
+        items((1..9).toList()) {
+            Column {
+                SkeletonBox(Modifier.fillMaxWidth().aspectRatio(0.72f), radius = 15.dp)
+                Spacer(Modifier.height(8.dp))
+                SkeletonBox(Modifier.fillMaxWidth(0.86f).height(12.dp), radius = 5.dp)
+                Spacer(Modifier.height(5.dp))
+                SkeletonBox(Modifier.fillMaxWidth(0.56f).height(10.dp), radius = 5.dp)
+            }
+        }
+    }
 }
 
 @Composable

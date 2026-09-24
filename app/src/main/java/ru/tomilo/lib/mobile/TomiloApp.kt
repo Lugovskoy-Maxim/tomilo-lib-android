@@ -70,6 +70,7 @@ class TomiloApp : Application(), ImageLoaderFactory {
         container = AppContainer(this)
         // Синхронно подтянуть токен до UI — иначе чаты/закладки уходят без Authorization
         val initialUser = runBlocking {
+            container.authStore.encryptLegacySessionSecrets()
             TokenBridge.setCached(container.authStore.token())
             TokenBridge.setCachedRefreshToken(container.authStore.refreshToken())
             container.authStore.user()

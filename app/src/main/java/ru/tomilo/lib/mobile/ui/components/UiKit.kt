@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.components
 
+import android.animation.ValueAnimator
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -216,19 +217,26 @@ fun LoadingBox(
     modifier: Modifier = Modifier,
     message: String? = null,
 ) {
-    val transition = rememberInfiniteTransition(label = "loadingMotion")
-    val pulse by transition.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-        label = "loadingPulseAlpha",
-    )
-    val rotation by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing)),
-        label = "loadingHaloRotation",
-    )
+    val motion = if (ValueAnimator.areAnimatorsEnabled()) {
+        val transition = rememberInfiniteTransition(label = "loadingMotion")
+        val pulse by transition.animateFloat(
+            initialValue = 0.55f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+            label = "loadingPulseAlpha",
+        )
+        val rotation by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(tween(2800, easing = LinearEasing)),
+            label = "loadingHaloRotation",
+        )
+        pulse to rotation
+    } else {
+        1f to 0f
+    }
+    val pulse = motion.first
+    val rotation = motion.second
     val loadingMessage = message?.trim()?.takeIf { it.isNotBlank() } ?: "Загружаем…"
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -349,12 +357,15 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
-    val iconPulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
-        initialValue = 0.97f,
-        targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
-        label = "emptyStateScale",
-    )
+    val iconPulse = if (ValueAnimator.areAnimatorsEnabled()) {
+        val pulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
+            initialValue = 0.97f,
+            targetValue = 1.03f,
+            animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
+            label = "emptyStateScale",
+        )
+        pulse
+    } else 1f
     Column(
         modifier = modifier
             .fillMaxSize()

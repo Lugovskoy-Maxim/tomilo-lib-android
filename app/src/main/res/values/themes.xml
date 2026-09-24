@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Tomilo" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#FF1A1D24</item>
-        <item name="android:navigationBarColor">#FF1A1D24</item>
+        <item name="android:statusBarColor">#FF070809</item>
+        <item name="android:navigationBarColor">#FF070809</item>
         <item name="android:windowBackground">@drawable/splash_background</item>
-        <item name="android:colorPrimary">#FF6B8CFF</item>
+        <item name="android:colorPrimary">#FFFF5F57</item>
     </style>
 </resources>

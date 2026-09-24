@@ -865,6 +865,7 @@ data class GameCardDto(
     val stageImageUrl: String? = null,
     val rarity: String = "common",
     val characterName: String? = null,
+    val titleId: String? = null,
     val titleName: String? = null,
     val currentStage: String? = null,
     val copies: Int = 0,
@@ -885,6 +886,24 @@ data class GameCardsDto(
 )
 
 @Serializable
+data class GameCardCatalogItemDto(
+    val id: String = "",
+    val name: String = "Карточка",
+    val imageUrl: String? = null,
+    val rarity: String = "common",
+    val rank: String = "F",
+    val titleId: String? = null,
+    val titleName: String? = null,
+    val characterName: String? = null,
+)
+
+@Serializable
+data class GameCardCatalogDto(
+    val cards: List<GameCardCatalogItemDto> = emptyList(),
+    val total: Int = 0,
+)
+
+@Serializable
 data class GameCardDeckDto(
     val id: String = "",
     val _id: String? = null,
@@ -894,11 +913,13 @@ data class GameCardDeckDto(
     val price: Int = 0,
     val cardsPerOpen: Int = 1,
     val isAvailable: Boolean = true,
+    val kind: String? = null,
+    val isTitleDeck: Boolean = false,
 ) { fun stableId(): String = id.ifBlank { _id.orEmpty() } }
 
 @Serializable data class GameCardTradeDto(
-    val id: String = "", val fromUsername: String = "Игрок", val note: String? = null, val mine: Boolean = false,
-    val offerCardId: String = "", val wantCardId: String = "", val offerCopies: Int = 1,
+    val id: String = "", val fromUsername: String = "Игрок", val fromLevel: Int? = null, val note: String? = null, val mine: Boolean = false,
+    val offerCardId: String = "", val wantCardId: String = "", val offerCopies: Int = 1, val wantCopies: Int = 1,
     val offerCard: GameTradeCardDto = GameTradeCardDto(), val wantCard: GameTradeCardDto = GameTradeCardDto(),
 )
 @Serializable data class GameTradeCardDto(val name: String = "Карта", val imageUrl: String? = null, val rarity: String = "")

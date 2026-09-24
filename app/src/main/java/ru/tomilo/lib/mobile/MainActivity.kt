@@ -1,14 +1,10 @@
 package ru.tomilo.lib.mobile
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
@@ -16,7 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.core.content.ContextCompat
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationOpen
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
@@ -26,19 +21,9 @@ import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
 
 class MainActivity : ComponentActivity() {
-    private val requestNotifications = registerForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) {
-            NotificationsPollWorker.enqueueNow(this)
-            AppUpdateCheckWorker.enqueueNow(this)
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        maybeRequestNotificationPermission()
         val app = application as TomiloApp
         handleNotificationIntent(intent)
         setContent {
@@ -107,14 +92,4 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun maybeRequestNotificationPermission() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        val granted = ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS,
-        ) == PackageManager.PERMISSION_GRANTED
-        if (!granted) {
-            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
 }

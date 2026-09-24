@@ -1,6 +1,9 @@
 package ru.tomilo.lib.mobile.ui.screens.notifications
 
+import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -96,6 +99,12 @@ fun NotificationsScreen(
         backgroundNotifications = NotificationHelper.canNotify(context)
         if (backgroundNotifications) NotificationsPollWorker.schedule(context)
     }
+    val notificationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        backgroundNotifications = NotificationHelper.canNotify(context)
+        if (granted) NotificationsPollWorker.schedule(context)
+    }
 
     LaunchedEffect(user?.stableId(), backgroundNotifications) {
         if (user != null && backgroundNotifications) {
@@ -151,11 +160,19 @@ fun NotificationsScreen(
             BackgroundNotificationsCard(
                 enabled = backgroundNotifications,
                 onOpenSettings = {
-                    notificationSettings.launch(
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        },
-                    )
+                    val permissionPrefs = context.getSharedPreferences("tomilo_notification_permission", Context.MODE_PRIVATE)
+                    val shouldRequest = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !backgroundNotifications && !permissionPrefs.getBoolean("requested", false)
+                    if (shouldRequest) {
+                        permissionPrefs.edit().putBoolean("requested", true).apply()
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        notificationSettings.launch(
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            },
+                        )
+                    }
                 },
             )
             Box(Modifier.fillMaxWidth().weight(1f)) {

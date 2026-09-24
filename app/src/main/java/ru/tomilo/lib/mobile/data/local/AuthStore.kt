@@ -18,8 +18,8 @@ class AuthStore(private val context: Context) {
     private val refreshTokenKey = stringPreferencesKey("refresh_token")
     private val userKey = stringPreferencesKey("user_json")
 
-    val tokenFlow: Flow<String?> = context.authDataStore.data.map { it[tokenKey] }
-    val refreshTokenFlow: Flow<String?> = context.authDataStore.data.map { it[refreshTokenKey] }
+    val tokenFlow: Flow<String?> = context.authDataStore.data.map { SessionSecretCipher.decrypt(it[tokenKey]) }
+    val refreshTokenFlow: Flow<String?> = context.authDataStore.data.map { SessionSecretCipher.decrypt(it[refreshTokenKey]) }
     val userFlow: Flow<UserDto?> = context.authDataStore.data.map { prefs ->
         prefs[userKey]?.let {
             runCatching { NetworkModule.json.decodeFromString<UserDto>(it) }.getOrNull()
@@ -31,19 +31,31 @@ class AuthStore(private val context: Context) {
 
     suspend fun user(): UserDto? = userFlow.first()
 
+    /** Encrypts credentials written by earlier app versions before exposing them to callers. */
+    suspend fun encryptLegacySessionSecrets() {
+        context.authDataStore.edit { prefs ->
+            prefs[tokenKey]?.let { value ->
+                if (!value.startsWith("enc:v1:")) prefs[tokenKey] = SessionSecretCipher.encrypt(value)
+            }
+            prefs[refreshTokenKey]?.let { value ->
+                if (!value.startsWith("enc:v1:")) prefs[refreshTokenKey] = SessionSecretCipher.encrypt(value)
+            }
+        }
+    }
+
     suspend fun saveSession(token: String, refreshToken: String?, user: UserDto) {
         context.authDataStore.edit { prefs ->
-            prefs[tokenKey] = token
+            prefs[tokenKey] = SessionSecretCipher.encrypt(token)
             if (refreshToken.isNullOrBlank()) prefs.remove(refreshTokenKey)
-            else prefs[refreshTokenKey] = refreshToken
+            else prefs[refreshTokenKey] = SessionSecretCipher.encrypt(refreshToken)
             prefs[userKey] = NetworkModule.json.encodeToString(user)
         }
     }
 
     suspend fun updateTokens(token: String, refreshToken: String?) {
         context.authDataStore.edit { prefs ->
-            prefs[tokenKey] = token
-            if (!refreshToken.isNullOrBlank()) prefs[refreshTokenKey] = refreshToken
+            prefs[tokenKey] = SessionSecretCipher.encrypt(token)
+            if (!refreshToken.isNullOrBlank()) prefs[refreshTokenKey] = SessionSecretCipher.encrypt(refreshToken)
         }
     }
 
