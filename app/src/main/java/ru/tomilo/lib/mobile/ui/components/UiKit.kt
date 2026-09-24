@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -374,86 +375,102 @@ fun EmptyState(
     onAction: (() -> Unit)? = null,
     illustration: Int? = null,
 ) {
-    val compactLayout = LocalConfiguration.current.let { it.screenHeightDp < 640 || it.fontScale > 1.3f }
-    val iconSize = if (compactLayout) 60.dp else 76.dp
-    val illustrationHeight = if (compactLayout) 124.dp else 160.dp
-    val iconPulse = if (ValueAnimator.areAnimatorsEnabled()) {
-        val pulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
-            initialValue = 0.97f,
-            targetValue = 1.03f,
-            animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
-            label = "emptyStateScale",
-        )
-        pulse
-    } else 1f
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 28.dp, vertical = if (compactLayout) 16.dp else 36.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        if (illustration != null) {
-            Image(
-                painter = painterResource(illustration),
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                modifier = Modifier
-                    .size(width = illustrationHeight * 0.68f, height = illustrationHeight)
-                    .graphicsLayer {
-                        scaleX = iconPulse
-                        scaleY = iconPulse
-                    },
-            )
-            Spacer(Modifier.height(12.dp))
-        } else if (icon != null) {
-            Box(
-                Modifier
-                    .size(iconSize)
-                    .graphicsLayer {
-                        scaleX = iconPulse
-                        scaleY = iconPulse
-                    }
-                    .shadow(18.dp, RoundedCornerShape(26.dp), ambientColor = TomiloPrimary.copy(alpha = 0.20f))
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(TomiloPrimary.copy(alpha = 0.22f), TomiloPrimary.copy(alpha = 0.08f)),
-                        ),
-                    )
-                    .border(1.dp, TomiloPrimary.copy(alpha = 0.24f), RoundedCornerShape(26.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = TomiloPrimary,
-                    modifier = Modifier.size(if (compactLayout) 28.dp else 33.dp),
-                )
-            }
-            Spacer(Modifier.height(18.dp))
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val configuration = LocalConfiguration.current
+        val veryShort = maxHeight < 260.dp
+        val compactLayout = veryShort || maxHeight < 520.dp || configuration.screenHeightDp < 640 || configuration.fontScale > 1.3f
+        val showVisual = !veryShort
+        val iconSize = when {
+            veryShort -> 0.dp
+            compactLayout -> 60.dp
+            else -> 76.dp
         }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = TomiloMuted,
-            textAlign = TextAlign.Center,
-        )
-        if (actionLabel != null && onAction != null) {
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = onAction,
-                modifier = Modifier.heightIn(min = 48.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-            ) { Text(actionLabel) }
+        val illustrationHeight = if (compactLayout) 100.dp else 144.dp
+        val iconPulse = if (showVisual && ValueAnimator.areAnimatorsEnabled()) {
+            val pulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
+                initialValue = 0.97f,
+                targetValue = 1.03f,
+                animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse),
+                label = "emptyStateScale",
+            )
+            pulse
+        } else 1f
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    horizontal = if (maxWidth < 360.dp) 16.dp else 28.dp,
+                    vertical = when {
+                        veryShort -> 6.dp
+                        compactLayout -> 12.dp
+                        else -> 36.dp
+                    },
+                )
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            if (showVisual && illustration != null) {
+                Image(
+                    painter = painterResource(illustration),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier
+                        .size(width = illustrationHeight * 0.68f, height = illustrationHeight)
+                        .graphicsLayer {
+                            scaleX = iconPulse
+                            scaleY = iconPulse
+                        },
+                )
+                Spacer(Modifier.height(if (compactLayout) 8.dp else 12.dp))
+            } else if (showVisual && icon != null) {
+                Box(
+                    Modifier
+                        .size(iconSize)
+                        .graphicsLayer {
+                            scaleX = iconPulse
+                            scaleY = iconPulse
+                        }
+                        .shadow(18.dp, RoundedCornerShape(26.dp), ambientColor = TomiloPrimary.copy(alpha = 0.20f))
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(TomiloPrimary.copy(alpha = 0.22f), TomiloPrimary.copy(alpha = 0.08f)),
+                            ),
+                        )
+                        .border(1.dp, TomiloPrimary.copy(alpha = 0.24f), RoundedCornerShape(26.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = TomiloPrimary,
+                        modifier = Modifier.size(if (compactLayout) 28.dp else 33.dp),
+                    )
+                }
+                Spacer(Modifier.height(if (compactLayout) 8.dp else 18.dp))
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TomiloMuted,
+                textAlign = TextAlign.Center,
+            )
+            if (actionLabel != null && onAction != null) {
+                Spacer(Modifier.height(if (compactLayout) 10.dp else 20.dp))
+                Button(
+                    onClick = onAction,
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                ) { Text(actionLabel) }
+            }
         }
     }
 }
