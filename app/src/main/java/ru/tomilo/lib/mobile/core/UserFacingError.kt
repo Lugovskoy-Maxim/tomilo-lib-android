@@ -36,6 +36,11 @@ fun userFacingError(raw: String): String {
             lower.contains("exception") ||
             lower.contains("retrofit2.") ||
             lower.contains("kotlinx.coroutines") ||
+            lower.contains("unexpected json token") ||
+            lower.contains("expected start of") ||
+            lower.contains("serializationexception") ||
+            lower.contains("jsondecodingexception") ||
+            lower.contains("json parse") ||
             Regex("(?m)^\\s*at\\s+[\\w.$]+\\(").containsMatchIn(message) ||
             lower.startsWith("<html") ||
             message.startsWith("{") || message.startsWith("[") ->
