@@ -868,8 +868,32 @@ data class GameCardDto(
     val titleId: String? = null,
     val titleName: String? = null,
     val currentStage: String? = null,
+    /** Canonical forge tier returned by the server; currentStage is the art/progression stage. */
+    val forgeRank: String? = null,
     val copies: Int = 0,
     val shards: Int = 0,
+)
+
+@Serializable
+data class GameCraftResultDto(
+    val granted: GameCraftGrantedDto? = null,
+    val consumed: List<String> = emptyList(),
+    val rarityFrom: String? = null,
+    val rarityTo: String? = null,
+)
+
+@Serializable
+data class GameCraftGrantedDto(
+    val card: GameCardDto? = null,
+    val isNew: Boolean = false,
+    val shardsGained: Int = 0,
+)
+
+@Serializable
+data class GameCardOpenResultDto(
+    val openedCards: List<GameCraftGrantedDto> = emptyList(),
+    val balance: Int? = null,
+    val price: Int? = null,
 )
 
 @Serializable

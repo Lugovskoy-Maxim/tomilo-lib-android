@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -103,6 +104,7 @@ fun CardsScreen(
     onOpenWebTab: (String) -> Unit,
 ) {
     var cards by remember { mutableStateOf<List<GameCardDto>>(emptyList()) }
+    var shopRewardCards by remember { mutableStateOf<List<GameCardDto>>(emptyList()) }
     var decks by remember { mutableStateOf<List<GameCardDeckDto>>(emptyList()) }
     var trades by remember { mutableStateOf<List<GameCardTradeDto>>(emptyList()) }
     var catalog by remember { mutableStateOf<List<GameCardCatalogItemDto>>(emptyList()) }
@@ -110,6 +112,7 @@ fun CardsScreen(
     var catalogError by remember { mutableStateOf<String?>(null) }
     val forgeSelection = remember { mutableStateListOf<String>() }
     var forgeTargetId by remember { mutableStateOf<String?>(null) }
+    var forgedCard by remember { mutableStateOf<GameCardDto?>(null) }
     var tab by remember { mutableStateOf(CardTab.Album) }
     var forgeMode by remember { mutableStateOf(ForgeMode.Random) }
     var loading by remember { mutableStateOf(true) }
@@ -153,24 +156,29 @@ fun CardsScreen(
         }
     }
 
-    val selectedCards = forgeSelection.mapNotNull { id -> cards.firstOrNull { (it.id.ifBlank { it.name }) == id } }
+    val selectedCards = forgeSelection.mapNotNull { id -> cards.firstOrNull { it.id == id } }
     val selectedRanks = selectedCards.map(::cardRank).distinct()
     val targetRank = if (selectedRanks.size == 1 && forgeSelection.size == forgeMode.count) nextForgeRank(selectedRanks.single()) else null
-    val ownedIds = cards.mapTo(hashSetOf()) { it.id }
+    val ownedIds = cards.mapNotNullTo(hashSetOf()) { it.id.takeIf(String::isNotBlank) }
     val materialIds = forgeSelection.toSet()
     val commonTitle = selectedCards.map { it.titleId.orEmpty() }.distinct().singleOrNull()?.takeIf { it.isNotBlank() }
     val targetCards = catalog.filter { item ->
-        item.id !in ownedIds && item.id !in materialIds &&
+        item.id.isNotBlank() && item.id !in ownedIds && item.id !in materialIds &&
             targetRank != null && cardRank(item) == targetRank &&
             (commonTitle == null || item.titleId.isNullOrBlank() || item.titleId == commonTitle)
     }
 
-    fun launchAction(key: String, success: String, operation: suspend () -> Result<Unit>) {
+    fun <T> launchAction(
+        key: String,
+        success: String,
+        operation: suspend () -> Result<T>,
+        onSuccess: (T) -> String? = { null },
+    ) {
         if (action != null) return
         scope.launch {
             action = key
-            operation().onSuccess {
-                notice = success
+            operation().onSuccess { result ->
+                notice = onSuccess(result)?.takeIf(String::isNotBlank) ?: success
                 if (key.startsWith("trade:")) trades = trades.filterNot { it.id == key.removePrefix("trade:") }
                 refresh()
                 if (key == "forge") forgeSelection.clear()
@@ -231,21 +239,48 @@ fun CardsScreen(
                     )
                     currentTab == CardTab.Shop -> ShopTab(
                     decks = decks,
+                    revealedCards = shopRewardCards,
                     randomCardPrice = decks.firstOrNull { it.kind == "roulette" }?.price
                         ?: decks.firstOrNull { !it.isTitleDeck }?.price
                         ?: 250,
                     error = deckError,
                     onRetry = { scope.launch { refresh(showLoading = true) } },
                     action = action,
-                    onPull = { launchAction("pull", "Случайная карточка получена. Альбом обновлён.") { gamesRepository.pullCard() } },
-                    onOpenDeck = { deck -> launchAction("deck:${deck.stableId()}", "Набор «${deck.name}» открыт. Альбом обновлён.") { gamesRepository.openCardDeck(deck.stableId()) } },
+                    onPull = {
+                        launchAction(
+                            key = "pull",
+                            success = "Случайная карточка получена. Альбом обновлён.",
+                            operation = { gamesRepository.pullCard() },
+                            onSuccess = { result ->
+                                shopRewardCards = result.openedCards.mapNotNull { it.card }
+                                rewardNotice(shopRewardCards)
+                            },
+                        )
+                    },
+                    onOpenDeck = { deck ->
+                        launchAction(
+                            key = "deck:${deck.stableId()}",
+                            success = "Набор «${deck.name}» открыт. Альбом обновлён.",
+                            operation = { gamesRepository.openCardDeck(deck.stableId()) },
+                            onSuccess = { result ->
+                                shopRewardCards = result.openedCards.mapNotNull { it.card }
+                                rewardNotice(shopRewardCards)
+                            },
+                        )
+                    },
                     )
                     currentTab == CardTab.Trade -> TradeTab(
                     trades = trades,
                     action = action,
                     error = tradeError,
                     onRetry = { scope.launch { refresh(showLoading = true) } },
-                    onAccept = { trade -> launchAction("trade:${trade.id}", "Обмен завершён. Коллекция обновлена.") { gamesRepository.acceptCardTrade(trade.id) } },
+                    onAccept = { trade ->
+                        launchAction(
+                            key = "trade:${trade.id}",
+                            success = "Обмен завершён. Коллекция обновлена.",
+                            operation = { gamesRepository.acceptCardTrade(trade.id) },
+                        )
+                    },
                     )
                     currentTab == CardTab.Forge -> ForgeTab(
                     cards = cards,
@@ -273,27 +308,50 @@ fun CardsScreen(
                         if (mode == ForgeMode.Random) forgeTargetId = null
                     },
                     onToggle = { card ->
-                        val id = card.id.ifBlank { card.name }
-                        val rank = cardRank(card)
-                        val existing = forgeSelection.lastIndexOf(id)
-                        if (existing >= 0) {
-                            forgeSelection.removeAt(existing)
-                            forgeTargetId = null
-                        }
-                        else if (forgeSelection.size < forgeMode.count && forgeSelection.count { it == id } < card.copies.coerceAtLeast(0) && (forgeSelection.isEmpty() || forgeSelection.all { selected -> cards.firstOrNull { (it.id.ifBlank { it.name }) == selected }?.let(::cardRank) == rank })) {
-                            forgeSelection.add(id)
-                            forgeTargetId = null
-                        } else if (forgeSelection.isNotEmpty() && forgeSelection.any { selected -> cards.firstOrNull { (it.id.ifBlank { it.name }) == selected }?.let(::cardRank) != rank }) {
-                            notice = "Для перековки выберите карточки одного ранга."
-                        } else if (forgeSelection.count { it == id } >= card.copies.coerceAtLeast(0)) {
-                            notice = "В коллекции нет дополнительных копий этой карточки."
+                        val id = card.id.trim()
+                        if (id.isBlank()) {
+                            notice = "Эту карточку нельзя использовать: сервер не вернул её ID. Обновите коллекцию."
+                        } else {
+                            val rank = cardRank(card)
+                            val existing = forgeSelection.lastIndexOf(id)
+                            if (existing >= 0) {
+                                forgeSelection.removeAt(existing)
+                                forgeTargetId = null
+                            }
+                            else if (forgeSelection.size < forgeMode.count && forgeSelection.count { it == id } < card.copies.coerceAtLeast(0) && (forgeSelection.isEmpty() || forgeSelection.all { selected -> cards.firstOrNull { it.id == selected }?.let(::cardRank) == rank })) {
+                                forgeSelection.add(id)
+                                forgeTargetId = null
+                            } else if (forgeSelection.isNotEmpty() && forgeSelection.any { selected -> cards.firstOrNull { it.id == selected }?.let(::cardRank) != rank }) {
+                                notice = "Для перековки выберите карточки одного ранга."
+                            } else if (forgeSelection.count { it == id } >= card.copies.coerceAtLeast(0)) {
+                                notice = "В коллекции нет дополнительных копий этой карточки."
+                            }
                         }
                     },
                     onForge = {
-                        launchAction("forge", "Карты перекованы. Коллекция обновлена.") {
-                            gamesRepository.craftCards(forgeSelection.toList(), forgeTargetId.takeIf { forgeMode == ForgeMode.Choose })
+                        if (action == null) scope.launch {
+                            action = "forge"
+                            gamesRepository.craftCards(
+                                cardIds = forgeSelection.toList(),
+                                targetCardId = forgeTargetId.takeIf { forgeMode == ForgeMode.Choose },
+                            ).onSuccess { result ->
+                                forgedCard = result.granted?.card
+                                val cardName = result.granted?.card?.let { card ->
+                                    card.characterName?.takeIf(String::isNotBlank)
+                                        ?: card.name.takeIf(String::isNotBlank)
+                                }
+                                notice = cardName?.let { "Получена карточка «$it»." }
+                                    ?: "Карты перекованы. Коллекция обновлена."
+                                forgeSelection.clear()
+                                refresh()
+                            }.onFailure {
+                                notice = it.message?.takeIf(String::isNotBlank)
+                                    ?: "Не удалось перековать карточки. Попробуйте ещё раз."
+                            }
+                            action = null
                         }
                     },
+                    resultCard = forgedCard,
                     )
                     currentTab == CardTab.Album && cards.isEmpty() -> EmptyState(
                     title = "Альбом пока пуст",
@@ -312,6 +370,7 @@ fun CardsScreen(
 @Composable
 private fun ShopTab(
     decks: List<GameCardDeckDto>,
+    revealedCards: List<GameCardDto>,
     randomCardPrice: Int,
     action: String?,
     error: String?,
@@ -329,6 +388,9 @@ private fun ShopTab(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (revealedCards.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+            CardRewardReveal(revealedCards)
+        }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Магазин карточек", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -369,6 +431,51 @@ private fun ShopTab(
             }
         }
     }
+}
+
+@Composable
+private fun CardRewardReveal(cards: List<GameCardDto>) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = cards.isNotEmpty(),
+        enter = if (ValueAnimator.areAnimatorsEnabled()) {
+            fadeIn(tween(220)) + scaleIn(initialScale = .9f, animationSpec = tween(320))
+        } else fadeIn(tween(0)),
+    ) {
+        Surface(
+            color = TomiloSurface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, TomiloPrimary.copy(alpha = .65f)),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    if (cards.size == 1) "Новая карточка" else "Карточки из набора · ${cards.size}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(cards, key = { it.id.ifBlank { it.name } }) { card ->
+                        Column(Modifier.width(100.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            AsyncImage(
+                                MediaUrl.resolve(card.stageImageUrl?.takeIf(String::isNotBlank) ?: card.imageUrl),
+                                card.characterName ?: card.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(10.dp)).background(TomiloBg),
+                            )
+                            Text(card.characterName ?: card.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text("${cardRank(card)} ранг", color = rarityColor(card), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun rewardNotice(cards: List<GameCardDto>): String? = when (cards.size) {
+    0 -> null
+    1 -> "Получена карточка «${cards.first().characterName?.takeIf(String::isNotBlank) ?: cards.first().name}»."
+    else -> "Получено карточек: ${cards.size}. Альбом обновлён."
 }
 
 @Composable
@@ -421,10 +528,11 @@ private fun ForgeTab(
     catalogError: String?, onRetryCatalog: () -> Unit,
     selectedTargetId: String?, onSelectTarget: (String) -> Unit,
     onMode: (ForgeMode) -> Unit, onToggle: (GameCardDto) -> Unit, onForge: () -> Unit,
+    resultCard: GameCardDto?,
 ) {
-    val selectedRank = selectedIds.firstOrNull()?.let { id -> cards.firstOrNull { (it.id.ifBlank { it.name }) == id }?.let(::cardRank) }
+    val selectedRank = selectedIds.firstOrNull()?.let { id -> cards.firstOrNull { it.id == id }?.let(::cardRank) }
     val validCount = selectedIds.size == mode.count
-    val sameRank = selectedIds.all { id -> cards.firstOrNull { (it.id.ifBlank { it.name }) == id }?.let(::cardRank) == selectedRank }
+    val sameRank = selectedIds.all { id -> cards.firstOrNull { it.id == id }?.let(::cardRank) == selectedRank }
     LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -438,6 +546,40 @@ private fun ForgeTab(
                 Button(onClick = onForge, enabled = validCount && sameRank && targetReady && action == null, modifier = Modifier.fillMaxWidth()) {
                     if (action == "forge") CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Text(if (mode == ForgeMode.Random) "Перековать · случайный результат" else "Перековать · выбрать результат")
+                }
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = resultCard != null,
+                    enter = if (ValueAnimator.areAnimatorsEnabled()) {
+                        fadeIn(tween(220)) + scaleIn(initialScale = .88f, animationSpec = tween(320))
+                    } else fadeIn(tween(0)),
+                    exit = fadeOut(tween(if (ValueAnimator.areAnimatorsEnabled()) 120 else 0)),
+                ) {
+                    resultCard?.let { card ->
+                        Surface(
+                            color = TomiloSurface,
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, rarityColor(card)),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Row(
+                                Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                AsyncImage(
+                                    MediaUrl.resolve(card.stageImageUrl ?: card.imageUrl),
+                                    card.characterName ?: card.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(56.dp, 74.dp).clip(RoundedCornerShape(10.dp)),
+                                )
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text("Карта получена", color = TomiloPrimary, style = MaterialTheme.typography.labelMedium)
+                                    Text(card.characterName ?: card.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text("${cardRank(card)} ранг · ${card.titleName ?: "Без тайтла"}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -473,11 +615,11 @@ private fun ForgeTab(
         if (cards.isEmpty()) item { Text("В альбоме пока нет карточек для перековки.", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium) }
         items(cards.size, key = { cards[it].id.ifBlank { cards[it].name } }) { index ->
             val card = cards[index]
-            val id = card.id.ifBlank { card.name }
+            val id = card.id
             val selectedCopies = selectedIds.count { it == id }
             val isRankValid = selectedRank == null || cardRank(card) == selectedRank
             Surface(
-                onClick = { onToggle(card) }, enabled = (isRankValid || selectedCopies > 0) && action == null,
+                onClick = { onToggle(card) }, enabled = id.isNotBlank() && (isRankValid || selectedCopies > 0) && action == null,
                 color = if (selectedCopies > 0) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .28f) else TomiloSurface,
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.dp, if (selectedCopies > 0) TomiloPrimary.copy(alpha = .7f) else TomiloBorder),
@@ -525,8 +667,7 @@ private fun CardAlbumItem(card: GameCardDto) {
         }
     }
 }
-
-private fun cardRank(card: GameCardDto): String = rankFrom(card.currentStage, card.rarity)
+private fun cardRank(card: GameCardDto): String = rankFrom(card.forgeRank ?: card.currentStage, card.rarity)
 
 private fun cardRank(card: GameCardCatalogItemDto): String = rankFrom(card.rank, card.rarity)
 

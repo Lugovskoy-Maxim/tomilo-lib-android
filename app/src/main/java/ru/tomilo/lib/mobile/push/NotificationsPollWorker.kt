@@ -45,9 +45,9 @@ class NotificationsPollWorker(
             val lastCount = prefs.getInt(KEY_LAST_UNREAD, 0)
             val bookmarkNotifications = pollBookmarkChapters(app, prefs, emptySet())
             val messageNotifications = pollConversations(app, prefs)
-            if (
-                bookmarkNotifications == 0 &&
-                messageNotifications == 0 &&
+            val specificNotificationDelivered = bookmarkNotifications > 0 || messageNotifications > 0
+            val summaryDelivered = if (
+                !specificNotificationDelivered &&
                 unread > lastCount &&
                 unread > 0 &&
                 NotificationHelper.canNotify(applicationContext)
@@ -59,8 +59,12 @@ class NotificationsPollWorker(
                     else "Непрочитанных: $unread",
                     notificationId = 1001,
                 )
+            } else false
+            if (unread <= lastCount || specificNotificationDelivered || summaryDelivered) {
+                // Keep the old baseline if Android rejected delivery (for example,
+                // POST_NOTIFICATIONS was denied) so a later poll can retry it.
+                prefs.edit().putInt(KEY_LAST_UNREAD, unread).apply()
             }
-            prefs.edit().putInt(KEY_LAST_UNREAD, unread).apply()
             return Result.success()
         }
 

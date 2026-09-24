@@ -11,7 +11,9 @@ import ru.tomilo.lib.mobile.data.api.GameCardsDto
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradesDto
+import ru.tomilo.lib.mobile.data.api.GameCardOpenResultDto
 import ru.tomilo.lib.mobile.data.api.GameCraftRequest
+import ru.tomilo.lib.mobile.data.api.GameCraftResultDto
 import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
@@ -59,14 +61,16 @@ class GamesRepository(private val api: TomiloApi) {
         response.data?.cards.orEmpty()
     }
 
-    suspend fun pullCard(): Result<Unit> = runCatchingCancellable {
+    suspend fun pullCard(): Result<GameCardOpenResultDto> = runCatchingCancellable {
         val response = api.pullGameCard()
         if (!response.success) error(response.message ?: "Не удалось получить карту")
+        response.data ?: error("Сервер не вернул полученную карту")
     }
 
-    suspend fun openCardDeck(deckId: String): Result<Unit> = runCatchingCancellable {
+    suspend fun openCardDeck(deckId: String): Result<GameCardOpenResultDto> = runCatchingCancellable {
         val response = api.openGameCardDeck(deckId)
         if (!response.success) error(response.message ?: "Не удалось открыть набор")
+        response.data ?: error("Сервер не вернул карты из набора")
     }
 
     suspend fun cardTrades(): Result<GameCardTradesDto> = runCatchingCancellable {
@@ -74,9 +78,10 @@ class GamesRepository(private val api: TomiloApi) {
         response.data ?: GameCardTradesDto()
     }
     suspend fun acceptCardTrade(id: String): Result<Unit> = runCatchingCancellable { val r = api.acceptGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось принять обмен") }
-    suspend fun craftCards(cardIds: List<String>, targetCardId: String? = null): Result<Unit> = runCatchingCancellable {
+    suspend fun craftCards(cardIds: List<String>, targetCardId: String? = null): Result<GameCraftResultDto> = runCatchingCancellable {
         val r = api.craftGameCards(GameCraftRequest(cardIds, targetCardId))
         if (!r.success) error(r.message ?: "Не удалось перековать карточки")
+        r.data ?: error("Сервер не вернул результат перековки")
     }
     suspend fun disciples(): Result<GameDisciplesDto> = runCatchingCancellable {
         val response = api.gameDisciples()

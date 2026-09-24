@@ -96,10 +96,10 @@ interface TomiloApi {
     ): ApiResponse<GameCardCatalogDto>
 
     @POST("shop/decks/{deckId}/open")
-    suspend fun openGameCardDeck(@Path("deckId") deckId: String): ApiResponse<JsonElement>
+    suspend fun openGameCardDeck(@Path("deckId") deckId: String): ApiResponse<GameCardOpenResultDto>
 
     @POST("shop/cards/pull")
-    suspend fun pullGameCard(): ApiResponse<JsonElement>
+    suspend fun pullGameCard(): ApiResponse<GameCardOpenResultDto>
 
     @GET("users/profile/card-trades")
     suspend fun gameCardTrades(): ApiResponse<GameCardTradesDto>
@@ -108,7 +108,7 @@ interface TomiloApi {
     suspend fun acceptGameCardTrade(@Path("id") id: String): ApiResponse<JsonElement>
 
     @POST("users/profile/cards/craft")
-    suspend fun craftGameCards(@Body body: GameCraftRequest): ApiResponse<JsonElement>
+    suspend fun craftGameCards(@Body body: GameCraftRequest): ApiResponse<GameCraftResultDto>
 
     // ── Tomilo shop ─────────────────────────────────────────────
     @GET("shop/decorations/{type}")
