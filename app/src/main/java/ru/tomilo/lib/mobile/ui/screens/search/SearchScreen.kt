@@ -41,6 +41,7 @@ import kotlinx.coroutines.isActive
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.local.SearchHistoryPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.ui.components.ListCardsSkeleton
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
@@ -86,7 +87,7 @@ fun SearchScreen(
             results = it
             searchHistoryPrefs.remember(q)
         }
-            .onFailure { error = it.message ?: "Ошибка поиска" }
+            .onFailure { error = it.toUserFacingError("Не удалось выполнить поиск.") }
     }
 
     Scaffold(

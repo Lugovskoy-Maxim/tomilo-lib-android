@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +18,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,10 +29,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
@@ -62,6 +66,7 @@ fun UpdatesScreen(
     var loadingMore by remember { mutableStateOf(false) }
     var hasMore by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var paginationError by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
 
     fun filterAdult(list: List<CatalogTitleDto>) =
@@ -70,6 +75,7 @@ fun UpdatesScreen(
     LaunchedEffect(reload, settings.showAdultContent) {
         loading = true
         error = null
+        paginationError = null
         page = 1
         hasMore = true
         catalogRepository.latestUpdatesPage(1, 24)
@@ -77,18 +83,18 @@ fun UpdatesScreen(
                 items = filterAdult(it).distinctBy { title -> title.stableId() }
                 hasMore = it.size >= 24
             }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить обновления.") }
         loading = false
     }
 
-    LaunchedEffect(listState, page, hasMore, loading) {
+    LaunchedEffect(listState, page, hasMore, loading, paginationError) {
         snapshotFlow {
             val info = listState.layoutInfo
             (info.visibleItemsInfo.lastOrNull()?.index ?: 0) to info.totalItemsCount
         }.distinctUntilChanged()
             .filter { (last, total) -> total > 0 && last >= total - 5 }
             .collect {
-                if (loading || loadingMore || !hasMore) return@collect
+                if (loading || loadingMore || !hasMore || paginationError != null) return@collect
                 loadingMore = true
                 val next = page + 1
                 catalogRepository.latestUpdatesPage(next, 24)
@@ -97,8 +103,11 @@ fun UpdatesScreen(
                         items = (items + filtered).distinctBy { it.stableId() }
                         page = next
                         hasMore = batch.size >= 24
+                        paginationError = null
                     }
-                    .onFailure { error = it.message }
+                    .onFailure {
+                        paginationError = it.toUserFacingError("Не удалось загрузить следующие обновления.")
+                    }
                 loadingMore = false
             }
     }
@@ -144,6 +153,15 @@ fun UpdatesScreen(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 item {
+                    if (error != null) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(error.orEmpty())
+                            TextButton(onClick = { reload += 1 }) { Text("Обновить") }
+                        }
+                    }
                     PageIntro(
                         title = "Свежие главы без пропусков",
                         subtitle = "Лента автоматически догружает предыдущие обновления",
@@ -166,7 +184,18 @@ fun UpdatesScreen(
                         onClick = { onOpenTitle(title.stableId(), title.slug) },
                     )
                 }
-                item { LoadingMoreBar(loadingMore, "Загружаем предыдущие обновления…") }
+                item {
+                    when {
+                        paginationError != null -> Column(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text(paginationError.orEmpty())
+                            TextButton(onClick = { paginationError = null }) { Text("Повторить") }
+                        }
+                        else -> LoadingMoreBar(loadingMore, "Загружаем предыдущие обновления…")
+                    }
+                }
             }
         }
     }
