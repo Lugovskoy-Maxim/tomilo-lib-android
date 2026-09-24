@@ -85,6 +85,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
@@ -274,16 +275,26 @@ fun CardsScreen(
         if (action != null) return
         scope.launch {
             action = key
-            operation().onSuccess { result ->
-                notice = onSuccess(result)?.takeIf(String::isNotBlank) ?: success
-                if (key.startsWith("trade:")) trades = trades.filterNot { it.id == key.removePrefix("trade:") }
-                refresh()
-                if (key == "forge") forgeSelection.clear()
-            }.onFailure {
-                notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
-                    ?: "Не удалось выполнить действие. Попробуйте ещё раз."
+            try {
+                val result: Result<T> = try {
+                    operation()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (exception: Exception) {
+                    Result.failure(exception)
+                }
+                result.onSuccess { value ->
+                    notice = onSuccess(value)?.takeIf(String::isNotBlank) ?: success
+                    if (key.startsWith("trade:")) trades = trades.filterNot { it.id == key.removePrefix("trade:") }
+                    refresh()
+                    if (key == "forge") forgeSelection.clear()
+                }.onFailure { exception ->
+                    notice = exception.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                        ?: "Не удалось выполнить действие. Попробуйте ещё раз."
+                }
+            } finally {
+                action = null
             }
-            action = null
         }
     }
 
