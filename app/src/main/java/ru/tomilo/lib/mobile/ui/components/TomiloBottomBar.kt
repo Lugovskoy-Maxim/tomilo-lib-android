@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -295,6 +296,7 @@ private fun NavTabItem(
 
             Text(
                 text = label,
+                modifier = Modifier.offset(y = (-2).dp),
                 color = if (selected) Color(0xFFFF8B86) else TomiloText.copy(alpha = 0.70f),
                 fontSize = 12.sp,
                 lineHeight = 14.sp,
@@ -329,7 +331,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
             )
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+        verticalArrangement = Arrangement.spacedBy(0.dp, Alignment.CenterVertically),
     ) {
         Icon(
             imageVector = Icons.Default.MoreVert,
@@ -339,6 +341,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
         )
         Text(
             text = "Ещё",
+            modifier = Modifier.offset(y = (-2).dp),
             color = TomiloText.copy(alpha = 0.70f),
             fontSize = 12.sp,
             maxLines = 1,
