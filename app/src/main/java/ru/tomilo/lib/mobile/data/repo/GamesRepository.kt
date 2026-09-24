@@ -16,6 +16,8 @@ import ru.tomilo.lib.mobile.data.api.GameCardTradeCreateRequest
 import ru.tomilo.lib.mobile.data.api.GameCardOpenResultDto
 import ru.tomilo.lib.mobile.data.api.GameCraftRequest
 import ru.tomilo.lib.mobile.data.api.GameCraftResultDto
+import ru.tomilo.lib.mobile.data.api.GameCardSellRequest
+import ru.tomilo.lib.mobile.data.api.GameCardSellResultDto
 import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
@@ -94,6 +96,12 @@ class GamesRepository(private val api: TomiloApi) {
         val r = api.craftGameCards(GameCraftRequest(cardIds, targetCardId))
         if (!r.success) error(r.message ?: "Не удалось перековать карточки")
         r.data ?: error("Сервер не вернул результат перековки")
+    }
+    suspend fun sellCardCopy(cardId: String): Result<GameCardSellResultDto> = runCatchingCancellable {
+        if (cardId.isBlank()) error("Не удалось определить карточку")
+        val response = api.sellGameCard(GameCardSellRequest(cardId = cardId, copies = 1))
+        if (!response.success) error(response.message ?: "Не удалось продать карточку")
+        response.data ?: error("Сервер не вернул результат продажи")
     }
     suspend fun disciples(): Result<GameDisciplesDto> = runCatchingCancellable {
         val response = api.gameDisciples()

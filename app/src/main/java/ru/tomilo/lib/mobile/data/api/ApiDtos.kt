@@ -883,6 +883,18 @@ data class GameCraftResultDto(
 )
 
 @Serializable
+data class GameCardSellRequest(val cardId: String, val copies: Int = 1)
+
+@Serializable
+data class GameCardSellResultDto(
+    val coins: Int = 0,
+    val unitPrice: Int = 0,
+    val copies: Int = 1,
+    val rarity: String? = null,
+    val balance: Int? = null,
+)
+
+@Serializable
 data class GameCraftGrantedDto(
     val card: GameCardDto? = null,
     val isNew: Boolean = false,

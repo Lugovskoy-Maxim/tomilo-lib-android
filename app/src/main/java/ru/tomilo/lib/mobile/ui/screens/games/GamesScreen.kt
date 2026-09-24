@@ -111,6 +111,7 @@ fun GamesScreen(
             )
             else -> CardsScreen(
                 gamesRepository = gamesRepository,
+                authRepository = authRepository,
                 onBack = { page = GamesPage.HUB },
                 onOpenSubmit = { onOpenWebTab("cards/submit") },
                 onOpenWebTab = onOpenWebTab,

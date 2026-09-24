@@ -119,6 +119,9 @@ interface TomiloApi {
     @POST("users/profile/cards/craft")
     suspend fun craftGameCards(@Body body: GameCraftRequest): ApiResponse<GameCraftResultDto>
 
+    @POST("users/profile/cards/sell")
+    suspend fun sellGameCard(@Body body: GameCardSellRequest): ApiResponse<GameCardSellResultDto>
+
     // ── Tomilo shop ─────────────────────────────────────────────
     @GET("shop/decorations/{type}")
     suspend fun shopDecorations(@Path("type") type: String): ApiResponse<List<ShopDecorationDto>>

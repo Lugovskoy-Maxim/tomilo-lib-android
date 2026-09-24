@@ -87,6 +87,7 @@ import ru.tomilo.lib.mobile.data.api.GameCardDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeCreateRequest
+import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.components.CardsGridSkeleton
 import ru.tomilo.lib.mobile.ui.components.CardShopSkeleton
@@ -116,6 +117,7 @@ private enum class ForgeMode(val count: Int, val label: String) {
 @Composable
 fun CardsScreen(
     gamesRepository: GamesRepository,
+    authRepository: AuthRepository,
     onBack: () -> Unit,
     onOpenSubmit: () -> Unit,
     onOpenWebTab: (String) -> Unit,
@@ -133,6 +135,7 @@ fun CardsScreen(
     val forgeSelection = remember { mutableStateListOf<String>() }
     var forgeTargetId by remember { mutableStateOf<String?>(null) }
     var forgedCard by remember { mutableStateOf<GameCardDto?>(null) }
+    var cardToSell by remember { mutableStateOf<GameCardDto?>(null) }
     var tab by remember { mutableStateOf(CardTab.Album) }
     var forgeMode by remember { mutableStateOf(ForgeMode.Random) }
     var loading by remember { mutableStateOf(true) }
@@ -353,6 +356,7 @@ fun CardsScreen(
                     action = action,
                     targetRank = targetRank,
                     targetCards = targetCards,
+                    roulettePrice = decks.firstOrNull { it.kind == "roulette" }?.price ?: 250,
                     catalogLoading = catalogLoading,
                     catalogError = catalogError,
                     onRetryCatalog = {
@@ -394,6 +398,7 @@ fun CardsScreen(
                             }
                         }
                     },
+                    onSell = { card -> cardToSell = card },
                     onForge = {
                         if (action == null) scope.launch {
                             action = "forge"
@@ -430,6 +435,45 @@ fun CardsScreen(
                 }
             }
         }
+    }
+
+    cardToSell?.let { card ->
+        val cardName = card.characterName?.takeIf(String::isNotBlank) ?: card.name
+        val sellPrice = cardSellPrice(card, decks.firstOrNull { it.kind == "roulette" }?.price ?: 250)
+        val lastCopy = card.copies <= 1
+        AlertDialog(
+            onDismissRequest = { if (action == null) cardToSell = null },
+            title = { Text(if (lastCopy) "Продать карточку?" else "Продать копию?") },
+            text = {
+                Text(
+                    if (lastCopy) "Продать «$cardName» за $sellPrice монет? Это последняя копия — карточка исчезнет из коллекции."
+                    else "Продать копию «$cardName» за $sellPrice монет? В коллекции останется ${card.copies - 1}.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = action == null,
+                    onClick = {
+                        cardToSell = null
+                        launchAction(
+                            key = "sell:${card.id}",
+                            success = "Копия продана.",
+                            operation = {
+                                gamesRepository.sellCardCopy(card.id).onSuccess { authRepository.refreshProfile() }
+                            },
+                            onSuccess = { result ->
+                                forgeSelection.removeAll { it == card.id }
+                                if (result.copies == 1 && lastCopy) "Карточка продана · +${result.coins} монет"
+                                else "Копия продана · +${result.coins} монет"
+                            },
+                        )
+                    },
+                ) { Text("Продать · $sellPrice") }
+            },
+            dismissButton = {
+                TextButton(onClick = { cardToSell = null }, enabled = action == null) { Text("Отмена") }
+            },
+        )
     }
 }
 
@@ -866,7 +910,9 @@ private fun ForgeTab(
     targetRank: String?, targetCards: List<GameCardCatalogItemDto>, catalogLoading: Boolean,
     catalogError: String?, onRetryCatalog: () -> Unit,
     selectedTargetId: String?, onSelectTarget: (String) -> Unit,
+    roulettePrice: Int,
     onMode: (ForgeMode) -> Unit, onToggle: (GameCardDto) -> Unit, onForge: () -> Unit,
+    onSell: (GameCardDto) -> Unit,
     resultCard: GameCardDto?,
 ) {
     val selectedRank = selectedIds.firstOrNull()?.let { id -> cards.firstOrNull { it.id == id }?.let(::cardRank) }
@@ -981,6 +1027,17 @@ private fun ForgeTab(
                     Column(Modifier.weight(1f)) {
                         Text(card.characterName ?: card.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text("Ранг ${cardRank(card)} · копий ${card.copies.coerceAtLeast(0)}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        TextButton(
+                            onClick = { onSell(card) },
+                            enabled = action == null && selectedCopies == 0 && card.copies > 0,
+                            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                        ) {
+                            Text(
+                                if (action == "sell:$id") "Продаём…" else "Продать копию · ${cardSellPrice(card, roulettePrice)} монет",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                     Text(if (selectedCopies > 0) "×$selectedCopies" else "＋", color = TomiloPrimary, style = MaterialTheme.typography.titleMedium)
                 }
@@ -1029,6 +1086,13 @@ private fun CardAlbumItem(card: GameCardDto) {
 private fun cardRank(card: GameCardDto): String = rankFrom(card.forgeRank ?: card.currentStage, card.rarity)
 
 private fun cardRank(card: GameCardCatalogItemDto): String = rankFrom(card.rank, card.rarity)
+
+/** Mirrors the site's card-economy.ts sell formula; the server response remains authoritative. */
+private fun cardSellPrice(card: GameCardDto, roulettePrice: Int): Int {
+    val sellBase = ((roulettePrice.takeIf { it > 0 } ?: 250) / 2 - 25).coerceAtLeast(0)
+    val rankIndex = listOf("F", "C", "B", "A", "S", "SSS").indexOf(cardRank(card)).coerceAtLeast(0)
+    return sellBase * (1..rankIndex).fold(1) { value, _ -> value * 3 }
+}
 
 private fun rankFrom(stageValue: String?, rarityValue: String): String = when (stageValue?.trim()?.uppercase()) {
     "SSS", "SS", "R" -> "SSS"
