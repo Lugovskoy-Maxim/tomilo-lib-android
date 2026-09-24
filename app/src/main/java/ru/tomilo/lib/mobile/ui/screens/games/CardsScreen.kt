@@ -1031,7 +1031,11 @@ private fun ForgeTab(
     }
     LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val forgeMotionEnabled = ValueAnimator.areAnimatorsEnabled()
+            Column(
+                Modifier.then(if (forgeMotionEnabled) Modifier.animateContentSize() else Modifier),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text("Горн", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
                     "3 карты одного ранга дадут случайную карту следующего (F→C→B→A→S→SSS). 6 карт — выбор конкретной карты следующего ранга. Копии одной карты можно положить в несколько слотов.",
@@ -1052,10 +1056,10 @@ private fun ForgeTab(
                 }
                 androidx.compose.animation.AnimatedVisibility(
                     visible = resultCard != null,
-                    enter = if (ValueAnimator.areAnimatorsEnabled()) {
+                    enter = if (forgeMotionEnabled) {
                         fadeIn(tween(220)) + scaleIn(initialScale = .88f, animationSpec = tween(320))
                     } else fadeIn(tween(0)),
-                    exit = fadeOut(tween(if (ValueAnimator.areAnimatorsEnabled()) 120 else 0)),
+                    exit = fadeOut(tween(if (forgeMotionEnabled) 120 else 0)),
                 ) {
                     resultCard?.let { card ->
                         Surface(
