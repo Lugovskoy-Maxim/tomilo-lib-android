@@ -666,7 +666,10 @@ private fun ShopTab(
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(8.dp))
                             Text("Крутим…")
-                        } else Text(if (isAuthenticated) "Крутить рулетку" else "Войти · $randomCardPrice монет")
+                        } else Text(
+                            if (isAuthenticated) "Купить за $randomCardPrice монет"
+                            else "Войти · $randomCardPrice монет",
+                        )
                     }
                 }
             }
@@ -720,8 +723,8 @@ private fun ShopTab(
                                     when {
                                         !available && deck.isAvailable -> "Нет карт в пуле"
                                         !deck.isAvailable -> "Сейчас недоступно"
-                                        isAuthenticated -> "Рулетка · ${deck.price} монет"
-                                        else -> "Войти · рулетка ${deck.price} монет"
+                                        isAuthenticated -> "Прокрутка · ${deck.price} монет"
+                                        else -> "Войти · прокрутка ${deck.price} монет"
                                     },
                                 )
                             }
