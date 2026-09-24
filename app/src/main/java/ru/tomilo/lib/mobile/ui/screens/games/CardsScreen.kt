@@ -85,6 +85,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.CardEconomy
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardDto
@@ -219,7 +220,7 @@ fun CardsScreen(
 
     val selectedCards = forgeSelection.mapNotNull { id -> cards.firstOrNull { it.id == id } }
     val selectedRanks = selectedCards.map(::cardRank).distinct()
-    val targetRank = if (selectedRanks.size == 1 && forgeSelection.size == forgeMode.count) nextForgeRank(selectedRanks.single()) else null
+    val targetRank = if (selectedRanks.size == 1 && forgeSelection.size == forgeMode.count) CardEconomy.nextForgeRank(selectedRanks.single()) else null
     val ownedIds = cards.mapNotNullTo(hashSetOf()) { it.id.takeIf(String::isNotBlank) }
     val materialIds = forgeSelection.toSet()
     val commonTitle = selectedCards.map { it.titleId.orEmpty() }.distinct().singleOrNull()?.takeIf { it.isNotBlank() }
@@ -1159,7 +1160,7 @@ private fun CardCatalogTab(
             compareBy<GameCardCatalogItemDto> { if (ownedFirst && it.id in owned) 0 else 1 }
                 .thenBy {
                     when (sort) {
-                        CardCatalogSort.Rank -> listOf("F", "C", "B", "A", "S", "SSS").indexOf(rankFrom(it.rank, it.rarity)).let { rank -> if (rank < 0) Int.MAX_VALUE else rank }
+                        CardCatalogSort.Rank -> listOf("F", "C", "B", "A", "S", "SSS").indexOf(CardEconomy.rank(it.rank, it.rarity)).let { rank -> if (rank < 0) Int.MAX_VALUE else rank }
                         CardCatalogSort.Name -> 0
                     }
                 }
@@ -1258,7 +1259,7 @@ private fun CardCatalogItem(
                     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .32f)))
                     Text("ЕЩЁ НЕТ", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(8.dp)).background(TomiloBg.copy(alpha = .84f)).padding(horizontal = 8.dp, vertical = 5.dp))
                 }
-                Text(rankFrom(entry.rank, entry.rarity), color = rarityColor(entry.rarity, entry.rank), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.TopStart).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .9f)).padding(horizontal = 6.dp, vertical = 3.dp))
+                Text(CardEconomy.rank(entry.rank, entry.rarity), color = rarityColor(entry.rarity, entry.rank), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.TopStart).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .9f)).padding(horizontal = 6.dp, vertical = 3.dp))
                 ownedCard?.let { card ->
                     Text("×${card.copies}", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .9f)).padding(horizontal = 6.dp, vertical = 3.dp))
                 }
@@ -1291,38 +1292,13 @@ private fun CardCatalogItem(
         }
     }
 }
-private fun cardRank(card: GameCardDto): String = rankFrom(card.forgeRank ?: card.currentStage, card.rarity)
+private fun cardRank(card: GameCardDto): String = CardEconomy.rank(card.forgeRank ?: card.currentStage, card.rarity)
 
-private fun cardRank(card: GameCardCatalogItemDto): String = rankFrom(card.rank, card.rarity)
+private fun cardRank(card: GameCardCatalogItemDto): String = CardEconomy.rank(card.rank, card.rarity)
 
 /** Mirrors the site's card-economy.ts sell formula; the server response remains authoritative. */
-private fun cardSellPrice(card: GameCardDto, roulettePrice: Int): Int {
-    val sellBase = ((roulettePrice.takeIf { it > 0 } ?: 250) / 2 - 25).coerceAtLeast(0)
-    val rankIndex = listOf("F", "C", "B", "A", "S", "SSS").indexOf(cardRank(card)).coerceAtLeast(0)
-    return sellBase * (1..rankIndex).fold(1) { value, _ -> value * 3 }
-}
-
-private fun rankFrom(stageValue: String?, rarityValue: String): String = when (stageValue?.trim()?.uppercase()) {
-    "SSS", "SS", "R" -> "SSS"
-    "S", "A", "B" -> stageValue?.trim()?.uppercase().orEmpty()
-    "C", "D" -> "C"
-    "F", "E" -> "F"
-    else -> when (rarityValue.lowercase()) {
-        "legendary" -> "SSS"
-        "epic" -> "S"
-        "rare" -> "C"
-        else -> "F"
-    }
-}
-
-private fun nextForgeRank(rank: String): String? = when (rank) {
-    "F" -> "C"
-    "C" -> "B"
-    "B" -> "A"
-    "A" -> "S"
-    "S" -> "SSS"
-    else -> null
-}
+private fun cardSellPrice(card: GameCardDto, roulettePrice: Int): Int =
+    CardEconomy.sellPrice(roulettePrice, cardRank(card))
 
 private fun rarityColor(card: GameCardDto) = when (cardRank(card)) {
     "SSS" -> TomiloPremium
@@ -1330,7 +1306,7 @@ private fun rarityColor(card: GameCardDto) = when (cardRank(card)) {
     else -> TomiloBorder
 }
 
-private fun rarityColor(rarity: String, rank: String) = when (rankFrom(rank, rarity)) {
+private fun rarityColor(rarity: String, rank: String) = when (CardEconomy.rank(rank, rarity)) {
     "SSS" -> TomiloPremium
     "S", "A", "B" -> TomiloPrimary
     else -> TomiloBorder
