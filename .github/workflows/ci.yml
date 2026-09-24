@@ -53,6 +53,9 @@ jobs:
       - name: Run unit tests
         run: ./gradlew :app:testRustoreDebugUnitTest --no-daemon
 
+      - name: Run Android lint
+        run: ./gradlew :app:lintRustoreDebug --no-daemon
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
