@@ -58,7 +58,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -209,7 +208,6 @@ private fun NavTabItem(
     modifier: Modifier = Modifier,
 ) {
     val isSelected = selected
-    val fontScale = LocalConfiguration.current.fontScale
     val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     val contentColor by animateColorAsState(
         targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.70f),
@@ -302,7 +300,7 @@ private fun NavTabItem(
                 lineHeight = 14.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                 textAlign = TextAlign.Center,
-                maxLines = if (fontScale > 1.15f) 2 else 1,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
