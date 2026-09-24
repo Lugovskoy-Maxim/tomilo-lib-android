@@ -313,6 +313,7 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
         Column(
             modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(bottom = 110.dp),
         ) {
             SkeletonBox(
