@@ -5,6 +5,7 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 import kotlinx.serialization.json.Json
 import okhttp3.Cache
 import okhttp3.Dispatcher
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -139,7 +140,13 @@ object NetworkModule {
             chain.proceed(request)
         }
 
-        val logging = HttpLoggingInterceptor().apply {
+        val logging = HttpLoggingInterceptor { message ->
+            android.util.Log.d("OkHttp", redactSensitiveQueryParams(message))
+        }.apply {
+            redactHeader("Authorization")
+            redactHeader("Cookie")
+            redactHeader("Set-Cookie")
+            redactHeader("X-Api-Key")
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BASIC
             } else {
@@ -282,6 +289,47 @@ object NetworkModule {
         }.getOrNull()?.coerceAtLeast(0L)
     }
 
+    private fun redactSensitiveQueryParams(message: String): String =
+        URL_IN_LOG.replace(message) { match ->
+            val url = match.value.toHttpUrlOrNull() ?: return@replace match.value
+            var builder = url.newBuilder()
+            url.queryParameterNames.forEach { name ->
+                if (name.lowercase() in SENSITIVE_QUERY_PARAMS) {
+                    builder = builder.setQueryParameter(name, "[redacted]")
+                }
+            }
+            builder.build().toString()
+        }
+
     private const val MIN_RETRY_DELAY_MS = 250L
     private const val MAX_INLINE_RETRY_DELAY_MS = 15_000L
+    private val URL_IN_LOG = Regex("https?://[^\\s]+")
+    private val SENSITIVE_QUERY_PARAMS = setOf(
+        "access_token",
+        "accesstoken",
+        "apikey",
+        "api_key",
+        "auth",
+        "auth_key",
+        "auth_token",
+        "authorization",
+        "client_secret",
+        "clientsecret",
+        "code",
+        "email",
+        "key",
+        "password",
+        "phone",
+        "q",
+        "refresh_token",
+        "refreshtoken",
+        "search",
+        "secret",
+        "session",
+        "sig",
+        "signature",
+        "token",
+        "user_id",
+        "userid",
+    )
 }
