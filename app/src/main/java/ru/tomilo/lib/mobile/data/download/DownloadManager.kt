@@ -101,10 +101,11 @@ class DownloadManager(
             try {
                 executeBatch(request, onProgress)
                 if (batchGeneration != generation) return@withLock false
-                persistIncompleteChapters(request, _state.value)
+                val completedState = _state.value
+                persistIncompleteChapters(request, completedState)
                 pendingRequest = null
-                onProgress(_state.value)
-                true
+                onProgress(completedState)
+                !completedState.hasIncompleteChapters()
             } catch (cancelled: CancellationException) {
                 if (batchGeneration == generation) {
                     pendingRequest = queueStore.load()

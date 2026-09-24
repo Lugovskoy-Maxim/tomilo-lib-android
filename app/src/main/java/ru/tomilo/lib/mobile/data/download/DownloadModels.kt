@@ -93,8 +93,11 @@ data class BatchDownloadState(
                     append(it.stageLabel)
                 }
             }
-        }
+    }
 }
+
+internal fun BatchDownloadState.hasIncompleteChapters(): Boolean =
+    items.any { it.stage != DownloadStage.Completed }
 
 /** Пакет для фонового сервиса */
 @kotlinx.serialization.Serializable
