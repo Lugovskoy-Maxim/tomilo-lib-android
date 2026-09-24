@@ -246,7 +246,7 @@ private fun NavTabItem(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Box(contentAlignment = Alignment.TopEnd) {
                 Icon(
