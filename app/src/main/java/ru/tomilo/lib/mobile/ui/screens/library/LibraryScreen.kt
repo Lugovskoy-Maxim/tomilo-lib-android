@@ -25,6 +25,8 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
@@ -33,14 +35,17 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -83,13 +88,21 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private enum class ShelfTab(val label: String, val bookmarkCategory: String? = null) {
     Reading("Читаю", "reading"),
-    Planned("Планы", "planned"),
+    Planned("В планах", "planned"),
     Completed("Прочитано", "completed"),
     Favorites("Избранное", "favorites"),
     Dropped("Брошено", "dropped"),
     History("История"),
     Offline("Офлайн"),
 }
+
+private val BookmarkCategoryOptions = listOf(
+    "reading" to "Читаю",
+    "planned" to "В планах",
+    "completed" to "Прочитано",
+    "favorites" to "Избранное",
+    "dropped" to "Брошено",
+)
 
 @Composable
 private fun LibrarySummary(tab: ShelfTab, count: Int, isSearching: Boolean, bookmarkLabel: String? = null) {
@@ -174,6 +187,8 @@ fun LibraryScreen(
     var showGroupManager by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
     var newGroupName by remember { mutableStateOf("") }
+    var categoryPickerBookmark by remember { mutableStateOf<BookmarkEntryDto?>(null) }
+    var updatingBookmarkCategory by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var bookmarks by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
@@ -442,6 +457,13 @@ fun LibraryScreen(
                                     title = item.displayName(),
                                     cover = item.coverPath(),
                                     subtitle = bookmarkLabel,
+                                    secondaryActionIcon = Icons.Default.Edit,
+                                    secondaryActionDescription = "Изменить категорию",
+                                    onSecondaryAction = {
+                                        if (customGroup == null && tab.bookmarkCategory != null) {
+                                            categoryPickerBookmark = item
+                                        }
+                                    },
                                     onClick = {
                                         onOpenTitle(titleId, item.resolvedTitle()?.slug)
                                     },
@@ -590,5 +612,67 @@ fun LibraryScreen(
             },
             confirmButton = { TextButton(onClick = { showGroupManager = false }) { Text("Готово") } },
         )
+    }
+
+    categoryPickerBookmark?.let { bookmark ->
+        ModalBottomSheet(
+            onDismissRequest = { if (!updatingBookmarkCategory) categoryPickerBookmark = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = TomiloSurface,
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("Изменить категорию", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    bookmark.resolvedTitle()?.name ?: "Выберите, где хранить эту закладку",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(4.dp))
+                BookmarkCategoryOptions.forEach { (category, label) ->
+                    val selected = bookmark.category == category ||
+                        (bookmark.category.isNullOrBlank() && tab.bookmarkCategory == category)
+                    Surface(
+                        onClick = {
+                            if (!selected && !updatingBookmarkCategory) {
+                                val titleId = bookmark.resolvedTitleId()
+                                if (titleId.isBlank()) {
+                                    categoryPickerBookmark = null
+                                    scope.launch { snackbar.showSnackbar("Не удалось определить тайтл для изменения категории") }
+                                } else {
+                                    scope.launch {
+                                        updatingBookmarkCategory = true
+                                        socialRepository.updateBookmarkCategory(titleId, category)
+                                            .onSuccess {
+                                                bookmarks = bookmarks.filterNot { it.resolvedTitleId() == titleId }
+                                                categoryPickerBookmark = null
+                                                snackbar.showSnackbar("Перемещено в «$label»")
+                                            }
+                                            .onFailure {
+                                                categoryPickerBookmark = null
+                                                snackbar.showSnackbar(it.message ?: "Не удалось изменить категорию")
+                                            }
+                                        updatingBookmarkCategory = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !updatingBookmarkCategory,
+                        color = if (selected) TomiloPrimary.copy(alpha = 0.13f) else TomiloSurface2,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            Text(label, modifier = Modifier.weight(1f), fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+                            if (selected) Icon(Icons.Default.Check, contentDescription = "Текущая категория", tint = TomiloPrimary)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
