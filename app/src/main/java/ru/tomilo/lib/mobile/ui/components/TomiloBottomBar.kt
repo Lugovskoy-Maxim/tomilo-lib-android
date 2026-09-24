@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -202,6 +204,7 @@ private fun NavTabItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val isSelected = selected
     val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     val contentColor by animateColorAsState(
         targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.70f),
@@ -241,6 +244,7 @@ private fun NavTabItem(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
+            .semantics { this.selected = isSelected }
             .padding(horizontal = 2.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -251,7 +255,7 @@ private fun NavTabItem(
             Box(contentAlignment = Alignment.TopEnd) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = label,
+                    contentDescription = null,
                     tint = contentColor,
                     modifier = Modifier
                         .size(if (selected) 26.dp else 24.dp)
