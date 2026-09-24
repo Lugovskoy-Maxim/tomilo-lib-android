@@ -738,16 +738,14 @@ private fun TradeTab(
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (wantedCardIds.isNotEmpty()) {
                     FilterChip(
                         selected = showWantedOnly,
                         onClick = { showWantedOnly = !showWantedOnly },
-                        enabled = wantedCardIds.isNotEmpty(),
-                        label = { Text(if (showWantedOnly) "По закладкам · ${wantedCardIds.size}" else "Все обмены") },
+                        label = { Text(if (showWantedOnly) "По закладкам" else "Все обмены") },
                     )
-                    if (wantedCardIds.isEmpty()) {
-                        Text("Добавьте «Хочу» в каталоге, чтобы фильтровать обмены.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                    }
+                } else {
+                    Text("Закладки ставятся кнопкой «Хочу» в альбоме.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedTextField(
                     value = tradeQuery,
