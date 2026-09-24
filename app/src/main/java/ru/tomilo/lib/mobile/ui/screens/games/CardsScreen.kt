@@ -1097,7 +1097,8 @@ private fun CardTradeCreateDialog(
                             value = note,
                             onValueChange = { note = it.take(80) },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Комментарий (необязательно)") },
+                            label = { Text("Подпись (необязательно)") },
+                            placeholder = { Text("Подпись, например: меняю на Лукизм") },
                             supportingText = { Text("${note.length}/80") },
                             maxLines = 2,
                         )
