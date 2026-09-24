@@ -57,7 +57,7 @@ class GamesRepository(private val api: TomiloApi) {
     suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatchingCancellable {
         val response = api.gameCardDecks()
         if (!response.success) error(response.message ?: "Не удалось загрузить паки")
-        response.data.orEmpty()
+        response.data?.decks.orEmpty()
     }
 
     suspend fun cardCatalog(): Result<List<GameCardCatalogItemDto>> = runCatchingCancellable {

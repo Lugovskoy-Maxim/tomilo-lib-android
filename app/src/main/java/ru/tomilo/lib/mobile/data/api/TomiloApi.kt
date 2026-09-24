@@ -87,7 +87,7 @@ interface TomiloApi {
     suspend fun completePillMatchLevel(@Body body: PillMatchCompleteRequest): ApiResponse<PillMatchCompleteDto>
 
     @GET("shop/decks")
-    suspend fun gameCardDecks(): ApiResponse<List<GameCardDeckDto>>
+    suspend fun gameCardDecks(): ApiResponse<GameCardDecksDto>
 
     @GET("shop/cards/catalog")
     suspend fun gameCardCatalog(
