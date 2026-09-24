@@ -48,6 +48,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.TokenBridge
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.ConversationPreviewDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
@@ -59,6 +60,7 @@ import ru.tomilo.lib.mobile.ui.components.ScreenPadding
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.components.PageIntro
 import ru.tomilo.lib.mobile.ui.components.StatusPill
+import ru.tomilo.lib.mobile.ui.components.rememberScreenStarted
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -91,6 +93,7 @@ fun ChatsScreen(
     var supportBusy by remember { mutableStateOf(false) }
     var tab by remember { mutableStateOf(ChatsTab.Chats) }
     val scope = rememberCoroutineScope()
+    val screenStarted = rememberScreenStarted()
 
     var authReady by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -104,8 +107,8 @@ fun ChatsScreen(
 
     // Роль в локальной сессии могла измениться после входа. Перед открытием
     // админского inbox обновляем профиль, чтобы вкладка поддержки не пропадала.
-    LaunchedEffect(token) {
-        if (!token.isNullOrBlank()) authRepository.refreshProfile()
+    LaunchedEffect(token, screenStarted) {
+        if (screenStarted && !token.isNullOrBlank()) authRepository.refreshProfile()
     }
 
     // Regular users: never stay on Support tab
@@ -113,8 +116,8 @@ fun ChatsScreen(
         if (!isAdmin && tab == ChatsTab.Support) tab = ChatsTab.Chats
     }
 
-    LaunchedEffect(user?.stableId(), token, reload, authReady, isAdmin) {
-        if (!authReady) return@LaunchedEffect
+    LaunchedEffect(user?.stableId(), token, reload, authReady, isAdmin, screenStarted) {
+        if (!authReady || !screenStarted) return@LaunchedEffect
         if (user == null || token.isNullOrBlank()) {
             chatItems = emptyList()
             supportItems = emptyList()
@@ -133,7 +136,7 @@ fun ChatsScreen(
                 .onSuccess { list ->
                     chatItems = if (isAdmin) list.filter { it.type != "support" } else list
                 }
-                .onFailure { chatsError = it.message ?: "Не удалось загрузить чаты" }
+                .onFailure { chatsError = it.toUserFacingError("Не удалось загрузить чаты.") }
             chatsLoading = false
         }
 
@@ -148,7 +151,7 @@ fun ChatsScreen(
             supportError = null
             socialRepository.supportInbox()
                 .onSuccess { supportItems = it }
-                .onFailure { supportError = it.message ?: "Не удалось загрузить обращения" }
+                .onFailure { supportError = it.toUserFacingError("Не удалось загрузить обращения.") }
             supportLoading = false
         }
 
