@@ -138,6 +138,39 @@ private enum class CardCatalogRank(val rarity: String?, val label: String) {
     All(null, "Все"), Common("common", "F"), Rare("rare", "C"), Epic("epic", "B"), Legendary("legendary", "S"),
 }
 
+private data class CardTitleOffer(
+    val key: String,
+    val title: String,
+    val imageUrl: String?,
+    val poolSize: Int?,
+    val roulette: GameCardDeckDto? = null,
+    val pack: GameCardDeckDto? = null,
+)
+
+private fun groupCardTitleOffers(decks: List<GameCardDeckDto>): List<CardTitleOffer> {
+    val grouped = linkedMapOf<String, CardTitleOffer>()
+    decks.forEach { deck ->
+        val id = deck.stableId()
+        val titleKey = deck.titleId?.takeIf(String::isNotBlank) ?: "deck:$id"
+        val title = deck.titleName.ifBlank { deck.name }
+        val current = grouped[titleKey] ?: CardTitleOffer(
+            key = titleKey,
+            title = title,
+            imageUrl = deck.imageUrl,
+            poolSize = deck.poolSize,
+        )
+        val offer = current.copy(
+            imageUrl = current.imageUrl?.takeIf(String::isNotBlank) ?: deck.imageUrl,
+            poolSize = listOfNotNull(current.poolSize, deck.poolSize).maxOrNull(),
+        )
+        grouped[titleKey] = when (deck.kind?.lowercase() ?: if (deck.cardsPerOpen == 1) "roulette" else "pack") {
+            "roulette" -> offer.copy(roulette = deck)
+            else -> offer.copy(pack = deck)
+        }
+    }
+    return grouped.values.toList()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardsScreen(
@@ -570,6 +603,11 @@ private fun ShopTab(
     onPull: () -> Unit,
     onOpenDeck: (GameCardDeckDto) -> Unit,
 ) {
+    var titleQuery by remember { mutableStateOf("") }
+    val titleOffers = remember(decks, titleQuery) {
+        val normalizedQuery = titleQuery.trim().lowercase()
+        groupCardTitleOffers(decks).filter { normalizedQuery.isBlank() || it.title.lowercase().contains(normalizedQuery) }
+    }
     if (loading) {
         CardShopSkeleton(Modifier.fillMaxSize())
         return
@@ -599,10 +637,9 @@ private fun ShopTab(
                     Text("Покупка без пака · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     Button(onClick = onPull, enabled = action == null, modifier = Modifier.fillMaxWidth()) {
                         if (action == "pull") {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
                             Text("Крутим…")
-                            }
                         } else Text("Крутить рулетку")
                     }
                 }
@@ -611,28 +648,68 @@ private fun ShopTab(
         if (decks.isEmpty() && error == null) item(span = { GridItemSpan(maxLineSpan) }) {
             EmptyState("Паков по тайтлам пока нет", "Случайная карта выше всё равно доступна.", icon = Icons.Default.Collections)
         }
-        items(decks, key = { it.stableId() }) { deck ->
-            val id = deck.stableId()
-            val pending = action == "deck:$id"
+        if (decks.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+            OutlinedTextField(
+                value = titleQuery,
+                onValueChange = { titleQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                placeholder = { Text("Найти тайтл") },
+                shape = RoundedCornerShape(16.dp),
+            )
+        }
+        if (decks.isNotEmpty() && titleOffers.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+            EmptyState("Тайтлы не найдены", "Измените запрос и попробуйте снова.", icon = Icons.Default.Collections)
+        }
+        items(titleOffers, key = { it.key }) { offer ->
             Surface(
-                onClick = { if (deck.isAvailable && !pending) onOpenDeck(deck) },
-                enabled = deck.isAvailable && action == null,
                 color = TomiloSurface,
                 shape = RoundedCornerShape(18.dp),
-                border = BorderStroke(1.dp, if (deck.isAvailable) TomiloPremium.copy(alpha = .6f) else TomiloBorder),
+                border = BorderStroke(1.dp, TomiloPremium.copy(alpha = .6f)),
             ) {
-                Column(Modifier.padding(10.dp)) {
-                    AsyncImage(MediaUrl.resolve(deck.imageUrl), deck.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(12.dp)))
-                    Text(deck.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
-                    Text(if (deck.isAvailable) "${deck.price} монет · ${deck.cardsPerOpen} карт" else "Сейчас недоступен", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                    if (pending) {
-                        Row(
-                            Modifier.padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AsyncImage(
+                        MediaUrl.resolve(offer.imageUrl),
+                        offer.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(12.dp)),
+                    )
+                    Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("В пуле ${offer.poolSize?.toString() ?: "?"} карт", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    offer.roulette?.let { deck ->
+                        val id = deck.stableId()
+                        val pending = action == "deck:$id"
+                        val available = deck.isAvailable && (deck.poolSize ?: 0) > 0
+                        Button(
+                            onClick = { onOpenDeck(deck) },
+                            enabled = available && action == null,
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Text("Открываем…", color = TomiloMuted, style = MaterialTheme.typography.labelMedium)
+                            if (pending) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Открываем…")
+                            } else {
+                                Text(if (available) "Рулетка · ${deck.price} монет" else if (deck.isAvailable) "Нет карт в пуле" else "Сейчас недоступно")
+                            }
+                        }
+                    }
+                    offer.pack?.let { deck ->
+                        val id = deck.stableId()
+                        val pending = action == "deck:$id"
+                        val available = deck.isAvailable && (deck.poolSize ?: 0) > 0
+                        Button(
+                            onClick = { onOpenDeck(deck) },
+                            enabled = available && action == null,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            if (pending) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Открываем…")
+                            } else {
+                                Text(if (available) "Пак ${deck.cardsPerOpen} · ${deck.price} монет" else if (deck.isAvailable) "Нет карт в пуле" else "Сейчас недоступно")
+                            }
                         }
                     }
                 }

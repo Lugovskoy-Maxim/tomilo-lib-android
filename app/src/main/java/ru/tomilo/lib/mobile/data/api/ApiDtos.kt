@@ -951,6 +951,9 @@ data class GameCardDeckDto(
     val isAvailable: Boolean = true,
     val kind: String? = null,
     val isTitleDeck: Boolean = false,
+    val titleId: String? = null,
+    val titleName: String = "",
+    val poolSize: Int? = null,
 ) { fun stableId(): String = id.ifBlank { _id.orEmpty() } }
 
 @Serializable data class GameCardTradeDto(
