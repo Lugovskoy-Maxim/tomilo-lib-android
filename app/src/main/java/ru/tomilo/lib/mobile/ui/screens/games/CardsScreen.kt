@@ -28,6 +28,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -316,6 +317,7 @@ fun CardsScreen(
                     onRetry = { scope.launch { refresh(showLoading = true) } },
                     action = action,
                     onPull = {
+                        shopRewardCards = emptyList()
                         launchAction(
                             key = "pull",
                             success = "Случайная карточка получена. Альбом обновлён.",
@@ -327,6 +329,7 @@ fun CardsScreen(
                         )
                     },
                     onOpenDeck = { deck ->
+                        shopRewardCards = emptyList()
                         launchAction(
                             key = "deck:${deck.stableId()}",
                             success = "Пак «${deck.name}» открыт. Альбом обновлён.",
@@ -552,7 +555,7 @@ private fun ShopTab(
                         if (action == "pull") {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                Text("Покупаем…")
+                            Text("Крутим…")
                             }
                         } else Text("Крутить рулетку")
                     }
@@ -599,6 +602,7 @@ private fun CardRewardReveal(cards: List<GameCardDto>) {
         enter = if (ValueAnimator.areAnimatorsEnabled()) {
             fadeIn(tween(220)) + scaleIn(initialScale = .9f, animationSpec = tween(320))
         } else fadeIn(tween(0)),
+        exit = if (ValueAnimator.areAnimatorsEnabled()) fadeOut(tween(160)) else fadeOut(tween(0)),
     ) {
         Surface(
             color = TomiloSurface,
@@ -613,7 +617,7 @@ private fun CardRewardReveal(cards: List<GameCardDto>) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(cards, key = { it.id.ifBlank { it.name } }) { card ->
+                    itemsIndexed(cards, key = { index, card -> "${card.id.ifBlank { card.name }}:$index" }) { _, card ->
                         Column(Modifier.width(100.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             AsyncImage(
                                 MediaUrl.resolve(card.stageImageUrl?.takeIf(String::isNotBlank) ?: card.imageUrl),
