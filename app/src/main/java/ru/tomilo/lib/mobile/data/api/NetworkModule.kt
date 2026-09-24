@@ -14,6 +14,8 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import ru.tomilo.lib.mobile.BuildConfig
 import java.io.File
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
@@ -61,12 +63,13 @@ object NetworkModule {
             val maxAttempts = if (original.method == "GET") 3 else 1
             var lastFailure: java.io.IOException? = null
             var lastResponse: Response? = null
+            var delayBeforeNextAttemptMs = 0L
 
             for (attempt in 0 until maxAttempts) {
                 if (chain.call().isCanceled()) throw java.io.IOException("Canceled")
                 if (attempt > 0) {
                     try {
-                        Thread.sleep(300L * attempt)
+                        Thread.sleep(delayBeforeNextAttemptMs.takeIf { it > 0 } ?: (300L * attempt))
                     } catch (_: InterruptedException) {
                         Thread.currentThread().interrupt()
                         throw java.io.InterruptedIOException("Request interrupted")
@@ -83,11 +86,18 @@ object NetworkModule {
                     val retryable = response.code in setOf(408, 425, 429, 500, 502, 503, 504) &&
                         isNetworkAvailable(context) && !chain.call().isCanceled()
                     if (!retryable || attempt == maxAttempts - 1) return@Interceptor response
+                    val retryAfterMs = retryAfterDelayMs(response)
+                    if (retryAfterMs != null && retryAfterMs > MAX_INLINE_RETRY_DELAY_MS) {
+                        return@Interceptor response
+                    }
+                    delayBeforeNextAttemptMs = retryAfterMs?.coerceAtLeast(MIN_RETRY_DELAY_MS)
+                        ?: 300L * (attempt + 1)
                     response.close()
                     lastResponse = response
                 } catch (failure: java.io.IOException) {
                     lastFailure = failure
-                    if (attempt == maxAttempts - 1) throw failure
+                    if (attempt == maxAttempts - 1 || !isNetworkAvailable(context)) throw failure
+                    delayBeforeNextAttemptMs = 300L * (attempt + 1)
                 }
             }
             lastResponse ?: throw lastFailure ?: java.io.IOException("API request failed")
@@ -255,4 +265,23 @@ object NetworkModule {
             true
         }
     }
+
+    /** Parse both Retry-After forms (delta seconds and RFC 1123 HTTP date). */
+    private fun retryAfterDelayMs(response: Response): Long? {
+        val value = response.header("Retry-After")?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        value.toLongOrNull()?.let { seconds ->
+            if (seconds < 0) return null
+            if (seconds > MAX_INLINE_RETRY_DELAY_MS / 1_000L) {
+                return MAX_INLINE_RETRY_DELAY_MS + 1L
+            }
+            return seconds * 1_000L
+        }
+        return runCatching {
+            ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME)
+                .toInstant().toEpochMilli() - System.currentTimeMillis()
+        }.getOrNull()?.coerceAtLeast(0L)
+    }
+
+    private const val MIN_RETRY_DELAY_MS = 250L
+    private const val MAX_INLINE_RETRY_DELAY_MS = 15_000L
 }
