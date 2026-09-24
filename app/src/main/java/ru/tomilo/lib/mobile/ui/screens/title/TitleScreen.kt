@@ -1257,24 +1257,26 @@ private fun TitleHero(
                 Button(
                     onClick = onRead,
                     enabled = continueChapterId != null,
-                    modifier = Modifier.weight(1f).height(38.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     shape = RoundedCornerShape(19.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimary),
                 ) {
                     Text(
                         if (hasStarted) "Продолжить" else "Читать",
                         fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        textAlign = TextAlign.Center,
                     )
                 }
                 Surface(
                     onClick = onBookmark,
-                    modifier = Modifier.weight(1f).height(38.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     shape = RoundedCornerShape(19.dp),
                     color = Color(0xCC17181C),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                 ) {
                     Row(
-                        Modifier.fillMaxSize(),
+                        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center,
                     ) {
@@ -1287,9 +1289,12 @@ private fun TitleHero(
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (bookmarked) "В закладках" else "Закладки",
+                            modifier = Modifier.weight(1f),
                             color = Color.White,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
+                            maxLines = 2,
+                            textAlign = TextAlign.Center,
                         )
                     }
                 }
