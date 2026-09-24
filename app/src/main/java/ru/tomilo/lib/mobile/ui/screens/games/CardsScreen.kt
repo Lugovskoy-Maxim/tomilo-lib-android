@@ -1489,7 +1489,7 @@ private fun CardCatalogTab(
                 if (collectionError != null) InlineLoadError(collectionError, onRetryCollection)
             }
         }
-        if (entries.isEmpty()) {
+        if (entries.isEmpty() && catalogError == null) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyState(
                     title = if (query.isBlank()) "Карточек пока нет" else "Ничего не найдено",
