@@ -343,50 +343,73 @@ fun ErrorBox(
     onRetry: (() -> Unit)? = null,
 ) {
     val friendlyMessage = remember(message) { userFacingError(message) }
-    val compactHeight = LocalConfiguration.current.screenHeightDp < 640
-    val illustrationWidth = if (compactHeight) 92.dp else 132.dp
-    val illustrationHeight = if (compactHeight) 108.dp else 154.dp
-    Box(
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = if (compactHeight) 8.dp else 20.dp)
-            .verticalScroll(rememberScrollState()),
-        contentAlignment = Alignment.Center,
-    ) {
-        Surface(
-            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
-            color = TomiloSurface,
-            shape = RoundedCornerShape(26.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.18f)),
-            shadowElevation = 12.dp,
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val compactHeight = maxHeight < 520.dp
+        val veryCompact = maxHeight < 340.dp
+        val illustrationWidth = when {
+            veryCompact -> 56.dp
+            compactHeight -> 92.dp
+            else -> 132.dp
+        }
+        val illustrationHeight = when {
+            veryCompact -> 66.dp
+            compactHeight -> 108.dp
+            else -> 154.dp
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = if (veryCompact) 12.dp else 20.dp, vertical = if (compactHeight) 8.dp else 20.dp)
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.Center,
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = if (compactHeight) 16.dp else 24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
+            Surface(
+                modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                color = TomiloSurface,
+                shape = RoundedCornerShape(26.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.18f)),
+                shadowElevation = 12.dp,
             ) {
-            Image(
-                painter = painterResource(R.drawable.illust_error_mascot),
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
-                modifier = Modifier.size(width = illustrationWidth, height = illustrationHeight),
-            )
-            Spacer(Modifier.height(8.dp))
-            Text("Что-то пошло не так", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(6.dp))
-            Text(friendlyMessage, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
-            if (onRetry != null) {
-                Spacer(Modifier.height(18.dp))
-                Button(
-                    onClick = onRetry,
-                    modifier = Modifier.heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(22.dp),
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = if (veryCompact) 14.dp else 24.dp, vertical = if (compactHeight) 14.dp else 24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Попробовать снова")
+                    Image(
+                        painter = painterResource(R.drawable.illust_error_mascot),
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        modifier = Modifier.size(width = illustrationWidth, height = illustrationHeight),
+                    )
+                    Spacer(Modifier.height(if (veryCompact) 4.dp else 8.dp))
+                    Text(
+                        "Что-то пошло не так",
+                        style = if (compactHeight) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        friendlyMessage,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        style = if (compactHeight) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyLarge,
+                    )
+                    if (onRetry != null) {
+                        Spacer(Modifier.height(if (veryCompact) 8.dp else 18.dp))
+                        Button(
+                            onClick = onRetry,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(22.dp),
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Попробовать снова")
+                        }
+                    }
                 }
-            }
             }
         }
     }
