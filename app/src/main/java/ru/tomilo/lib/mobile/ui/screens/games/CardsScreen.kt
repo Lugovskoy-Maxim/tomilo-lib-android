@@ -88,6 +88,8 @@ import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.CardEconomy
 import ru.tomilo.lib.mobile.core.CardForgeSelection
@@ -173,6 +175,7 @@ fun CardsScreen(
     var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val refreshMutex = remember { Mutex() }
 
     LaunchedEffect(Unit) {
         wantedCardIds = cardWantPrefs.cardIds()
@@ -183,40 +186,48 @@ fun CardsScreen(
     }
 
     suspend fun refresh(showLoading: Boolean = false) {
-        if (showLoading) loading = true else refreshing = true
-        error = null
-        val (result, decksResult, tradesResult) = supervisorScope {
-            val cardsRequest = async { gamesRepository.cards() }
-            val decksRequest = async { gamesRepository.cardDecks() }
-            val tradesRequest = async { gamesRepository.cardTrades() }
-            Triple(cardsRequest.await(), decksRequest.await(), tradesRequest.await())
-        }
-        result.onSuccess { response ->
-            cards = response.cards
-            val availableCopies = response.cards.associate { it.id.trim() to it.copies.coerceAtLeast(0) }
-            val reconciledSelection = CardForgeSelection.reconcile(forgeSelection.toList(), availableCopies)
-            if (reconciledSelection != forgeSelection.toList()) {
-                forgeSelection.clear()
-                forgeSelection.addAll(reconciledSelection)
-                forgeTargetId = null
+        refreshMutex.withLock {
+            if (showLoading) loading = true else refreshing = true
+            error = null
+            try {
+                val (result, decksResult, tradesResult) = supervisorScope {
+                    val cardsRequest = async { gamesRepository.cards() }
+                    val decksRequest = async { gamesRepository.cardDecks() }
+                    val tradesRequest = async { gamesRepository.cardTrades() }
+                    Triple(cardsRequest.await(), decksRequest.await(), tradesRequest.await())
+                }
+                result.onSuccess { response ->
+                    cards = response.cards
+                    val availableCopies = response.cards.associate { it.id.trim() to it.copies.coerceAtLeast(0) }
+                    val reconciledSelection = CardForgeSelection.reconcile(forgeSelection.toList(), availableCopies)
+                    if (reconciledSelection != forgeSelection.toList()) {
+                        forgeSelection.clear()
+                        forgeSelection.addAll(reconciledSelection)
+                        forgeTargetId = null
+                    }
+                }
+                    .onFailure { error = it.message ?: "Не удалось загрузить коллекцию карточек" }
+                decksResult.onSuccess { decks = it; deckError = null }
+                    .onFailure { deckError = it.message ?: "Не удалось загрузить магазин карточек" }
+                tradesResult.onSuccess { trades = it.offers; tradeError = null }
+                    .onFailure { tradeError = it.message ?: "Не удалось загрузить обмены" }
+            } finally {
+                loading = false
+                refreshing = false
             }
         }
-            .onFailure { error = it.message ?: "Не удалось загрузить коллекцию карточек" }
-        decksResult.onSuccess { decks = it; deckError = null }
-            .onFailure { deckError = it.message ?: "Не удалось загрузить магазин карточек" }
-        tradesResult.onSuccess { trades = it.offers; tradeError = null }
-            .onFailure { tradeError = it.message ?: "Не удалось загрузить обмены" }
-        loading = false
-        refreshing = false
     }
 
     suspend fun loadCardCatalog(force: Boolean = false) {
         if (catalogLoading || (!force && catalog.isNotEmpty())) return
         catalogLoading = true
         catalogError = null
-        gamesRepository.cardCatalog().onSuccess { catalog = it }
-            .onFailure { catalogError = it.message ?: "Не удалось загрузить каталог карточек" }
-        catalogLoading = false
+        try {
+            gamesRepository.cardCatalog().onSuccess { catalog = it }
+                .onFailure { catalogError = it.message ?: "Не удалось загрузить каталог карточек" }
+        } finally {
+            catalogLoading = false
+        }
     }
 
     fun loadTradeCatalog() {
@@ -224,10 +235,13 @@ fun CardsScreen(
         scope.launch {
             tradeCatalogLoading = true
             tradeCatalogError = null
-            gamesRepository.cardTradeCatalog()
-                .onSuccess { tradeCatalog = it.cards }
-                .onFailure { tradeCatalogError = it.message ?: "Не удалось загрузить каталог для обмена" }
-            tradeCatalogLoading = false
+            try {
+                gamesRepository.cardTradeCatalog()
+                    .onSuccess { tradeCatalog = it.cards }
+                    .onFailure { tradeCatalogError = it.message ?: "Не удалось загрузить каталог для обмена" }
+            } finally {
+                tradeCatalogLoading = false
+            }
         }
     }
 
