@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
@@ -39,6 +40,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Button
@@ -74,6 +77,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
@@ -87,6 +91,7 @@ import ru.tomilo.lib.mobile.data.api.GameCardDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradeCreateRequest
+import ru.tomilo.lib.mobile.data.local.CardWantPrefs
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.components.CardsGridSkeleton
@@ -113,6 +118,10 @@ private enum class ForgeMode(val count: Int, val label: String) {
     Random(3, "Случайная · 3"), Choose(6, "Выбор · 6"),
 }
 
+private enum class CardCatalogSort(val label: String) {
+    Rank("По рангу"), Name("По имени"),
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CardsScreen(
@@ -132,6 +141,10 @@ fun CardsScreen(
     var catalog by remember { mutableStateOf<List<GameCardCatalogItemDto>>(emptyList()) }
     var catalogLoading by remember { mutableStateOf(false) }
     var catalogError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val cardWantPrefs = remember(context) { CardWantPrefs(context) }
+    var wantedCardIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var wantsLoaded by remember { mutableStateOf(false) }
     val forgeSelection = remember { mutableStateListOf<String>() }
     var forgeTargetId by remember { mutableStateOf<String?>(null) }
     var forgedCard by remember { mutableStateOf<GameCardDto?>(null) }
@@ -147,6 +160,14 @@ fun CardsScreen(
     var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        wantedCardIds = cardWantPrefs.cardIds()
+        wantsLoaded = true
+    }
+    LaunchedEffect(wantedCardIds, wantsLoaded) {
+        if (wantsLoaded) cardWantPrefs.saveCardIds(wantedCardIds)
+    }
 
     suspend fun refresh(showLoading: Boolean = false) {
         if (showLoading) loading = true else refreshing = true
@@ -167,6 +188,15 @@ fun CardsScreen(
         refreshing = false
     }
 
+    suspend fun loadCardCatalog(force: Boolean = false) {
+        if (catalogLoading || (!force && catalog.isNotEmpty())) return
+        catalogLoading = true
+        catalogError = null
+        gamesRepository.cardCatalog().onSuccess { catalog = it }
+            .onFailure { catalogError = it.message ?: "Не удалось загрузить каталог карточек" }
+        catalogLoading = false
+    }
+
     fun loadTradeCatalog() {
         if (tradeCatalogLoading) return
         scope.launch {
@@ -181,13 +211,9 @@ fun CardsScreen(
 
     LaunchedEffect(Unit) { refresh(showLoading = true) }
     LaunchedEffect(notice) { notice?.let { snackbar.showSnackbar(it); notice = null } }
-    LaunchedEffect(tab == CardTab.Forge && forgeMode == ForgeMode.Choose) {
-        if (tab == CardTab.Forge && forgeMode == ForgeMode.Choose) {
-            catalogLoading = true
-            catalogError = null
-            gamesRepository.cardCatalog().onSuccess { catalog = it }
-                .onFailure { catalogError = it.message ?: "Не удалось загрузить каталог карточек" }
-            catalogLoading = false
+    LaunchedEffect(tab, forgeMode) {
+        if (tab == CardTab.Album || tab == CardTab.Forge && forgeMode == ForgeMode.Choose) {
+            loadCardCatalog()
         }
     }
 
@@ -267,11 +293,12 @@ fun CardsScreen(
                 label = "cardTabContent",
             ) { currentTab ->
                 when {
-                    loading && currentTab == CardTab.Album -> CardsGridSkeleton(Modifier.fillMaxSize())
-                    currentTab == CardTab.Album && error != null && cards.isEmpty() -> ErrorBox(
-                        message = error ?: "Не удалось загрузить коллекцию карточек.",
+                    currentTab == CardTab.Album && catalogLoading && catalog.isEmpty() && cards.isEmpty() -> CardsGridSkeleton(Modifier.fillMaxSize())
+                    currentTab == CardTab.Album && loading && cards.isEmpty() && catalog.isNotEmpty() -> CardsGridSkeleton(Modifier.fillMaxSize())
+                    currentTab == CardTab.Album && catalogError != null && catalog.isEmpty() && cards.isEmpty() -> ErrorBox(
+                        message = catalogError ?: "Не удалось загрузить каталог карточек.",
                         modifier = Modifier.fillMaxSize(),
-                        onRetry = { scope.launch { refresh(showLoading = true) } },
+                        onRetry = { scope.launch { loadCardCatalog(force = true) } },
                     )
                     currentTab == CardTab.Shop -> ShopTab(
                     decks = decks,
@@ -309,6 +336,7 @@ fun CardsScreen(
                     currentTab == CardTab.Trade -> TradeTab(
                     trades = trades,
                     cards = cards,
+                    wantedCardIds = wantedCardIds,
                     loading = loading && trades.isEmpty(),
                     action = action,
                     error = tradeError,
@@ -359,15 +387,7 @@ fun CardsScreen(
                     roulettePrice = decks.firstOrNull { it.kind == "roulette" }?.price ?: 250,
                     catalogLoading = catalogLoading,
                     catalogError = catalogError,
-                    onRetryCatalog = {
-                        scope.launch {
-                            catalogLoading = true
-                            catalogError = null
-                            gamesRepository.cardCatalog().onSuccess { catalog = it }
-                                .onFailure { catalogError = it.message ?: "Не удалось загрузить каталог карточек" }
-                            catalogLoading = false
-                        }
-                    },
+                    onRetryCatalog = { scope.launch { loadCardCatalog(force = true) } },
                     selectedTargetId = forgeTargetId,
                     onSelectTarget = { forgeTargetId = it },
                     onMode = { mode ->
@@ -424,14 +444,21 @@ fun CardsScreen(
                     },
                     resultCard = forgedCard,
                     )
-                    currentTab == CardTab.Album && cards.isEmpty() -> EmptyState(
-                    title = "Альбом пока пуст",
-                    message = "Ищите карточки в наградах, наборах и во время чтения.",
-                    icon = Icons.Default.Collections,
-                    actionLabel = "Предложить карточку",
-                    onAction = onOpenSubmit,
+                    currentTab == CardTab.Album -> CardCatalogTab(
+                        catalog = catalog,
+                        ownedCards = cards,
+                        wantedCardIds = wantedCardIds,
+                        catalogError = catalogError,
+                        collectionError = error,
+                        action = action,
+                        roulettePrice = decks.firstOrNull { it.kind == "roulette" }?.price ?: 250,
+                        onRetryCatalog = { scope.launch { loadCardCatalog(force = true) } },
+                        onRetryCollection = { scope.launch { refresh(showLoading = true) } },
+                        onWant = { id ->
+                            wantedCardIds = if (id in wantedCardIds) wantedCardIds - id else wantedCardIds + id
+                        },
+                        onSell = { card -> cardToSell = card },
                     )
-                    currentTab == CardTab.Album -> AlbumTab(cards)
                 }
             }
         }
@@ -627,6 +654,7 @@ private fun rewardNotice(cards: List<GameCardDto>): String? = when (cards.size) 
 private fun TradeTab(
     trades: List<GameCardTradeDto>,
     cards: List<GameCardDto>,
+    wantedCardIds: Set<String>,
     loading: Boolean,
     action: String?,
     error: String?,
@@ -641,6 +669,22 @@ private fun TradeTab(
     onCancel: (GameCardTradeDto) -> Unit,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showWantedOnly by remember { mutableStateOf(true) }
+    var tradeQuery by remember { mutableStateOf("") }
+    val visibleTrades = remember(trades, wantedCardIds, showWantedOnly, tradeQuery) {
+        val query = tradeQuery.trim().lowercase()
+        trades.filter { trade ->
+            val matchesWants = !showWantedOnly || wantedCardIds.isEmpty() ||
+                trade.offerCardId in wantedCardIds || trade.wantCardId in wantedCardIds
+            val matchesQuery = query.isBlank() || listOfNotNull(
+                trade.fromUsername,
+                trade.note,
+                trade.offerCard.name,
+                trade.wantCard.name,
+            ).any { it.lowercase().contains(query) }
+            matchesWants && matchesQuery
+        }
+    }
     if (loading) {
         CardTradesSkeleton(Modifier.fillMaxSize())
         return
@@ -662,19 +706,46 @@ private fun TradeTab(
                 ) { Text("Предложить обмен") }
             }
         }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = showWantedOnly,
+                        onClick = { showWantedOnly = !showWantedOnly },
+                        enabled = wantedCardIds.isNotEmpty(),
+                        label = { Text(if (showWantedOnly) "По закладкам · ${wantedCardIds.size}" else "Все обмены") },
+                    )
+                    if (wantedCardIds.isEmpty()) {
+                        Text("Добавьте «Хочу» в каталоге, чтобы фильтровать обмены.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                OutlinedTextField(
+                    value = tradeQuery,
+                    onValueChange = { tradeQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Поиск по игроку или карте") },
+                    shape = RoundedCornerShape(16.dp),
+                )
+            }
+        }
         if (error != null) item { InlineLoadError(error, onRetry) }
-        if (trades.isEmpty()) item {
+        if (visibleTrades.isEmpty()) item {
             if (error == null) {
                 EmptyState(
-                    title = "Нет открытых обменов",
-                    message = "Выставите предложение или загляните позже — здесь появятся карты других игроков.",
+                    title = if (trades.isEmpty()) "Нет открытых обменов" else "Обмены не найдены",
+                    message = when {
+                        trades.isEmpty() -> "Выставите предложение или загляните позже — здесь появятся карты других игроков."
+                        tradeQuery.isNotBlank() -> "Измените запрос и попробуйте снова."
+                        wantedCardIds.isNotEmpty() && showWantedOnly -> "По карточкам из закладок открытых обменов пока нет."
+                        else -> "Попробуйте изменить фильтр."
+                    },
                     modifier = Modifier.fillMaxWidth().height(260.dp),
                     icon = Icons.Default.Collections,
                 )
             }
         }
-        items(trades.size, key = { trades[it].id }) { index ->
-            val trade = trades[index]
+        items(visibleTrades, key = { it.id }) { trade ->
             Surface(color = TomiloSurface, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, TomiloBorder)) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(if (trade.mine) "Ваше предложение" else trade.fromUsername, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -931,7 +1002,10 @@ private fun ForgeTab(
             Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Горн", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("3 карточки одного ранга дадут случайную карту следующего ранга. Для выбора результата нужны 6 карточек.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     ForgeMode.entries.forEach { option -> FilterChip(selected = mode == option, onClick = { onMode(option) }, label = { Text(option.label) }) }
                 }
                 Text("Выбрано: ${selectedIds.size}/${mode.count}" + (selectedRank?.let { " · ранг $it" } ?: ""), color = if (sameRank) TomiloMuted else MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
@@ -1047,39 +1121,173 @@ private fun ForgeTab(
 }
 
 @Composable
-private fun AlbumTab(cards: List<GameCardDto>) {
-    val copies = cards.sumOf { it.copies.coerceAtLeast(0) }
+private fun CardCatalogTab(
+    catalog: List<GameCardCatalogItemDto>,
+    ownedCards: List<GameCardDto>,
+    wantedCardIds: Set<String>,
+    catalogError: String?,
+    collectionError: String?,
+    action: String?,
+    roulettePrice: Int,
+    onRetryCatalog: () -> Unit,
+    onRetryCollection: () -> Unit,
+    onWant: (String) -> Unit,
+    onSell: (GameCardDto) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var ownedFirst by remember { mutableStateOf(true) }
+    var sort by remember { mutableStateOf(CardCatalogSort.Rank) }
+    val owned = remember(ownedCards) { ownedCards.associateBy(GameCardDto::id) }
+    val entries = remember(catalog, ownedCards, query, ownedFirst, sort) {
+        val normalizedQuery = query.trim().lowercase()
+        val allEntries = if (catalog.isNotEmpty()) catalog else ownedCards.map { card ->
+            GameCardCatalogItemDto(
+                id = card.id,
+                name = card.name,
+                characterName = card.characterName,
+                imageUrl = card.stageImageUrl ?: card.imageUrl,
+                rarity = card.rarity,
+                rank = card.forgeRank ?: card.currentStage.orEmpty(),
+                titleId = card.titleId,
+                titleName = card.titleName,
+            )
+        }
+        allEntries.filter { card ->
+            normalizedQuery.isBlank() || listOfNotNull(card.characterName, card.name, card.titleName)
+                .any { it.lowercase().contains(normalizedQuery) }
+        }.sortedWith(
+            compareBy<GameCardCatalogItemDto> { if (ownedFirst && it.id in owned) 0 else 1 }
+                .thenBy {
+                    when (sort) {
+                        CardCatalogSort.Rank -> listOf("F", "C", "B", "A", "S", "SSS").indexOf(rankFrom(it.rank, it.rarity)).let { rank -> if (rank < 0) Int.MAX_VALUE else rank }
+                        CardCatalogSort.Name -> 0
+                    }
+                }
+                .thenBy { if (sort == CardCatalogSort.Name) it.characterName ?: it.name else it.name },
+        )
+    }
+    val copies = ownedCards.sumOf { it.copies.coerceAtLeast(0) }
+
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(108.dp), state = rememberLazyGridState(),
+        columns = GridCells.Adaptive(146.dp),
+        state = rememberLazyGridState(),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("Коллекция карточек · $copies копий · ${cards.size} уникальных", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Коллекция · $copies копий · ${ownedCards.size} уникальных из ${catalog.size}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Найти карточку или тайтл") },
+                    shape = RoundedCornerShape(16.dp),
+                )
+                Row(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(
+                        selected = ownedFirst,
+                        onClick = { ownedFirst = !ownedFirst },
+                        label = { Text("Сначала мои") },
+                    )
+                    CardCatalogSort.entries.forEach { option ->
+                        FilterChip(selected = sort == option, onClick = { sort = option }, label = { Text(option.label) })
+                    }
+                }
+                if (catalogError != null) InlineLoadError(catalogError, onRetryCatalog)
+                if (collectionError != null) InlineLoadError(collectionError, onRetryCollection)
+            }
         }
-        items(cards, key = { it.id.ifBlank { it.name } }) { card -> CardAlbumItem(card) }
+        if (entries.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                EmptyState(
+                    title = if (query.isBlank()) "Карточек пока нет" else "Ничего не найдено",
+                    message = if (query.isBlank()) "Карточки появятся в каталоге по мере публикации." else "Попробуйте другое название или тайтл.",
+                    modifier = Modifier.fillMaxWidth().height(220.dp),
+                    icon = Icons.Default.Collections,
+                )
+            }
+        }
+        items(entries, key = { it.id.ifBlank { it.name } }) { entry ->
+            val ownedCard = owned[entry.id]
+            val wanted = entry.id in wantedCardIds
+            CardCatalogItem(
+                entry = entry,
+                ownedCard = ownedCard,
+                isWanted = wanted,
+                action = action,
+                roulettePrice = roulettePrice,
+                onWant = { onWant(entry.id) },
+                onSell = { ownedCard?.let(onSell) },
+            )
+        }
     }
 }
 
 @Composable
-private fun CardAlbumItem(card: GameCardDto) {
-    val imageUrl = MediaUrl.resolve(card.stageImageUrl?.takeIf(String::isNotBlank) ?: card.imageUrl)
-    Surface(color = TomiloSurface, shape = RoundedCornerShape(15.dp), border = BorderStroke(1.dp, rarityColor(card).copy(alpha = .65f))) {
-        Column {
-            Box(Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))) {
+private fun CardCatalogItem(
+    entry: GameCardCatalogItemDto,
+    ownedCard: GameCardDto?,
+    isWanted: Boolean,
+    action: String?,
+    roulettePrice: Int,
+    onWant: () -> Unit,
+    onSell: () -> Unit,
+) {
+    Surface(
+        color = TomiloSurface,
+        shape = RoundedCornerShape(15.dp),
+        border = BorderStroke(1.dp, rarityColor(entry.rarity, entry.rank).copy(alpha = if (ownedCard != null) .72f else .3f)),
+    ) {
+        Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.fillMaxWidth().height(164.dp).clip(RoundedCornerShape(10.dp)).background(TomiloBg)) {
                 SubcomposeAsyncImage(
-                    model = imageUrl,
-                    contentDescription = card.characterName?.takeIf(String::isNotBlank) ?: card.name,
+                    model = MediaUrl.resolve(entry.imageUrl),
+                    contentDescription = entry.characterName?.takeIf(String::isNotBlank) ?: entry.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().background(TomiloBg),
+                    modifier = Modifier.fillMaxSize(),
                     loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 0.dp) },
                     error = { Box(Modifier.fillMaxSize().background(TomiloSurface2)) },
                 )
-                Text(cardRank(card), color = rarityColor(card), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.padding(6.dp).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .88f)).padding(horizontal = 6.dp, vertical = 3.dp))
-                if (card.copies > 1) Text("×${card.copies}", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .88f)).padding(horizontal = 6.dp, vertical = 3.dp))
+                if (ownedCard == null) {
+                    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .32f)))
+                    Text("ЕЩЁ НЕТ", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(8.dp)).background(TomiloBg.copy(alpha = .84f)).padding(horizontal = 8.dp, vertical = 5.dp))
+                }
+                Text(rankFrom(entry.rank, entry.rarity), color = rarityColor(entry.rarity, entry.rank), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.TopStart).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .9f)).padding(horizontal = 6.dp, vertical = 3.dp))
+                ownedCard?.let { card ->
+                    Text("×${card.copies}", color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopEnd).clip(RoundedCornerShape(6.dp)).background(TomiloBg.copy(alpha = .9f)).padding(horizontal = 6.dp, vertical = 3.dp))
+                }
             }
-            Text(card.characterName ?: card.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 7.dp))
-            Text(card.titleName ?: "Без тайтла", color = TomiloMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp, top = 3.dp))
+            Text(entry.characterName?.takeIf(String::isNotBlank) ?: entry.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.titleName ?: "Без тайтла", color = TomiloMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FilterChip(
+                selected = isWanted,
+                onClick = onWant,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                label = { Text(if (isWanted) "Хочу · добавлено" else "Хочу", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                leadingIcon = {
+                    Icon(if (isWanted) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
+                },
+            )
+            if (ownedCard != null) {
+                TextButton(
+                    onClick = onSell,
+                    enabled = action == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
+                ) {
+                    Text(
+                        if (action == "sell:${ownedCard.id}") "Продаём…" else "Продать · ${cardSellPrice(ownedCard, roulettePrice)} монет",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
     }
 }
@@ -1117,6 +1325,12 @@ private fun nextForgeRank(rank: String): String? = when (rank) {
 }
 
 private fun rarityColor(card: GameCardDto) = when (cardRank(card)) {
+    "SSS" -> TomiloPremium
+    "S", "A", "B" -> TomiloPrimary
+    else -> TomiloBorder
+}
+
+private fun rarityColor(rarity: String, rank: String) = when (rankFrom(rank, rarity)) {
     "SSS" -> TomiloPremium
     "S", "A", "B" -> TomiloPrimary
     else -> TomiloBorder
