@@ -32,6 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.data.api.NotificationDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
@@ -89,6 +92,7 @@ fun NotificationsScreen(
     var reload by remember { mutableIntStateOf(0) }
     var pendingDelete by remember { mutableStateOf<NotificationDto?>(null) }
     val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
     var backgroundNotifications by remember {
         mutableStateOf(NotificationHelper.canNotify(context))
@@ -118,12 +122,18 @@ fun NotificationsScreen(
         error = null
         socialRepository.notifications()
             .onSuccess { items = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.message ?: "Не удалось загрузить уведомления." }
         loading = false
+    }
+
+    LaunchedEffect(error, items.isEmpty()) {
+        val staleContentError = error?.takeIf { items.isNotEmpty() } ?: return@LaunchedEffect
+        snackbar.showSnackbar(userFacingError(staleContentError))
     }
 
     Scaffold(
         containerColor = TomiloBg,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = { Text("Уведомления") },
@@ -138,7 +148,12 @@ fun NotificationsScreen(
                             onClick = {
                                 scope.launch {
                                     socialRepository.markAllNotificationsRead()
-                                    reload += 1
+                                        .onSuccess { reload += 1 }
+                                        .onFailure {
+                                            snackbar.showSnackbar(
+                                                userFacingError(it.message ?: "Не удалось отметить уведомления прочитанными."),
+                                            )
+                                        }
                                 }
                             },
                         ) {
@@ -276,7 +291,11 @@ fun NotificationsScreen(
                         .onSuccess {
                             items = items.filterNot { it.stableId() == notification.stableId() }
                         }
-                        .onFailure { error = it.message }
+                        .onFailure {
+                            snackbar.showSnackbar(
+                                userFacingError(it.message ?: "Не удалось удалить уведомление."),
+                            )
+                        }
                 }
             },
             onDismiss = { pendingDelete = null },

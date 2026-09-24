@@ -554,8 +554,9 @@ class SocialRepository(private val api: TomiloApi) {
         runCatchingCancellable { api.markNotificationRead(id) }
     }
 
-    suspend fun markAllNotificationsRead() {
-        runCatchingCancellable { api.markAllNotificationsRead() }
+    suspend fun markAllNotificationsRead(): Result<Unit> = runCatchingCancellable {
+        val response = api.markAllNotificationsRead()
+        if (!response.success) error(response.message ?: "Не удалось отметить уведомления прочитанными")
     }
 
     suspend fun deleteNotification(id: String): Result<Unit> = runCatchingCancellable {
