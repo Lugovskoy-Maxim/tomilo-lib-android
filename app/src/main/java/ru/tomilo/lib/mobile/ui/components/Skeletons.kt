@@ -318,12 +318,67 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 110.dp),
         ) {
-            SkeletonBox(
+            Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(heroHeight),
-                radius = 0.dp,
-            )
+                    .height(heroHeight)
+                    .background(TomiloSurface2)
+                    .background(rememberShimmerBrush()),
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SkeletonBox(Modifier.width(94.dp).height(34.dp), radius = 20.dp)
+                        Spacer(Modifier.weight(1f))
+                        SkeletonBox(Modifier.width(84.dp).height(36.dp), radius = 20.dp)
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+                    SkeletonBox(Modifier.width(136.dp).height(28.dp), radius = 20.dp)
+                    Spacer(Modifier.weight(1f))
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        SkeletonBox(Modifier.weight(1f).height(44.dp), radius = 22.dp)
+                        SkeletonBox(Modifier.weight(1f).height(44.dp), radius = 22.dp)
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SkeletonBox(Modifier.fillMaxWidth(0.68f).height(22.dp), radius = 6.dp)
+                            SkeletonBox(Modifier.width(112.dp).height(14.dp), radius = 5.dp)
+                        }
+                        SkeletonBox(Modifier.width(92.dp).height(28.dp), radius = 16.dp)
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        repeat(5) { index ->
+                            SkeletonBox(
+                                Modifier
+                                    .padding(horizontal = 3.dp)
+                                    .size(width = if (index == 0) 18.dp else 6.dp, height = 5.dp),
+                                radius = 3.dp,
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(Modifier.height(14.dp))
 
