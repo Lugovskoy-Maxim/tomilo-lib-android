@@ -1286,7 +1286,17 @@ private fun CardCatalogTab(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Коллекция · $copies копий · ${ownedCards.size} уникальных из ${catalog.size}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                val catalogCount = catalog.size.takeIf { it > 0 }?.let { " · в каталоге $it" }.orEmpty()
+                Text(
+                    "В коллекции: $copies копий · ${ownedCards.size} уникальных$catalogCount",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    "Затемнение означает, что карты ещё нет в коллекции. «Хочу» — закладка, чтобы найти её в обменах.",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
