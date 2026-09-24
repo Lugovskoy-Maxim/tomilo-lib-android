@@ -89,6 +89,7 @@ import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
+import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -177,6 +178,7 @@ fun HomeScreen(
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var randomTitles by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var continueItems by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
+    var continueProgress by remember { mutableStateOf<Map<String, ReadingProgressDto>>(emptyMap()) }
     var reloadToken by remember { mutableIntStateOf(0) }
     var refreshing by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf(FeedFilter.ALL) }
@@ -201,9 +203,12 @@ fun HomeScreen(
 
     LaunchedEffect(user?.stableId(), reloadToken) {
         continueItems = if (user == null) {
+            continueProgress = emptyMap()
             emptyList()
         } else {
-            historyRepository.history().getOrDefault(emptyList()).take(10)
+            historyRepository.history().getOrDefault(emptyList()).take(10).also { history ->
+                continueProgress = historyRepository.progressMap(history.map { it.titleKey() }.filter(String::isNotBlank))
+            }
         }
     }
 
@@ -349,6 +354,10 @@ fun HomeScreen(
                                     showCoverChapter = false,
                                     showFooterRating = false,
                                     footerTrailing = item.totalChaptersValue()?.let { "$it глав" },
+                                    readingProgress = continueProgress[item.titleKey()]?.let { progress ->
+                                        val total = progress.totalChapters.coerceAtLeast(item.totalChaptersValue() ?: 0)
+                                        if (total > 0 && progress.chaptersRead > 0) progress.chaptersRead.toFloat() / total else null
+                                    },
                                 )
                             }
                         }

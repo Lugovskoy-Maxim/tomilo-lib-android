@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -130,6 +131,7 @@ fun TitlePosterCard(
     subtitle: String? = null,
     footerTrailing: String? = null,
     footerTrailingAccent: Boolean = false,
+    readingProgress: Float? = null,
 ) {
     val coverRadius = if (plain) 16.dp else CardRadius
     val coverShape = RoundedCornerShape(coverRadius)
@@ -164,6 +166,34 @@ fun TitlePosterCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            readingProgress?.takeIf { it > 0f }?.let { progress ->
+                val progressLabel = "Прочитано ${(progress.coerceIn(0f, 1f) * 100).toInt()}%"
+                Column(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.58f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        progressLabel,
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    androidx.compose.material3.LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
+                        color = TomiloPrimary,
+                        trackColor = Color.White.copy(alpha = 0.32f),
+                        gapSize = 0.dp,
+                        drawStopIndicator = {},
+                    )
+                }
+            }
             // bottom gradient for readability of badges
             Box(
                 Modifier

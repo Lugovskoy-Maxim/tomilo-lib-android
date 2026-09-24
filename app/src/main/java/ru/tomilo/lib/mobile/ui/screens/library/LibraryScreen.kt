@@ -66,6 +66,7 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
 import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
+import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
@@ -193,6 +194,7 @@ fun LibraryScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var bookmarks by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
     var history by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
+    var progressByTitle by remember { mutableStateOf<Map<String, ReadingProgressDto>>(emptyMap()) }
     val offline by offlineRepository.observeAll().collectAsState(initial = emptyList())
     var reload by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -227,6 +229,14 @@ fun LibraryScreen(
                 .onFailure { error = it.message }
         }
         loading = false
+    }
+
+    LaunchedEffect(history, user?.stableId(), tab) {
+        if (user == null || tab != ShelfTab.History || history.isEmpty()) {
+            progressByTitle = emptyMap()
+        } else {
+            progressByTitle = historyRepository.progressMap(history.map { it.titleKey() }.filter(String::isNotBlank))
+        }
     }
 
     val needle = query.trim()
@@ -502,6 +512,7 @@ fun LibraryScreen(
                                     title = item.displayTitle(),
                                     cover = item.coverPath(),
                                     subtitle = item.chapterLabel(),
+                                    progressLine = progressByTitle[titleId]?.progressLine(),
                                     onClick = {
                                         if (chapterId.isNotBlank()) {
                                             onContinue(titleId, chapterId, false)
