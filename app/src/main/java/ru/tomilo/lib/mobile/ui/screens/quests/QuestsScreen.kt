@@ -49,6 +49,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
+import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.data.api.DailyQuestDto
 import ru.tomilo.lib.mobile.data.api.DailyQuestsDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -76,14 +78,14 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
 
-    fun message(text: String) { scope.launch { snackbar.showSnackbar(text) } }
+    fun message(text: String) { scope.launch { snackbar.showSnackbar(userFacingError(text)) } }
 
     LaunchedEffect(reload) {
         loading = true
         error = null
         authRepository.dailyQuests()
             .onSuccess { data = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить задания.") }
         loading = false
     }
 

@@ -97,6 +97,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.WheelDto
 import ru.tomilo.lib.mobile.data.api.WheelRecentWinDto
 import ru.tomilo.lib.mobile.data.api.WheelSegmentDto
@@ -173,7 +174,7 @@ fun WheelScreen(
         error = null
         authRepository.wheel()
             .onSuccess { wheel = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить колесо.") }
         winners = authRepository.wheelRecentWins().getOrNull()?.let { data ->
             listOfNotNull(data.highlight) + data.recent
         }.orEmpty().distinctBy { it.username + it.wonAt + it.label }
@@ -242,7 +243,7 @@ fun WheelScreen(
                     }.orEmpty().distinctBy { it.username + it.wonAt + it.label }
                 }
                 .onFailure {
-                    snackbar.showSnackbar(it.message ?: "Не удалось запустить колесо")
+                    snackbar.showSnackbar(it.toUserFacingError("Не удалось запустить колесо."))
                 }
             spinning = false
         }
