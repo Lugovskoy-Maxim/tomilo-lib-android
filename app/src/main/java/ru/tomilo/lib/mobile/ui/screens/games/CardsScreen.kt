@@ -256,6 +256,7 @@ fun CardsScreen(
             }
             AnimatedContent(
                 targetState = tab,
+                modifier = Modifier.weight(1f),
                 transitionSpec = {
                     val duration = if (ValueAnimator.areAnimatorsEnabled()) 150 else 0
                     fadeIn(tween(durationMillis = duration)) togetherWith fadeOut(tween(durationMillis = duration))
