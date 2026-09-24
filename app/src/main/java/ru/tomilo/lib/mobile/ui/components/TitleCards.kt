@@ -98,13 +98,16 @@ fun MetaChip(
     Text(
         text = text,
         color = content,
-        style = MaterialTheme.typography.labelSmall,
+        style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        lineHeight = 17.sp,
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .background(container)
-            .padding(horizontal = 7.dp, vertical = 3.dp),
+            .padding(horizontal = 9.dp, vertical = 5.dp)
+            .heightIn(min = 28.dp),
     )
 }
 
