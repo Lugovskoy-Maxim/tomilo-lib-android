@@ -550,8 +550,10 @@ class SocialRepository(private val api: TomiloApi) {
         response.data?.count ?: error("Сервер не вернул счётчик уведомлений")
     }
 
-    suspend fun markNotificationRead(id: String) {
-        runCatchingCancellable { api.markNotificationRead(id) }
+    suspend fun markNotificationRead(id: String): Result<Unit> = runCatchingCancellable {
+        if (id.isBlank()) error("Уведомление не найдено")
+        val response = api.markNotificationRead(id)
+        if (!response.success) error(response.message ?: "Не удалось отметить уведомление прочитанным")
     }
 
     suspend fun markAllNotificationsRead(): Result<Unit> = runCatchingCancellable {

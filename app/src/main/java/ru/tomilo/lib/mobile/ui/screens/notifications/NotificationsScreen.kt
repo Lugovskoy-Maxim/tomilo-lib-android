@@ -227,9 +227,11 @@ fun NotificationsScreen(
                             .clickable {
                                 scope.launch {
                                     socialRepository.markNotificationRead(n.stableId())
-                                    items = items.map { item ->
-                                        if (item.stableId() == n.stableId()) item.copy(isRead = true) else item
-                                    }
+                                        .onSuccess {
+                                            items = items.map { item ->
+                                                if (item.stableId() == n.stableId()) item.copy(isRead = true) else item
+                                            }
+                                        }
                                     val open = n.toOpenRequest()
                                     when {
                                         !open.chapterId.isNullOrBlank() ->

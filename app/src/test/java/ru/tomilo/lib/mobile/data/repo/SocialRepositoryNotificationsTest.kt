@@ -28,12 +28,33 @@ class SocialRepositoryNotificationsTest {
         assertTrue(result.isSuccess)
     }
 
-    private fun notificationsApi(response: ApiResponse<JsonElement>): TomiloApi =
+    @Test
+    fun markNotificationReadReturnsFailureWhenServerRejectsRequest() = runBlocking {
+        val api = notificationsApi(ApiResponse(success = false, message = "HTTP 503"), "markNotificationRead")
+
+        val result = SocialRepository(api).markNotificationRead("notification-1")
+
+        assertEquals("HTTP 503", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun markNotificationReadReturnsSuccessWhenServerAcceptsRequest() = runBlocking {
+        val api = notificationsApi(ApiResponse(success = true), "markNotificationRead")
+
+        val result = SocialRepository(api).markNotificationRead("notification-1")
+
+        assertTrue(result.isSuccess)
+    }
+
+    private fun notificationsApi(
+        response: ApiResponse<JsonElement>,
+        methodName: String = "markAllNotificationsRead",
+    ): TomiloApi =
         Proxy.newProxyInstance(
             TomiloApi::class.java.classLoader,
             arrayOf(TomiloApi::class.java),
         ) { _, method, _ ->
-            check(method.name == "markAllNotificationsRead")
+            check(method.name == methodName)
             response
         } as TomiloApi
 }
