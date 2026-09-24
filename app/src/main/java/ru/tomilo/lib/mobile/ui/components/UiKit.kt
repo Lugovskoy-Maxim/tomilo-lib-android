@@ -373,6 +373,8 @@ fun EmptyState(
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
 ) {
+    val compactLayout = LocalConfiguration.current.let { it.screenHeightDp < 640 || it.fontScale > 1.3f }
+    val iconSize = if (compactLayout) 60.dp else 76.dp
     val iconPulse = if (ValueAnimator.areAnimatorsEnabled()) {
         val pulse by rememberInfiniteTransition(label = "emptyStateMotion").animateFloat(
             initialValue = 0.97f,
@@ -385,14 +387,15 @@ fun EmptyState(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 28.dp, vertical = 36.dp),
+            .padding(horizontal = 28.dp, vertical = if (compactLayout) 16.dp else 36.dp)
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         if (icon != null) {
             Box(
                 Modifier
-                    .size(76.dp)
+                    .size(iconSize)
                     .graphicsLayer {
                         scaleX = iconPulse
                         scaleY = iconPulse
@@ -411,7 +414,7 @@ fun EmptyState(
                     imageVector = icon,
                     contentDescription = null,
                     tint = TomiloPrimary,
-                    modifier = Modifier.size(33.dp),
+                    modifier = Modifier.size(if (compactLayout) 28.dp else 33.dp),
                 )
             }
             Spacer(Modifier.height(18.dp))
@@ -433,6 +436,7 @@ fun EmptyState(
             Spacer(Modifier.height(20.dp))
             Button(
                 onClick = onAction,
+                modifier = Modifier.heightIn(min = 48.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             ) { Text(actionLabel) }
         }
