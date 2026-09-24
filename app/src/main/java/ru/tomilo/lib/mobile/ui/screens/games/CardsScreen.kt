@@ -90,6 +90,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.CardEconomy
+import ru.tomilo.lib.mobile.core.CardForgeSelection
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardDto
@@ -187,7 +188,16 @@ fun CardsScreen(
             val tradesRequest = async { gamesRepository.cardTrades() }
             Triple(cardsRequest.await(), decksRequest.await(), tradesRequest.await())
         }
-        result.onSuccess { cards = it.cards }
+        result.onSuccess { response ->
+            cards = response.cards
+            val availableCopies = response.cards.associate { it.id.trim() to it.copies.coerceAtLeast(0) }
+            val reconciledSelection = CardForgeSelection.reconcile(forgeSelection.toList(), availableCopies)
+            if (reconciledSelection != forgeSelection.toList()) {
+                forgeSelection.clear()
+                forgeSelection.addAll(reconciledSelection)
+                forgeTargetId = null
+            }
+        }
             .onFailure { error = it.message ?: "Не удалось загрузить коллекцию карточек" }
         decksResult.onSuccess { decks = it; deckError = null }
             .onFailure { deckError = it.message ?: "Не удалось загрузить магазин карточек" }
@@ -421,27 +431,21 @@ fun CardsScreen(
                         if (mode == ForgeMode.Random) forgeTargetId = null
                     },
                     onToggle = { card ->
-                        val id = card.id.trim()
-                        if (id.isBlank()) {
-                            notice = "Эту карточку нельзя использовать: сервер не вернул её ID. Обновите коллекцию."
-                        } else {
-                            val rank = cardRank(card)
-                            val existing = forgeSelection.lastIndexOf(id)
-                            val selectedCopies = forgeSelection.count { it == id }
-                            val availableCopies = card.copies.coerceAtLeast(0)
-                            if (existing >= 0 && (forgeSelection.size >= forgeMode.count || selectedCopies >= availableCopies)) {
-                                forgeSelection.removeAt(existing)
-                                forgeTargetId = null
-                            }
-                            else if (forgeSelection.size < forgeMode.count && selectedCopies < availableCopies && (forgeSelection.isEmpty() || forgeSelection.all { selected -> cards.firstOrNull { it.id == selected }?.let(::cardRank) == rank })) {
-                                forgeSelection.add(id)
-                                forgeTargetId = null
-                            } else if (forgeSelection.isNotEmpty() && forgeSelection.any { selected -> cards.firstOrNull { it.id == selected }?.let(::cardRank) != rank }) {
-                                notice = "Для перековки выберите карточки одного ранга."
-                            } else if (forgeSelection.count { it == id } >= card.copies.coerceAtLeast(0)) {
-                                notice = "В коллекции нет дополнительных копий этой карточки."
-                            }
+                        val currentSelection = forgeSelection.toList()
+                        val update = CardForgeSelection.toggle(
+                            selectedIds = currentSelection,
+                            ranksByCardId = cards.associate { it.id.trim() to cardRank(it) },
+                            cardId = card.id,
+                            cardRank = cardRank(card),
+                            availableCopies = card.copies,
+                            requiredMaterials = forgeMode.count,
+                        )
+                        if (update.cardIds != currentSelection) {
+                            forgeSelection.clear()
+                            forgeSelection.addAll(update.cardIds)
+                            forgeTargetId = null
                         }
+                        notice = update.message
                     },
                     onSell = { card -> cardToSell = card },
                     onForge = {
