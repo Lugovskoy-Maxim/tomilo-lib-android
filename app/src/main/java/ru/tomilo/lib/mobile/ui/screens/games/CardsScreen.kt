@@ -95,6 +95,7 @@ import kotlinx.coroutines.sync.Mutex
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.CardEconomy
 import ru.tomilo.lib.mobile.core.CardForgeSelection
+import ru.tomilo.lib.mobile.core.CardTradeChoiceLayout
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardDto
@@ -1138,8 +1139,8 @@ private fun CardTradeChoicePicker(
     onSelect: (String) -> Unit,
 ) {
     val fontScale = LocalConfiguration.current.fontScale
-    val choiceWidth = if (fontScale > 1.3f) 144.dp else 104.dp
-    val labelLines = if (fontScale > 1.15f) 3 else 2
+    val choiceWidth = CardTradeChoiceLayout.widthDp(fontScale).dp
+    val labelLines = CardTradeChoiceLayout.labelLines(fontScale)
     val visibleChoices = remember(choices, query) {
         val normalizedQuery = query.trim().lowercase()
         if (normalizedQuery.isEmpty()) choices else choices.filter {
