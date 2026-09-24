@@ -66,6 +66,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -1011,7 +1012,7 @@ private fun CardTradeCreateDialog(
     var wantId by remember { mutableStateOf("") }
     var offerQuery by remember { mutableStateOf("") }
     var wantQuery by remember { mutableStateOf("") }
-    var offerCopies by remember { mutableStateOf(1) }
+    var offerCopies by remember { mutableIntStateOf(1) }
     var note by remember { mutableStateOf("") }
     LaunchedEffect(offerChoices) {
         if (offerChoices.none { it.id == offerId }) offerId = offerChoices.firstOrNull()?.id.orEmpty()
