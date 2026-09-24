@@ -93,6 +93,7 @@ data class BatchDownloadState(
 }
 
 /** Пакет для фонового сервиса */
+@kotlinx.serialization.Serializable
 data class DownloadBatchRequest(
     val titleId: String,
     val titleName: String,
@@ -101,6 +102,7 @@ data class DownloadBatchRequest(
     val chapters: List<DownloadChapterRef>,
 )
 
+@kotlinx.serialization.Serializable
 data class DownloadChapterRef(
     val chapterId: String,
     val chapterLabel: String,

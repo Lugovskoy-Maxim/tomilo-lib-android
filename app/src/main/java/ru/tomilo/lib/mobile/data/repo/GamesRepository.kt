@@ -31,88 +31,88 @@ data class GamesDashboard(
 )
 
 class GamesRepository(private val api: TomiloApi) {
-    suspend fun cards(): Result<GameCardsDto> = runCatching {
+    suspend fun cards(): Result<GameCardsDto> = runCatchingCancellable {
         val response = api.gameCards()
         if (!response.success) error(response.message ?: "Не удалось загрузить коллекцию карточек")
         response.data ?: GameCardsDto()
     }
 
-    suspend fun pillMatchState(): Result<PillMatchStateDto> = runCatching {
+    suspend fun pillMatchState(): Result<PillMatchStateDto> = runCatchingCancellable {
         val response = api.pillMatchState()
         if (!response.success) error(response.message ?: "Не удалось загрузить прогресс")
         response.data ?: error("Сервер не вернул прогресс")
     }
-    suspend fun completePillMatchLevel(level: Int): Result<PillMatchCompleteDto> = runCatching {
+    suspend fun completePillMatchLevel(level: Int): Result<PillMatchCompleteDto> = runCatchingCancellable {
         val response = api.completePillMatchLevel(PillMatchCompleteRequest(level))
         if (!response.success) error(response.message ?: "Не удалось сохранить прохождение")
         response.data ?: error("Сервер не вернул награду")
     }
-    suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatching {
+    suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatchingCancellable {
         val response = api.gameCardDecks()
         if (!response.success) error(response.message ?: "Не удалось загрузить наборы")
         response.data.orEmpty()
     }
 
-    suspend fun cardCatalog(): Result<List<GameCardCatalogItemDto>> = runCatching {
+    suspend fun cardCatalog(): Result<List<GameCardCatalogItemDto>> = runCatchingCancellable {
         val response = api.gameCardCatalog(limit = 1_000)
         if (!response.success) error(response.message ?: "Не удалось загрузить каталог карточек")
         response.data?.cards.orEmpty()
     }
 
-    suspend fun pullCard(): Result<Unit> = runCatching {
+    suspend fun pullCard(): Result<Unit> = runCatchingCancellable {
         val response = api.pullGameCard()
         if (!response.success) error(response.message ?: "Не удалось получить карту")
     }
 
-    suspend fun openCardDeck(deckId: String): Result<Unit> = runCatching {
+    suspend fun openCardDeck(deckId: String): Result<Unit> = runCatchingCancellable {
         val response = api.openGameCardDeck(deckId)
         if (!response.success) error(response.message ?: "Не удалось открыть набор")
     }
 
-    suspend fun cardTrades(): Result<GameCardTradesDto> = runCatching {
+    suspend fun cardTrades(): Result<GameCardTradesDto> = runCatchingCancellable {
         val response = api.gameCardTrades(); if (!response.success) error(response.message ?: "Не удалось загрузить обмены")
         response.data ?: GameCardTradesDto()
     }
-    suspend fun acceptCardTrade(id: String): Result<Unit> = runCatching { val r = api.acceptGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось принять обмен") }
-    suspend fun craftCards(cardIds: List<String>, targetCardId: String? = null): Result<Unit> = runCatching {
+    suspend fun acceptCardTrade(id: String): Result<Unit> = runCatchingCancellable { val r = api.acceptGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось принять обмен") }
+    suspend fun craftCards(cardIds: List<String>, targetCardId: String? = null): Result<Unit> = runCatchingCancellable {
         val r = api.craftGameCards(GameCraftRequest(cardIds, targetCardId))
         if (!r.success) error(r.message ?: "Не удалось перековать карточки")
     }
-    suspend fun disciples(): Result<GameDisciplesDto> = runCatching {
+    suspend fun disciples(): Result<GameDisciplesDto> = runCatchingCancellable {
         val response = api.gameDisciples()
         if (!response.success) error(response.message ?: "Не удалось обновить секту")
         response.data ?: error("Сервер не вернул данные секты")
     }
 
-    suspend fun train(characterId: String): Result<GameTrainResultDto> = runCatching {
+    suspend fun train(characterId: String): Result<GameTrainResultDto> = runCatchingCancellable {
         val response = api.gameTrainDisciple(GameCharacterRequest(characterId))
         if (!response.success) error(response.message ?: "Тренировка не удалась")
         response.data ?: GameTrainResultDto()
     }
 
-    suspend fun setPrimary(characterId: String): Result<Unit> = runCatching {
+    suspend fun setPrimary(characterId: String): Result<Unit> = runCatchingCancellable {
         val response = api.gameSetPrimaryDisciple(GameCharacterRequest(characterId))
         if (!response.success) error(response.message ?: "Не удалось назначить основного ученика")
     }
 
-    suspend fun setWarehouse(characterId: String, inWarehouse: Boolean): Result<Unit> = runCatching {
+    suspend fun setWarehouse(characterId: String, inWarehouse: Boolean): Result<Unit> = runCatchingCancellable {
         val response = api.gameSetDiscipleWarehouse(GameWarehouseRequest(characterId, inWarehouse))
         if (!response.success) error(response.message ?: "Не удалось изменить состав секты")
     }
 
-    suspend fun saveBattleSquad(characterIds: List<String>): Result<List<String>> = runCatching {
+    suspend fun saveBattleSquad(characterIds: List<String>): Result<List<String>> = runCatchingCancellable {
         val response = api.gameSetBattleSquad(GameBattleSquadRequest(characterIds))
         if (!response.success) error(response.message ?: "Не удалось сохранить боевой отряд")
         response.data?.battleSquadCharacterIds ?: characterIds
     }
 
-    suspend fun findOpponent(): Result<GameBattleMatchDto?> = runCatching {
+    suspend fun findOpponent(): Result<GameBattleMatchDto?> = runCatchingCancellable {
         val response = api.gameBattleMatch()
         if (!response.success) error(response.message ?: "Не удалось найти соперника")
         response.data
     }
 
-    suspend fun battle(opponentUserId: String, characterIds: List<String>): Result<GameBattleResultDto> = runCatching {
+    suspend fun battle(opponentUserId: String, characterIds: List<String>): Result<GameBattleResultDto> = runCatchingCancellable {
         val response = api.gameBattle(
             GameBattleRequest(
                 opponentUserId = opponentUserId,
@@ -125,31 +125,31 @@ class GamesRepository(private val api: TomiloApi) {
 
     /** Независимые игровые блоки загружаются параллельно и не ломают всю страницу при частичном сбое. */
     suspend fun dashboard(includeAdminModes: Boolean): Result<GamesDashboard> = supervisorScope {
-        runCatching {
-            if (!includeAdminModes) return@runCatching GamesDashboard()
+        runCatchingCancellable {
+            if (!includeAdminModes) return@runCatchingCancellable GamesDashboard()
             val inventoryCall = async {
-                runCatching {
+                runCatchingCancellable {
                     val response = api.gameInventory()
                     if (!response.success) error(response.message ?: "Не удалось загрузить хранилище")
                     response.data.orEmpty().filter { it.itemId.isNotBlank() && it.count > 0 }
                 }
             }
             val disciplesCall = async {
-                runCatching {
+                runCatchingCancellable {
                     val response = api.gameDisciples()
                     if (!response.success) error(response.message ?: "Не удалось загрузить секту")
                     response.data ?: GameDisciplesDto()
                 }
             }
             val cardsCall = async {
-                runCatching {
+                runCatchingCancellable {
                     val response = api.gameCards()
                     if (!response.success) error(response.message ?: "Не удалось загрузить карты")
                     response.data ?: GameCardsDto()
                 }
             }
             val alchemyCall = async {
-                runCatching {
+                runCatchingCancellable {
                     val response = api.gameAlchemyStatus()
                     if (!response.success) error(response.message ?: "Не удалось загрузить алхимию")
                     response.data ?: GameAlchemyStatusDto()

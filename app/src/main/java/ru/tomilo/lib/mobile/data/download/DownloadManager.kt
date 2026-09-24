@@ -26,6 +26,7 @@ class DownloadManager(
     private val appContext = context.applicationContext
     /** Собственный scope — не привязан к Activity. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val queueStore = DownloadQueueStore(appContext)
 
     private val _state = MutableStateFlow(BatchDownloadState())
     val state: StateFlow<BatchDownloadState> = _state.asStateFlow()
@@ -42,6 +43,42 @@ class DownloadManager(
         if (job?.isActive == true || pendingRequest != null) return true
         val s = _state.value
         return s.items.isNotEmpty() && !s.finished
+    }
+
+    /** Resume a saved batch when the user returns after an OS foreground-service time limit. */
+    fun resumePersisted() {
+        if (isBusy()) return
+        val request = queueStore.load() ?: return
+        pendingRequest = request
+        lastRequest = request
+        _state.value = BatchDownloadState(
+            titleName = request.titleName,
+            items = request.chapters.map { ref ->
+                ChapterDownloadProgress(ref.chapterId, ref.chapterLabel, DownloadStage.Queued)
+            },
+            activeIndex = 0,
+            finished = false,
+            runningInBackground = true,
+        )
+        DownloadForegroundService.start(appContext)
+    }
+
+    /** Keep the durable checkpoint; Android may allow resuming after its data-sync budget resets. */
+    fun pauseForSystemTimeout() {
+        generation++
+        job?.cancel()
+        pendingRequest = queueStore.load()
+        _state.update { state ->
+            state.copy(
+                finished = true,
+                activeIndex = -1,
+                runningInBackground = false,
+                items = state.items.map {
+                    if (it.stage == DownloadStage.Completed || it.stage == DownloadStage.Failed) it
+                    else it.copy(stage = DownloadStage.Cancelled, message = "Приостановлено системой. Откройте приложение, чтобы продолжить.")
+                },
+            )
+        }
     }
 
     fun enqueue(
@@ -70,6 +107,7 @@ class DownloadManager(
         )
         pendingRequest = request
         lastRequest = request
+        queueStore.save(request)
 
         val initial = refs.map {
             ChapterDownloadProgress(
@@ -92,11 +130,27 @@ class DownloadManager(
     /** Вызывается сервисом после startForeground. */
     fun runPendingFromService(onProgressNotify: (BatchDownloadState) -> Unit) {
         if (pendingRequest == null && job?.isActive == true) return
-        val request = pendingRequest ?: run {
+        val request = pendingRequest ?: queueStore.load() ?: run {
             onProgressNotify(_state.value.copy(finished = true, runningInBackground = false))
             return
         }
         pendingRequest = null
+        lastRequest = request
+        if (_state.value.items.isEmpty() || _state.value.finished) {
+            _state.value = BatchDownloadState(
+                titleName = request.titleName,
+                items = request.chapters.map { ref ->
+                    ChapterDownloadProgress(
+                        chapterId = ref.chapterId,
+                        chapterLabel = ref.chapterLabel,
+                        stage = DownloadStage.Queued,
+                    )
+                },
+                activeIndex = 0,
+                finished = false,
+                runningInBackground = true,
+            )
+        }
         val previousJob = job
         previousJob?.cancel()
         val batchGeneration = ++generation
@@ -110,6 +164,7 @@ class DownloadManager(
                 if (generation == batchGeneration) {
                     _state.update { it.copy(finished = true, activeIndex = -1, runningInBackground = false) }
                     onProgressNotify(_state.value)
+                    queueStore.clear()
                     DownloadForegroundService.stop(appContext)
                 }
             }
@@ -180,6 +235,7 @@ class DownloadManager(
         generation++
         job?.cancel()
         pendingRequest = null
+        queueStore.clear()
         _state.update { s ->
             s.copy(
                 finished = true,
@@ -209,7 +265,9 @@ class DownloadManager(
         val retryRefs = previous.chapters.filter { it.chapterId in retryIds }
         if (retryRefs.isEmpty()) return
 
-        pendingRequest = previous.copy(chapters = retryRefs)
+        val retryRequest = previous.copy(chapters = retryRefs)
+        pendingRequest = retryRequest
+        queueStore.save(retryRequest)
         val initial = retryRefs.map {
             ChapterDownloadProgress(
                 chapterId = it.chapterId,

@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        (application as? TomiloApp)?.container?.downloadManager?.resumePersisted()
         RuStoreEngagement.attach(this)
         NotificationsPollWorker.enqueueNow(this)
         AppUpdateCheckWorker.enqueueNow(this)

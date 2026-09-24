@@ -2,11 +2,13 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="datastore/tomilo_auth.preferences_pb" />
+        <exclude domain="sharedpref" path="tomilo_download_queue.xml" />
         <exclude domain="database" path="tomilo_offline.db" />
         <exclude domain="file" path="offline/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="datastore/tomilo_auth.preferences_pb" />
+        <exclude domain="sharedpref" path="tomilo_download_queue.xml" />
         <exclude domain="database" path="tomilo_offline.db" />
         <exclude domain="file" path="offline/" />
     </device-transfer>

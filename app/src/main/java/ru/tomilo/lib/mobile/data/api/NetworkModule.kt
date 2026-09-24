@@ -157,6 +157,8 @@ object NetworkModule {
                 val refreshClient = OkHttpClient.Builder()
                     .connectTimeout(15, TimeUnit.SECONDS)
                     .readTimeout(20, TimeUnit.SECONDS)
+                    .writeTimeout(15, TimeUnit.SECONDS)
+                    .callTimeout(35, TimeUnit.SECONDS)
                     .build()
                 val refreshed = runCatching {
                     refreshClient.newCall(refreshRequest).execute().use { refreshResponse ->
