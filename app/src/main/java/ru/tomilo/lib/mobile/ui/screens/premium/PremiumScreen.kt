@@ -76,6 +76,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
+import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.PremiumPaymentHistoryItemDto
@@ -100,14 +101,16 @@ private data class Plan(
     val label: String,
     val price: Int,
     val pricePerMonth: Int,
+    val durationDays: Int,
+    val saving: String? = null,
     val badge: String? = null,
 )
 
 private val plans = listOf(
-    Plan(id = "premium_1m", months = 1, label = "1 месяц", price = 150, pricePerMonth = 150),
-    Plan(id = "premium_3m", months = 3, label = "3 месяца", price = 400, pricePerMonth = 133, badge = "Популярный"),
-    Plan(id = "premium_6m", months = 6, label = "6 месяцев", price = 700, pricePerMonth = 117, badge = "Выгодно"),
-    Plan(id = "premium_1y", months = 12, label = "1 год", price = 1200, pricePerMonth = 100, badge = "Год"),
+    Plan(id = "premium_1m", months = 1, label = "1 месяц", price = 150, pricePerMonth = 150, durationDays = 30),
+    Plan(id = "premium_3m", months = 3, label = "3 месяца", price = 400, pricePerMonth = 133, durationDays = 90, saving = "Экономия 50 ₽", badge = "Популярно"),
+    Plan(id = "premium_6m", months = 6, label = "6 месяцев", price = 700, pricePerMonth = 117, durationDays = 180, saving = "Экономия 200 ₽"),
+    Plan(id = "premium_1y", months = 12, label = "1 год", price = 1200, pricePerMonth = 100, durationDays = 360, saving = "Экономия 600 ₽", badge = "Год"),
 )
 
 private const val PREMIUM_COIN_PRICE = 30_000
@@ -137,6 +140,8 @@ fun PremiumScreen(
     var showOtherPaymentMethods by rememberSaveable { mutableStateOf(false) }
     var confirmCoins by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf<List<PremiumPaymentHistoryItemDto>>(emptyList()) }
+    var historyError by remember { mutableStateOf<String?>(null) }
+    var historyLoading by remember { mutableStateOf(false) }
 
     fun notify(message: String) {
         scope.launch { snackbar.showSnackbar(message) }
@@ -145,7 +150,17 @@ fun PremiumScreen(
     fun reloadHistory() {
         if (user == null) return
         scope.launch {
-            history = paymentsRepository.history().getOrDefault(emptyList())
+            historyLoading = true
+            paymentsRepository.history().fold(
+                onSuccess = {
+                    history = it
+                    historyError = null
+                },
+                onFailure = {
+                    historyError = PaymentsRepository.userMessage(it)
+                },
+            )
+            historyLoading = false
         }
     }
 
@@ -160,13 +175,13 @@ fun PremiumScreen(
                     reloadHistory()
                     waitingPayment = false
                     pendingInvId = null
-                    notify("Premium активирован")
+                    notify("Премиум активирован")
                     return@launch
                 }
                 delay(2_000)
             }
             waitingPayment = false
-            notify("Платёж ещё обрабатывается. Статус обновится после подтверждения Т‑Банка.")
+            notify("Платёж ещё обрабатывается. Статус обновится после подтверждения оплаты.")
             reloadHistory()
         }
     }
@@ -185,7 +200,7 @@ fun PremiumScreen(
         }
     }
 
-    fun openTbank(form: ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto) {
+    fun openRobokassa(form: ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto) {
         val fieldsJson = NetworkModule.json.encodeToString(form.fields)
         checkoutLauncher.launch(
             RobokassaCheckoutActivity.intent(
@@ -197,7 +212,7 @@ fun PremiumScreen(
         )
     }
 
-    fun startTbank(adminTest: Boolean = false) {
+    fun startRobokassa(adminTest: Boolean = false) {
         if (user == null) {
             onLogin()
             return
@@ -212,7 +227,7 @@ fun PremiumScreen(
             }
             paying = false
             result.fold(
-                onSuccess = { openTbank(it) },
+                onSuccess = { openRobokassa(it) },
                 onFailure = { notify(PaymentsRepository.userMessage(it)) },
             )
         }
@@ -241,7 +256,7 @@ fun PremiumScreen(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text("Premium") },
+                title = { Text("Премиум") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
@@ -264,40 +279,35 @@ fun PremiumScreen(
             )
 
             SectionHeading(
-                title = "Всё для комфортного чтения",
-                subtitle = "Меньше ограничений — больше любимых историй.",
+                title = "Больше чтения, меньше ожидания",
+                subtitle = "Премиум для тех, кто хочет читать без пауз.",
             )
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 BenefitCard(
                     icon = Icons.Default.VisibilityOff,
                     title = "Чтение без рекламы",
-                    text = "Никаких рекламных блоков, баннеров и пауз между главами во всём приложении.",
-                )
-                BenefitCard(
-                    icon = Icons.Default.Download,
-                    title = "Безграничный офлайн-доступ",
-                    text = "Скачивайте любые тайтлы и главы целиком без лимитов и читайте в пути без интернета.",
+                    text = "Видимые баннеры на главной, страницах тайтлов и в читалке не отвлекают.",
                 )
                 BenefitCard(
                     icon = Icons.Default.AutoAwesome,
                     title = "Кастомизация профиля",
-                    text = "Эксклюзивные рамки для аватарки, эффекты профиля, значки и золотой статус PRO.",
+                    text = "Премиум-значки и цвета ника открываются за стаж и активность.",
                 )
                 BenefitCard(
                     icon = Icons.Default.ShoppingBag,
-                    title = "Скидка 20% в магазине",
-                    text = "Постоянная скидка 20% на весь каталог декораций, фонов и элементов профиля.",
+                    title = "Специальные цены в магазине",
+                    text = "Для активных подписчиков действуют специальные цены на товары сайта.",
                 )
                 BenefitCard(
                     icon = Icons.Default.LockOpen,
                     title = "Премиум-главы без ожидания",
-                    text = "Читайте платные и закрытые главы сразу в день публикации без ожидания.",
+                    text = "Читайте главы с платным периодом сразу, не дожидаясь их открытия.",
                 )
             }
 
             SectionHeading(
-                title = if (isPremium) "Продлить Premium" else "Выберите тариф",
-                subtitle = "Чем дольше период, тем ниже стоимость месяца.",
+                title = if (isPremium) "Продлить премиум" else "Выберите тариф",
+                subtitle = "Разовая оплата без автопродления. Оплаченные дни прибавятся к активной подписке.",
             )
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 plans.forEach { plan ->
@@ -312,11 +322,11 @@ fun PremiumScreen(
             Spacer(Modifier.height(22.dp))
             PaymentMethodCard(
                 index = "1",
-                title = "Оплата через Т‑Банк",
-                subtitle = "Карта, СБП и другие способы. Подписка начисляется автоматически.",
+                title = "Оплата через Robokassa",
+                subtitle = "СБП и карта во встроенном защищённом окне. Начисление сразу.",
             ) {
                 Text(
-                    "Вы перейдёте на защищённую страницу Т‑Банка. Данные карты Tomilo не получает и не хранит.",
+                    "Данные карты обрабатывает Robokassa. Tomilo не получает и не хранит данные карты.",
                     color = TomiloMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -327,7 +337,7 @@ fun PremiumScreen(
                     }
                 } else {
                     Button(
-                        onClick = { startTbank() },
+                        onClick = { startRobokassa() },
                         enabled = !paying,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -359,7 +369,7 @@ fun PremiumScreen(
                 if (user?.isAdmin() == true) {
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
-                        onClick = { startTbank(adminTest = true) },
+                        onClick = { startRobokassa(adminTest = true) },
                         enabled = !paying,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -378,7 +388,7 @@ fun PremiumScreen(
                 onClick = { showOtherPaymentMethods = !showOtherPaymentMethods },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (showOtherPaymentMethods) "Скрыть другие варианты" else "Другие варианты оплаты")
+                Text(if (showOtherPaymentMethods) "Скрыть другие варианты" else "Другие способы оплаты")
             }
 
             if (showOtherPaymentMethods) {
@@ -391,7 +401,7 @@ fun PremiumScreen(
                 val balance = user?.balance ?: 0
                 Text(
                     if (user == null) {
-                        "Войдите, чтобы обменять монеты сайта на месяц Premium."
+                        "Войдите, чтобы обменять монеты на 30 дней премиума."
                     } else {
                         "Баланс: ${"%,d".format(Locale("ru"), balance)} монет. Нужно $PREMIUM_COIN_PRICE."
                     },
@@ -453,7 +463,7 @@ fun PremiumScreen(
                     )
                 }
                 Text(
-                    "Перевод без ника и уровня считается добровольной поддержкой и не даёт Premium.",
+                    "Перевод без ника и уровня считается добровольной поддержкой и не даёт премиум-доступ.",
                     color = TomiloMuted,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(top = 10.dp),
@@ -509,17 +519,25 @@ fun PremiumScreen(
             if (history.isNotEmpty()) {
                 SectionHeading(
                     title = "История оплат",
-                    subtitle = "Счета Т‑Банка и покупки за монеты.",
+                    subtitle = "Премиум, покупки за монеты и другие платежи.",
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     history.take(12).forEach { item ->
                         PaymentHistoryRow(item)
                     }
                 }
+            } else if (historyLoading || historyError != null) {
+                SectionHeading("История оплат", "Платежи за премиум и другие услуги.")
+                if (historyLoading) {
+                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(historyError.orEmpty(), color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = ::reloadHistory) { Text("Попробовать снова") }
+                }
             }
 
             Text(
-                text = "Premium не продлевается автоматически. Вы сами решаете, когда оформить следующий период.\nОплата: самозанятый Луговской М. Ю., ИНН $SELLER_INN.",
+                text = "Один платёж — без автопродления. Цифровая услуга «Премиум Tomilo-lib».\nСамозанятый Луговской Максим Юрьевич · ИНН $SELLER_INN.\nОплачивая, вы принимаете публичную оферту и подтверждаете, что ознакомились с политикой конфиденциальности.",
                 color = TomiloMuted,
                 style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
@@ -527,6 +545,14 @@ fun PremiumScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 24.dp),
             )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                TextButton(onClick = { openUrl("${BuildConfig.SITE_URL}/public-offer") }) {
+                    Text("Публичная оферта")
+                }
+                TextButton(onClick = { openUrl("${BuildConfig.SITE_URL}/privacy-policy") }) {
+                    Text("Конфиденциальность")
+                }
+            }
         }
     }
 
@@ -550,7 +576,7 @@ fun PremiumScreen(
                                 onSuccess = {
                                     authRepository.refreshProfile()
                                     reloadHistory()
-                                    notify("Premium на 30 дней активирован")
+                                    notify("Премиум на 30 дней активирован")
                                 },
                                 onFailure = { notify(PaymentsRepository.userMessage(it)) },
                             )
@@ -594,7 +620,7 @@ private fun PremiumHero(isPremium: Boolean, expiresAt: String?) {
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                text = if (isPremium) "Premium активен" else "Читайте без ограничений",
+                text = if (isPremium) "Премиум активен" else "Больше чтения, меньше ожидания",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -602,7 +628,7 @@ private fun PremiumHero(isPremium: Boolean, expiresAt: String?) {
             Text(
                 text = if (isPremium) {
                     formatExpiry(expiresAt)?.let { "Все возможности доступны до $it." }
-                        ?: "Все возможности Premium доступны."
+                        ?: "Все возможности премиума доступны."
                 } else {
                     "Премиум-главы, офлайн-библиотека и никакой рекламы."
                 },
@@ -698,7 +724,10 @@ private fun PlanCard(plan: Plan, selected: Boolean, onClick: () -> Unit) {
                 }
             }
             Text(
-                "${plan.pricePerMonth} ₽ в месяц",
+                buildString {
+                    append("${plan.durationDays} дней · ${plan.pricePerMonth} ₽ в месяц")
+                    plan.saving?.let { append(" · ").append(it) }
+                },
                 color = TomiloMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -873,7 +902,7 @@ private fun PaymentHistoryRow(item: PremiumPaymentHistoryItemDto) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(item.description.ifBlank { "Premium" }, style = MaterialTheme.typography.titleSmall)
+                Text(item.description.ifBlank { "Премиум" }, style = MaterialTheme.typography.titleSmall)
                 Text(
                     listOfNotNull(
                         formatExpiry(item.paidAt ?: item.createdAt),
