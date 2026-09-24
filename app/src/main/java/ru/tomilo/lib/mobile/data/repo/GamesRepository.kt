@@ -11,6 +11,8 @@ import ru.tomilo.lib.mobile.data.api.GameCardsDto
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardTradesDto
+import ru.tomilo.lib.mobile.data.api.GameCardTradeCatalogDto
+import ru.tomilo.lib.mobile.data.api.GameCardTradeCreateRequest
 import ru.tomilo.lib.mobile.data.api.GameCardOpenResultDto
 import ru.tomilo.lib.mobile.data.api.GameCraftRequest
 import ru.tomilo.lib.mobile.data.api.GameCraftResultDto
@@ -77,7 +79,17 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.gameCardTrades(); if (!response.success) error(response.message ?: "Не удалось загрузить обмены")
         response.data ?: GameCardTradesDto()
     }
+    suspend fun cardTradeCatalog(query: String? = null): Result<GameCardTradeCatalogDto> = runCatchingCancellable {
+        val response = api.gameCardTradeCatalog(query?.trim()?.takeIf(String::isNotBlank))
+        if (!response.success) error(response.message ?: "Не удалось загрузить каталог для обмена")
+        response.data ?: GameCardTradeCatalogDto()
+    }
+    suspend fun createCardTrade(body: GameCardTradeCreateRequest): Result<Unit> = runCatchingCancellable {
+        val response = api.createGameCardTrade(body)
+        if (!response.success) error(response.message ?: "Не удалось выставить обмен")
+    }
     suspend fun acceptCardTrade(id: String): Result<Unit> = runCatchingCancellable { val r = api.acceptGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось принять обмен") }
+    suspend fun cancelCardTrade(id: String): Result<Unit> = runCatchingCancellable { val r = api.cancelGameCardTrade(id); if (!r.success) error(r.message ?: "Не удалось снять предложение обмена") }
     suspend fun craftCards(cardIds: List<String>, targetCardId: String? = null): Result<GameCraftResultDto> = runCatchingCancellable {
         val r = api.craftGameCards(GameCraftRequest(cardIds, targetCardId))
         if (!r.success) error(r.message ?: "Не удалось перековать карточки")

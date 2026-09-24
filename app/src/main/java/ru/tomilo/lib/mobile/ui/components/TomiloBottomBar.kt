@@ -58,7 +58,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
@@ -101,7 +100,7 @@ fun TomiloBottomBar(
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp)
+            .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 4.dp)
             .widthIn(max = 520.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -130,7 +129,7 @@ fun TomiloBottomBar(
                     color = Color.White.copy(alpha = 0.10f),
                     shape = BarShape,
                 )
-                .padding(horizontal = 5.dp, vertical = 5.dp),
+                .padding(horizontal = 5.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -158,7 +157,6 @@ fun TomiloBottomBar(
             DropdownMenu(
                 expanded = moreOpen,
                 onDismissRequest = { moreOpen = false },
-                offset = DpOffset((-166).dp, (-330).dp),
                 shape = RoundedCornerShape(20.dp),
                 containerColor = TomiloSurface,
                 tonalElevation = 12.dp,
@@ -226,7 +224,7 @@ private fun NavTabItem(
 
     Box(
         modifier = modifier
-            .height(82.dp)
+            .height(64.dp)
             .clip(if (selected) RoundedCornerShape(29.dp) else ItemShape)
             .background(bg)
             .border(1.dp, border, if (selected) RoundedCornerShape(29.dp) else ItemShape)
@@ -236,12 +234,12 @@ private fun NavTabItem(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
-            .padding(horizontal = 2.dp, vertical = 7.dp),
+            .padding(horizontal = 2.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Box(contentAlignment = Alignment.TopEnd) {
                 Icon(
@@ -249,7 +247,7 @@ private fun NavTabItem(
                     contentDescription = label,
                     tint = contentColor,
                     modifier = Modifier
-                        .size(if (selected) 29.dp else 27.dp)
+                        .size(if (selected) 26.dp else 24.dp)
                         .scale(scale),
                 )
 
@@ -283,7 +281,7 @@ private fun NavTabItem(
             Text(
                 text = label,
                 color = if (selected) Color(0xFFFF8B86) else TomiloText.copy(alpha = 0.70f),
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -297,8 +295,8 @@ private fun MoreNavItem(onClick: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     Column(
         modifier = Modifier
-            .height(82.dp)
-            .width(78.dp)
+            .height(64.dp)
+            .width(72.dp)
             .shadow(14.dp, MoreShape, ambientColor = Color.Black.copy(alpha = 0.62f), spotColor = Color.Black.copy(alpha = 0.42f))
             .clip(MoreShape)
             .background(Color(0xFF27282A))
@@ -312,7 +310,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
     ) {
@@ -320,18 +318,18 @@ private fun MoreNavItem(onClick: () -> Unit) {
             imageVector = Icons.Default.MoreVert,
             contentDescription = "Ещё",
             tint = TomiloText.copy(alpha = 0.70f),
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(24.dp),
         )
         Text(
             text = "Ещё",
             color = TomiloText.copy(alpha = 0.70f),
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             maxLines = 1,
         )
     }
 }
 
-val TomiloBottomBarContentGap = 112.dp
+val TomiloBottomBarContentGap = 96.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

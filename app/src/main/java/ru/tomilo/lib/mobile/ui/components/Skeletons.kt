@@ -118,6 +118,79 @@ fun CardsGridSkeleton(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun CardShopSkeleton(modifier: Modifier = Modifier) {
+    ShimmerScope {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(148.dp),
+            modifier = modifier,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SkeletonBox(Modifier.fillMaxWidth(.55f).height(18.dp), radius = 6.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.82f).height(13.dp), radius = 5.dp)
+                }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(TomiloSurface).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    SkeletonBox(Modifier.fillMaxWidth(.42f).height(15.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.65f).height(12.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 20.dp)
+                }
+            }
+            items((1..6).toList()) {
+                Column(
+                    Modifier.clip(RoundedCornerShape(18.dp)).background(TomiloSurface).padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SkeletonBox(Modifier.fillMaxWidth().height(154.dp), radius = 12.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.85f).height(14.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.6f).height(12.dp), radius = 5.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CardTradesSkeleton(modifier: Modifier = Modifier) {
+    ShimmerScope {
+        Column(
+            modifier.fillMaxSize().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                SkeletonBox(Modifier.fillMaxWidth(.38f).height(18.dp), radius = 6.dp)
+                SkeletonBox(Modifier.size(width = 142.dp, height = 40.dp), radius = 20.dp)
+            }
+            repeat(3) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(TomiloSurface).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    SkeletonBox(Modifier.fillMaxWidth(.4f).height(15.dp), radius = 5.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        repeat(2) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                SkeletonBox(Modifier.fillMaxWidth().height(128.dp), radius = 12.dp)
+                                SkeletonBox(Modifier.fillMaxWidth(.85f).height(13.dp), radius = 5.dp)
+                                SkeletonBox(Modifier.fillMaxWidth(.55f).height(11.dp), radius = 5.dp)
+                            }
+                        }
+                    }
+                    SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 20.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SkeletonBox(
     modifier: Modifier = Modifier,
     radius: Dp = 14.dp,

@@ -948,6 +948,20 @@ data class GameCardDeckDto(
 )
 @Serializable data class GameTradeCardDto(val name: String = "Карта", val imageUrl: String? = null, val rarity: String = "")
 @Serializable data class GameCardTradesDto(val offers: List<GameCardTradeDto> = emptyList())
+@Serializable data class GameCardTradeCatalogDto(val cards: List<GameCardTradeCatalogItemDto> = emptyList())
+@Serializable data class GameCardTradeCatalogItemDto(
+    val id: String = "",
+    val name: String = "Карта",
+    val imageUrl: String? = null,
+    val rarity: String = "common",
+    val titleName: String = "",
+)
+@Serializable data class GameCardTradeCreateRequest(
+    val offerCardId: String,
+    val wantCardId: String,
+    val offerCopies: Int = 1,
+    val note: String? = null,
+)
 @Serializable data class GameCraftRequest(val cardIds: List<String>, val targetCardId: String? = null)
 
 @Serializable

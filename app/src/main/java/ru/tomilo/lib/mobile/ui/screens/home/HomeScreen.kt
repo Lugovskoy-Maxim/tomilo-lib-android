@@ -100,6 +100,7 @@ import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
+import ru.tomilo.lib.mobile.ui.components.TomiloBottomBarContentGap
 import ru.tomilo.lib.mobile.ui.components.formatRating
 import ru.tomilo.lib.mobile.ui.components.statusColor
 import ru.tomilo.lib.mobile.ui.components.statusLabel
@@ -278,7 +279,7 @@ fun HomeScreen(
                         .fillMaxSize()
                         .background(TomiloBg)
                         .verticalScroll(rememberScrollState())
-                        .padding(bottom = 110.dp),
+                        .padding(bottom = TomiloBottomBarContentGap),
                 ) {
                     if (featured.isNotEmpty()) {
                         HomeHeroCarousel(

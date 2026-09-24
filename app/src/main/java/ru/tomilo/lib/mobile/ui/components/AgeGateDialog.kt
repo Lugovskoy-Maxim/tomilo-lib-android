@@ -128,7 +128,7 @@ fun AgeGateDialog(
                 }
                 Button(
                     onClick = onExit,
-                    modifier = Modifier.fillMaxWidth(0.28f).height(40.dp),
+                    modifier = Modifier.fillMaxWidth(0.48f).height(48.dp),
                     shape = RoundedCornerShape(22.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TomiloPrimaryDim),
                 ) {

@@ -17,6 +17,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -37,6 +38,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -309,23 +311,24 @@ fun ErrorBox(
     onRetry: (() -> Unit)? = null,
 ) {
     val friendlyMessage = remember(message) { userFacingError(message) }
-    Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        color = Color.Transparent,
+    Box(
+        modifier = modifier.fillMaxSize().padding(20.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(12.dp, RoundedCornerShape(26.dp), ambientColor = Color.Black.copy(alpha = 0.2f))
-                .clip(RoundedCornerShape(26.dp))
-                .background(TomiloSurface)
-                .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.18f), RoundedCornerShape(26.dp))
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+        Surface(
+            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+            color = TomiloSurface,
+            shape = RoundedCornerShape(26.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.18f)),
+            shadowElevation = 12.dp,
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
             Image(
                 painter = painterResource(R.drawable.illust_error_mascot),
                 contentDescription = null,
@@ -343,6 +346,7 @@ fun ErrorBox(
                     Spacer(Modifier.width(8.dp))
                     Text("Попробовать снова")
                 }
+            }
             }
         }
     }
@@ -423,7 +427,7 @@ fun EmptyState(
     }
 }
 
-private fun userFacingError(raw: String): String {
+internal fun userFacingError(raw: String): String {
     val message = raw.trim()
     val lower = message.lowercase()
     return when {

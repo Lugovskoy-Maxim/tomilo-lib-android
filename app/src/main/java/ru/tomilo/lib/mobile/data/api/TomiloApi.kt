@@ -104,8 +104,17 @@ interface TomiloApi {
     @GET("users/profile/card-trades")
     suspend fun gameCardTrades(): ApiResponse<GameCardTradesDto>
 
+    @GET("users/profile/card-trades/catalog")
+    suspend fun gameCardTradeCatalog(@Query("q") query: String? = null): ApiResponse<GameCardTradeCatalogDto>
+
+    @POST("users/profile/card-trades")
+    suspend fun createGameCardTrade(@Body body: GameCardTradeCreateRequest): ApiResponse<JsonElement>
+
     @POST("users/profile/card-trades/{id}/accept")
     suspend fun acceptGameCardTrade(@Path("id") id: String): ApiResponse<JsonElement>
+
+    @POST("users/profile/card-trades/{id}/cancel")
+    suspend fun cancelGameCardTrade(@Path("id") id: String): ApiResponse<JsonElement>
 
     @POST("users/profile/cards/craft")
     suspend fun craftGameCards(@Body body: GameCraftRequest): ApiResponse<GameCraftResultDto>
