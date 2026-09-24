@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -56,12 +57,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -205,6 +208,7 @@ private fun NavTabItem(
     modifier: Modifier = Modifier,
 ) {
     val isSelected = selected
+    val fontScale = LocalConfiguration.current.fontScale
     val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     val contentColor by animateColorAsState(
         targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.70f),
@@ -234,7 +238,7 @@ private fun NavTabItem(
 
     Box(
         modifier = modifier
-            .height(64.dp)
+            .heightIn(min = 64.dp)
             .clip(if (selected) RoundedCornerShape(29.dp) else ItemShape)
             .background(bg)
             .border(1.dp, border, if (selected) RoundedCornerShape(29.dp) else ItemShape)
@@ -292,9 +296,11 @@ private fun NavTabItem(
             Text(
                 text = label,
                 color = if (selected) Color(0xFFFF8B86) else TomiloText.copy(alpha = 0.70f),
-                fontSize = 11.sp,
+                fontSize = 12.sp,
+                lineHeight = 14.sp,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                maxLines = 1,
+                textAlign = TextAlign.Center,
+                maxLines = if (fontScale > 1.15f) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -306,7 +312,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     Column(
         modifier = Modifier
-            .height(64.dp)
+            .heightIn(min = 64.dp)
             .width(72.dp)
             .shadow(14.dp, MoreShape, ambientColor = Color.Black.copy(alpha = 0.62f), spotColor = Color.Black.copy(alpha = 0.42f))
             .clip(MoreShape)
@@ -334,7 +340,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
         Text(
             text = "Ещё",
             color = TomiloText.copy(alpha = 0.70f),
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             maxLines = 1,
         )
     }
