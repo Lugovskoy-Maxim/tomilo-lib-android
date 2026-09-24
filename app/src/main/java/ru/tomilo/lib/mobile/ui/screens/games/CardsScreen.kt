@@ -1033,7 +1033,11 @@ private fun ForgeTab(
         item {
             Column(Modifier.animateContentSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Горн", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("3 карточки одного ранга дадут случайную карту следующего ранга. Для выбора результата нужны 6 карточек.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "3 карты одного ранга дадут случайную карту следующего (F→C→B→A→S→SSS). 6 карт — выбор конкретной карты следующего ранга. Копии одной карты можно положить в несколько слотов.",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Row(
                     Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1111,7 +1115,22 @@ private fun ForgeTab(
                 }
             }
         }
-        if (cards.isEmpty()) item { Text("В альбоме пока нет карточек для перековки.", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium) }
+        if (cards.isEmpty()) {
+            item {
+                Text("Коллекция пуста — откройте пак или каталог.", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Продажа карточек", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Любую карту из коллекции можно продать. Цена: половина прокрутки минус 25 монет, дальше ×3 за ранг.",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
         items(cards.size, key = { cards[it].id.ifBlank { cards[it].name } }) { index ->
             val card = cards[index]
             val id = card.id
