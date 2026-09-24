@@ -106,6 +106,7 @@ import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.ChapterAccess
 import ru.tomilo.lib.mobile.core.formatChapterTitle
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
@@ -365,7 +366,7 @@ fun TitleScreen(
         selected = emptySet()
         val t = catalogRepository.title(titleKey)
         t.onFailure {
-            error = it.message
+            error = it.toUserFacingError("Не удалось загрузить тайтл.")
             loading = false
             return@LaunchedEffect
         }
@@ -376,7 +377,7 @@ fun TitleScreen(
                 chapters = it
                 chapterError = null
             }
-            .onFailure { chapterError = it.message ?: "Не удалось загрузить главы тайтла" }
+            .onFailure { chapterError = it.toUserFacingError("Не удалось загрузить главы тайтла.") }
         loading = false
         recommendations = catalogRepository.popular(8).getOrDefault(emptyList())
             .filter { it.stableId() != detail.stableId() }
@@ -579,7 +580,7 @@ fun TitleScreen(
                                                 snackbar.showSnackbar("Оценка: $star/10")
                                             }
                                             .onFailure {
-                                                snackbar.showSnackbar(it.message ?: "Ошибка")
+                                                snackbar.showSnackbar(it.toUserFacingError("Не удалось сохранить оценку."))
                                             }
                                     }
                                 },
@@ -796,7 +797,7 @@ fun TitleScreen(
                                                         }
                                                         .onFailure { error ->
                                                             readChapterIds = previousReadIds
-                                                            snackbar.showSnackbar(error.message ?: "Не удалось снять отметку")
+                                                            snackbar.showSnackbar(error.toUserFacingError("Не удалось снять отметку «прочитано»."))
                                                         }
                                                     unmarkingChapterIds = unmarkingChapterIds - id
                                                 }
@@ -1041,7 +1042,7 @@ fun TitleScreen(
                                             showBookmarkCategories = false
                                             snackbar.showSnackbar("Категория: $label")
                                         }
-                                        .onFailure { snackbar.showSnackbar(it.message ?: "Ошибка") }
+                                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить категорию.")) }
                                 }
                             },
                             label = { Text(label) },
@@ -1067,7 +1068,7 @@ fun TitleScreen(
                                                 showBookmarkCategories = false
                                                 snackbar.showSnackbar("Группа: ${group.name}")
                                             }
-                                            .onFailure { snackbar.showSnackbar(it.message ?: "Ошибка") }
+                                            .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить категорию.")) }
                                     }
                                 },
                                 label = { Text(group.name) },
@@ -1090,7 +1091,7 @@ fun TitleScreen(
                                     showBookmarkCategories = false
                                     snackbar.showSnackbar("Убрано из закладок")
                                 }
-                                .onFailure { snackbar.showSnackbar(it.message ?: "Ошибка") }
+                                .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить закладку.")) }
                         }
                     },
                 ) { Text("Удалить") }

@@ -29,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
@@ -79,7 +80,7 @@ fun HistoryScreen(
         error = null
         historyRepository.history()
             .onSuccess { items = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить историю.") }
         loading = false
     }
 
@@ -148,7 +149,7 @@ fun HistoryScreen(
                                     .onSuccess { snackbar.showSnackbar("Удалено из истории") }
                                     .onFailure {
                                         items = snapshot
-                                        snackbar.showSnackbar(it.message ?: "Не удалось удалить")
+                                        snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить запись из истории."))
                                     }
                             }
                         },
