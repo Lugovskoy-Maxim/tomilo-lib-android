@@ -87,31 +87,74 @@ fun rememberShimmerBrush(): Brush {
     )
 }
 
-/** Loading placeholders shaped like the card collection rather than a generic spinner. */
+/** Loading placeholders match the card album's catalog tiles and filters. */
 @Composable
 fun CardsGridSkeleton(modifier: Modifier = Modifier) {
     ShimmerScope {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(108.dp),
+            columns = GridCells.Adaptive(146.dp),
             modifier = modifier,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Column {
-                    SkeletonBox(Modifier.fillMaxWidth(0.68f).height(16.dp), radius = 6.dp)
-                    Spacer(Modifier.height(8.dp))
-                    SkeletonBox(Modifier.fillMaxWidth(0.42f).height(12.dp), radius = 5.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SkeletonBox(Modifier.fillMaxWidth(.58f).height(13.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth().height(56.dp), radius = 16.dp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeat(3) { SkeletonBox(Modifier.width(94.dp).height(40.dp), radius = 20.dp) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeat(4) { SkeletonBox(Modifier.width(48.dp).height(40.dp), radius = 20.dp) }
+                    }
                 }
             }
             items((1..9).toList()) {
-                Column {
-                    SkeletonBox(Modifier.fillMaxWidth().aspectRatio(0.72f), radius = 15.dp)
-                    Spacer(Modifier.height(8.dp))
-                    SkeletonBox(Modifier.fillMaxWidth(0.86f).height(12.dp), radius = 5.dp)
-                    Spacer(Modifier.height(5.dp))
-                    SkeletonBox(Modifier.fillMaxWidth(0.56f).height(10.dp), radius = 5.dp)
+                Column(
+                    Modifier.clip(RoundedCornerShape(15.dp)).background(TomiloSurface).padding(7.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    SkeletonBox(Modifier.fillMaxWidth().height(164.dp), radius = 10.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.86f).height(14.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.58f).height(12.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth().height(36.dp), radius = 18.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.72f).height(32.dp), radius = 16.dp)
+                }
+            }
+        }
+    }
+}
+
+/** Loading placeholders follow the forge's selectable, one-card-per-row collection. */
+@Composable
+fun CardCollectionSkeleton(modifier: Modifier = Modifier) {
+    ShimmerScope {
+        Column(
+            modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            SkeletonBox(Modifier.fillMaxWidth(.24f).height(18.dp), radius = 6.dp)
+            SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 6.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SkeletonBox(Modifier.width(126.dp).height(40.dp), radius = 20.dp)
+                SkeletonBox(Modifier.width(112.dp).height(40.dp), radius = 20.dp)
+            }
+            SkeletonBox(Modifier.fillMaxWidth(.64f).height(20.dp), radius = 6.dp)
+            SkeletonBox(Modifier.fillMaxWidth().height(48.dp), radius = 22.dp)
+            repeat(6) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(TomiloSurface).padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    SkeletonBox(Modifier.size(width = 52.dp, height = 68.dp), radius = 9.dp)
+                    SkeletonBox(Modifier.size(24.dp), radius = 4.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        SkeletonBox(Modifier.fillMaxWidth(.84f).height(15.dp), radius = 5.dp)
+                        SkeletonBox(Modifier.fillMaxWidth(.64f).height(12.dp), radius = 5.dp)
+                        SkeletonBox(Modifier.fillMaxWidth(.76f).height(30.dp), radius = 16.dp)
+                    }
                 }
             }
         }

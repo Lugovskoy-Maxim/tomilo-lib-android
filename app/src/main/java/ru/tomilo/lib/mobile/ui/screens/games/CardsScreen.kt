@@ -102,6 +102,7 @@ import ru.tomilo.lib.mobile.data.local.CardWantPrefs
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.components.CardsGridSkeleton
+import ru.tomilo.lib.mobile.ui.components.CardCollectionSkeleton
 import ru.tomilo.lib.mobile.ui.components.CardShopSkeleton
 import ru.tomilo.lib.mobile.ui.components.CardTradesSkeleton
 import ru.tomilo.lib.mobile.ui.components.EmptyState
@@ -1035,7 +1036,7 @@ private fun ForgeTab(
     val validCount = selectedIds.size == mode.count
     val sameRank = selectedIds.all { id -> cards.firstOrNull { it.id == id }?.let(::cardRank) == selectedRank }
     if (collectionLoading) {
-        CardsGridSkeleton(Modifier.fillMaxSize())
+        CardCollectionSkeleton(Modifier.fillMaxSize())
         return
     }
     if (collectionError != null && cards.isEmpty()) {
