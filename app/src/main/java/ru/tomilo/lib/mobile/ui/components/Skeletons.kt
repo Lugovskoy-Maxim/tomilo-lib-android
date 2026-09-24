@@ -182,9 +182,6 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                SkeletonBox(Modifier.fillMaxWidth().height(56.dp), radius = 16.dp)
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(TomiloSurface).padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
@@ -193,6 +190,9 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
                     SkeletonBox(Modifier.fillMaxWidth(.65f).height(12.dp), radius = 5.dp)
                     SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 20.dp)
                 }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SkeletonBox(Modifier.fillMaxWidth().height(56.dp), radius = 16.dp)
             }
             items((1..6).toList()) {
                 Column(
