@@ -45,6 +45,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +58,12 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 
 private val LocalShimmerShift = compositionLocalOf<Float?> { null }
+
+private fun Modifier.loadingSemantics(label: String): Modifier = semantics {
+    contentDescription = label
+    stateDescription = "Загрузка"
+    progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+}
 
 @Composable
 private fun ShimmerScope(content: @Composable () -> Unit) {
@@ -97,7 +108,7 @@ fun CardsGridSkeleton(modifier: Modifier = Modifier) {
     ShimmerScope {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(146.dp),
-            modifier = modifier,
+            modifier = modifier.loadingSemantics("Загрузка альбома карт"),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -135,7 +146,8 @@ fun CardsGridSkeleton(modifier: Modifier = Modifier) {
 fun CardCollectionSkeleton(modifier: Modifier = Modifier) {
     ShimmerScope {
         Column(
-            modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+            modifier.fillMaxSize().loadingSemantics("Загрузка коллекции карт")
+                .verticalScroll(rememberScrollState()).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             SkeletonBox(Modifier.fillMaxWidth(.24f).height(18.dp), radius = 6.dp)
@@ -170,7 +182,7 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
     ShimmerScope {
         LazyVerticalGrid(
             columns = if (singleColumn) GridCells.Fixed(1) else GridCells.Adaptive(148.dp),
-            modifier = modifier,
+            modifier = modifier.loadingSemantics("Загрузка магазина карт"),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -214,7 +226,7 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
 fun CardTradesSkeleton(modifier: Modifier = Modifier) {
     ShimmerScope {
         Column(
-            modifier.fillMaxSize().padding(14.dp),
+            modifier.fillMaxSize().loadingSemantics("Загрузка предложений обмена").padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
