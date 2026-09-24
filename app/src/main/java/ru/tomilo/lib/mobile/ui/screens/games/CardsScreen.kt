@@ -568,7 +568,7 @@ private fun ShopTab(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (revealedCards.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+        item(key = "reward_reveal", span = { GridItemSpan(maxLineSpan) }) {
             CardRewardReveal(revealedCards)
         }
         if (error != null) item(span = { GridItemSpan(maxLineSpan) }) {
