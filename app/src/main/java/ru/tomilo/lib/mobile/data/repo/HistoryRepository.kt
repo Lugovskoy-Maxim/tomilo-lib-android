@@ -1,5 +1,9 @@
 package ru.tomilo.lib.mobile.data.repo
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -37,16 +41,22 @@ class HistoryRepository(private val api: TomiloApi) {
         res.data ?: ReadingProgressDto(titleId = titleId)
     }
 
-    /** Параллельно для списка тайтлов (закладки). */
-    suspend fun progressMap(titleIds: Collection<String>): Map<String, ReadingProgressDto> {
+    /** Fetch title progress concurrently with a small limit to keep list screens responsive. */
+    suspend fun progressMap(titleIds: Collection<String>): Map<String, ReadingProgressDto> = coroutineScope {
         val ids = titleIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        if (ids.isEmpty()) return emptyMap()
-        // Последовательно безопаснее для API; список закладок обычно небольшой
-        val out = LinkedHashMap<String, ReadingProgressDto>()
-        for (id in ids) {
-            progress(id).getOrNull()?.let { out[id] = it }
+        if (ids.isEmpty()) return@coroutineScope emptyMap()
+        val semaphore = Semaphore(permits = 4)
+        ids.map { id ->
+            async {
+                semaphore.withPermit {
+                    id to progress(id).getOrNull()
+                }
+            }
+        }.mapNotNull { request ->
+            val (id, progress) = request.await()
+            progress?.let { id to it }
         }
-        return out
+            .toMap(LinkedHashMap())
     }
 
     /**
