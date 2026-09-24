@@ -137,6 +137,7 @@ import ru.tomilo.lib.mobile.core.isNetworkAvailable
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.core.PageImages
 import ru.tomilo.lib.mobile.core.PageDimensions
+import ru.tomilo.lib.mobile.core.PageRetryPolicy
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderDirection
 import ru.tomilo.lib.mobile.core.ReaderLayout
@@ -1498,7 +1499,7 @@ private fun handlePageState(
     when (success) {
         false -> {
             onLoaded(loadedPages - index)
-            if (attempt + 1 < PageImages.MAX_ATTEMPTS) {
+            if (PageRetryPolicy.shouldRetry(attempt, PageImages.MAX_ATTEMPTS)) {
                 PageImages.evict(context, page)
                 onFailed(failedPages - index)
                 onRetryMap(pageRetryNonce + (index to attempt + 1))
