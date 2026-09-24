@@ -252,7 +252,10 @@ fun CardsScreen(
                 if (key.startsWith("trade:")) trades = trades.filterNot { it.id == key.removePrefix("trade:") }
                 refresh()
                 if (key == "forge") forgeSelection.clear()
-            }.onFailure { notice = it.message?.takeIf(String::isNotBlank) ?: "Не удалось выполнить действие. Попробуйте ещё раз." }
+            }.onFailure {
+                notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                    ?: "Не удалось выполнить действие. Попробуйте ещё раз."
+            }
             action = null
         }
     }
@@ -373,7 +376,10 @@ fun CardsScreen(
                                     onComplete()
                                     refresh()
                                 }
-                                .onFailure { notice = it.message?.takeIf(String::isNotBlank) ?: "Не удалось выставить обмен. Попробуйте ещё раз." }
+                                .onFailure {
+                                    notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
+                                        ?: "Не удалось выставить обмен. Попробуйте ещё раз."
+                                }
                             action = null
                         }
                     },
@@ -455,7 +461,7 @@ fun CardsScreen(
                                 forgeSelection.clear()
                                 refresh()
                             }.onFailure {
-                                notice = it.message?.takeIf(String::isNotBlank)
+                                notice = it.message?.takeIf(String::isNotBlank)?.let(::userFacingError)
                                     ?: "Не удалось перековать карточки. Попробуйте ещё раз."
                             }
                             action = null
