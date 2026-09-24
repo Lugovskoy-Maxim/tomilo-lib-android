@@ -61,6 +61,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -91,6 +92,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.WheelDto
@@ -574,9 +578,26 @@ private fun CasinoWheelPanel(
     spinning: Boolean,
     pointerFlap: Float,
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var screenStarted by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> screenStarted = true
+                Lifecycle.Event.ON_STOP -> screenStarted = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     // Keep the decorative LEDs still when system animations are disabled;
     // the wheel's outcome animation remains a separate, meaningful interaction.
-    val bulbOffset = if (ValueAnimator.areAnimatorsEnabled()) {
+    // Stop the decorative loop while its navigation destination is backgrounded.
+    val bulbOffset = if (ValueAnimator.areAnimatorsEnabled() && screenStarted) {
         val infiniteTransition = rememberInfiniteTransition(label = "wheelBulbs")
         val offset by infiniteTransition.animateFloat(
             initialValue = 0f,
