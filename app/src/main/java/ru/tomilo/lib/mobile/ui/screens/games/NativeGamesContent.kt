@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.data.api.GameBattleOpponentDto
 import ru.tomilo.lib.mobile.data.api.GameBattleResultDto
 import ru.tomilo.lib.mobile.data.api.GameDiscipleDto
@@ -58,7 +59,6 @@ import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
-import ru.tomilo.lib.mobile.ui.components.userFacingError
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium

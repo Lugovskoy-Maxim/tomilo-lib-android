@@ -2,6 +2,7 @@ package ru.tomilo.lib.mobile.ui.components
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.tomilo.lib.mobile.core.userFacingError
 
 class UserFacingErrorTest {
     @Test
@@ -39,6 +40,14 @@ class UserFacingErrorTest {
         assertEquals(
             "Произошла техническая ошибка. Попробуйте снова.",
             userFacingError("{\"error\":\"Internal Server Error\"}"),
+        )
+    }
+
+    @Test
+    fun hidesShortTechnicalMessagesFromServer() {
+        assertEquals(
+            "Произошла техническая ошибка. Попробуйте снова.",
+            userFacingError("IllegalStateException: internal payment provider error"),
         )
     }
 

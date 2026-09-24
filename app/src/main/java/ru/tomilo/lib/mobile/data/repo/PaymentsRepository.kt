@@ -9,6 +9,7 @@ import ru.tomilo.lib.mobile.data.api.PremiumPaymentHistoryItemDto
 import ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto
 import ru.tomilo.lib.mobile.data.api.RobokassaPaymentStatusDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
+import ru.tomilo.lib.mobile.core.userFacingError
 import java.util.UUID
 
 class PaymentsRepository(private val api: TomiloApi) {
@@ -47,6 +48,10 @@ class PaymentsRepository(private val api: TomiloApi) {
     companion object {
         fun userMessage(error: Throwable): String {
             if (error is HttpException) {
+                if (error.code() == 401) return "Войдите в аккаунт, чтобы оплатить"
+                if (error.code() == 429) return userFacingError("HTTP 429")
+                if (error.code() in 500..599) return "Онлайн-оплата временно недоступна"
+
                 val raw = runCatching { error.response()?.errorBody()?.string() }.getOrNull()
                 if (!raw.isNullOrBlank()) {
                     Regex("\"message\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
@@ -56,12 +61,11 @@ class PaymentsRepository(private val api: TomiloApi) {
                         ?.replace("\\\"", "\"")
                         ?.replace("\\\\", "\\")
                         ?.takeIf { it.isNotBlank() }
-                        ?.let { return it }
+                        ?.let { return userFacingError(it) }
                 }
-                if (error.code() == 401) return "Войдите в аккаунт, чтобы оплатить"
-                if (error.code() in 500..599) return "Онлайн-оплата временно недоступна"
+                return userFacingError("HTTP ${error.code()}")
             }
-            return error.message?.takeIf { it.isNotBlank() }
+            return error.message?.takeIf { it.isNotBlank() }?.let(::userFacingError)
                 ?: "Не удалось открыть оплату. Попробуйте ещё раз."
         }
     }

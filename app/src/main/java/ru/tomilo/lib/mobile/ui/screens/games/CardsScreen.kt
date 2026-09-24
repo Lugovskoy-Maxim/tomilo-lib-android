@@ -107,7 +107,7 @@ import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.SkeletonBox
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
-import ru.tomilo.lib.mobile.ui.components.userFacingError
+import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted

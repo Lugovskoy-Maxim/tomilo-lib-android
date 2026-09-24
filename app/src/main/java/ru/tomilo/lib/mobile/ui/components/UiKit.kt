@@ -92,6 +92,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.R
 import kotlin.math.roundToInt
 
@@ -472,49 +473,6 @@ fun EmptyState(
                 ) { Text(actionLabel) }
             }
         }
-    }
-}
-
-internal fun userFacingError(raw: String): String {
-    val message = raw.trim()
-    val lower = message.lowercase()
-    val httpStatus = Regex(
-        "(?:http(?:\\s+status(?:\\s+code)?)?\\s*|status(?:\\s+code)?\\s*[:=]?\\s*|response\\s+code\\s*[:=]?\\s*)(\\d{3})",
-        RegexOption.IGNORE_CASE,
-    ).find(message)?.groupValues?.getOrNull(1)?.toIntOrNull()
-    return when {
-        message.isBlank() || lower == "ошибка" ->
-            "Не удалось получить данные. Проверьте подключение и попробуйте снова."
-        httpStatus == 401 || lower.contains("unauthorized") || lower.contains("invalid token") ->
-            "Сессия завершилась. Войдите в аккаунт ещё раз."
-        httpStatus == 403 || lower.contains("forbidden") ->
-            "Для этого действия недостаточно прав."
-        httpStatus == 404 ->
-            "Запрошенные данные не найдены. Обновите экран и попробуйте снова."
-        httpStatus == 429 || lower.contains("too many requests") || lower.contains("rate limit") ->
-            "Слишком много запросов подряд. Подождите немного и попробуйте снова."
-        httpStatus == 400 || httpStatus == 422 ->
-            "Не удалось выполнить запрос. Проверьте данные и попробуйте снова."
-        httpStatus in 500..599 ->
-            "Сервис временно недоступен. Попробуйте снова немного позже."
-        lower.contains("unable to resolve host") ||
-            lower.contains("failed to connect") ||
-            lower.contains("network is unreachable") ||
-            lower.contains("no address associated") ||
-            lower.contains("connection reset") ||
-            lower.contains("socketexception") ->
-            "Нет подключения к серверу. Проверьте интернет и попробуйте снова."
-        lower.contains("timeout") || lower.contains("timed out") ->
-            "Сервер отвечает слишком долго. Попробуйте ещё раз через несколько секунд."
-        message.length > 180 ||
-            lower.contains("exception") ||
-            lower.contains("retrofit2.") ||
-            lower.contains("kotlinx.coroutines") ||
-            Regex("(?m)^\\s*at\\s+[\\w.$]+\\(").containsMatchIn(message) ||
-            lower.startsWith("<html") ||
-            message.startsWith("{") || message.startsWith("[") ->
-            "Произошла техническая ошибка. Попробуйте снова."
-        else -> message
     }
 }
 
