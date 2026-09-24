@@ -1,8 +1,14 @@
 package ru.tomilo.lib.mobile.ui.navigation
 
 import android.app.Activity
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -290,6 +296,34 @@ fun TomiloNavHost(container: AppContainer) {
         NavHost(
             navController = navController,
             startDestination = Routes.Home,
+            enterTransition = {
+                if (
+                    !ValueAnimator.areAnimatorsEnabled() ||
+                    initialState.destination.route == Routes.Reader ||
+                    targetState.destination.route == Routes.Reader
+                ) EnterTransition.None else fadeIn(tween(150))
+            },
+            exitTransition = {
+                if (
+                    !ValueAnimator.areAnimatorsEnabled() ||
+                    initialState.destination.route == Routes.Reader ||
+                    targetState.destination.route == Routes.Reader
+                ) ExitTransition.None else fadeOut(tween(100))
+            },
+            popEnterTransition = {
+                if (
+                    !ValueAnimator.areAnimatorsEnabled() ||
+                    initialState.destination.route == Routes.Reader ||
+                    targetState.destination.route == Routes.Reader
+                ) EnterTransition.None else fadeIn(tween(150))
+            },
+            popExitTransition = {
+                if (
+                    !ValueAnimator.areAnimatorsEnabled() ||
+                    initialState.destination.route == Routes.Reader ||
+                    targetState.destination.route == Routes.Reader
+                ) ExitTransition.None else fadeOut(tween(100))
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .then(
