@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -82,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ChatTime
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
@@ -784,7 +786,12 @@ private fun ShortcutRow(
     ) {
         ShortcutActionItem("Новинки", Icons.Outlined.Update, onUpdates)
         ShortcutActionItem("Поиск", Icons.Default.Search, onSearch)
-        ShortcutActionItem("Больше", Icons.Outlined.ViewCarousel, onCarousel)
+        ShortcutActionItem("Подборки", Icons.Outlined.ViewCarousel, onCarousel)
+        ShortcutActionItem("Задания", Icons.Outlined.CardGiftcard, onQuests)
+        ShortcutActionItem("Колесо", Icons.Default.Casino, onWheel)
+        ShortcutActionItem("Офлайн", Icons.Outlined.CloudOff, onOffline)
+        ShortcutActionItem("Друзья", Icons.Outlined.People, onFriends)
+        ShortcutActionItem("Игры", Icons.Outlined.SportsEsports, onGames)
     }
 }
 
@@ -795,7 +802,9 @@ private fun ShortcutActionItem(
     onClick: () -> Unit,
 ) {
     Row(
-        Modifier.clickable(onClick = onClick),
+        Modifier
+            .clickable(role = Role.Button, onClick = onClick)
+            .heightIn(min = 48.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
