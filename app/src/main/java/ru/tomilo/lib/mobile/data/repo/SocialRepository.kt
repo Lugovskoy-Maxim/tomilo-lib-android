@@ -544,9 +544,11 @@ class SocialRepository(private val api: TomiloApi) {
         parseNotifications(res.data)
     }
 
-    suspend fun notificationsUnread(): Int = runCatchingCancellable {
-        api.notificationsUnread().data?.count ?: 0
-    }.getOrDefault(0)
+    suspend fun notificationsUnread(): Result<Int> = runCatchingCancellable {
+        val response = api.notificationsUnread()
+        if (!response.success) error(response.message ?: "Не удалось загрузить счётчик уведомлений")
+        response.data?.count ?: error("Сервер не вернул счётчик уведомлений")
+    }
 
     suspend fun markNotificationRead(id: String) {
         runCatchingCancellable { api.markNotificationRead(id) }

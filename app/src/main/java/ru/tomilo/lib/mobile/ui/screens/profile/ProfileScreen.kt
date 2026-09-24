@@ -188,7 +188,7 @@ fun ProfileScreen(
     LaunchedEffect(user?.stableId()) {
         if (user != null) {
             authRepository.refreshProfile()
-            notifUnread = socialRepository.notificationsUnread()
+            notifUnread = socialRepository.notificationsUnread().getOrDefault(0)
         } else {
             notifUnread = 0
         }

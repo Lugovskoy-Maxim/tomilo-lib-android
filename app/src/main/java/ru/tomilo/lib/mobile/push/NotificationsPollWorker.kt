@@ -41,11 +41,16 @@ class NotificationsPollWorker(
         }
 
         if (list.isEmpty()) {
-            val unread = app.container.socialRepository.notificationsUnread()
+            val unreadResult = app.container.socialRepository.notificationsUnread()
             val lastCount = prefs.getInt(KEY_LAST_UNREAD, 0)
             val bookmarkNotifications = pollBookmarkChapters(app, prefs, emptySet())
             val messageNotifications = pollConversations(app, prefs)
             val specificNotificationDelivered = bookmarkNotifications > 0 || messageNotifications > 0
+            val unread = unreadResult.getOrElse {
+                // A failed count request is not evidence that unread reached zero.
+                // Keep the old baseline so recovery cannot create a false summary.
+                return if (runAttemptCount < 3) Result.retry() else Result.success()
+            }
             val summaryDelivered = if (
                 !specificNotificationDelivered &&
                 unread > lastCount &&
