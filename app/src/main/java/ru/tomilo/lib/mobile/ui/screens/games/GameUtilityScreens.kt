@@ -22,6 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -49,6 +54,7 @@ import ru.tomilo.lib.mobile.ui.theme.*
     LaunchedEffect(flash) { if (flash) { delay(550); flash = false } }
     LaunchedEffect(effect) { if (effect != null) { delay(550); effect = null } }
     val colors = listOf(Color(0xFFE84B68), Color(0xFF35BADA), Color(0xFFFFCD4A), Color(0xFF9255DD), Color(0xFF4EC68D))
+    val pillNames = listOf("коралловая", "голубая", "жёлтая", "фиолетовая", "зелёная")
     val board = remember { mutableStateListOf(0,1,4,3,0,2,1,4,4,0,1,2,3,4,0,1,2,3,0,0,0,0,4,2,1,4,2,3,4,1,2,0,0,2,4,1,3,0,4,2,3,1,0,2,4,3,1,0,4,0,3,1,2,4,0,3,1,2,4,0,3,1,2,4) }
     val onPillClick: (Int) -> Unit = { index ->
         val first = selected
@@ -78,7 +84,7 @@ import ru.tomilo.lib.mobile.ui.theme.*
         Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Рецепт бодрости", fontWeight = FontWeight.Bold); Text("УРОВЕНЬ 18 · профиль $profileLevel ур. · $profileXp / $profileXpNext XP", color = Color(0xFFFFD36E)) }; Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("$moves", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold); Text("хода", color = TomiloMuted) } }
             Surface(color = Color(0xFF120D2B).copy(alpha = .9f), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFFFFD36E).copy(alpha = .5f))) { Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Pill(Color(0xFFE84B68)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Соберите коралловые пилюли", fontWeight = FontWeight.Bold); Text("4 в ряд — линия · 5 в ряд — вспышка", color = TomiloMuted) }; Text("$target/16", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold) } }
-            Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { column -> val index = row * 8 + column; val color = board[index]; val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { onPillClick(index) }.background(colors[color], shape).border(if (selected == index) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (flash && index % 8 == 3) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
+            Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { column -> val index = row * 8 + column; val color = board[index]; val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { onPillClick(index) }.semantics { contentDescription = "${pillNames[color]} пилюля, ряд ${row + 1}, столбец ${column + 1}"; role = Role.Button; this.selected = selected == index }.background(colors[color], shape).border(if (selected == index) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (flash && index % 8 == 3) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
             if (target >= 16 && completion == null) {
                 Button(
                     onClick = {
