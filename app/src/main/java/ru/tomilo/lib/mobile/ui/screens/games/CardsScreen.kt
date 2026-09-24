@@ -656,7 +656,13 @@ private fun ShopTab(
             Surface(color = TomiloSurface, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, TomiloBorder)) {
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("Покупка без пака · $randomCardPrice монет активности", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "Покупка без пака. Шансы от F к SSS жёсткие, номерная почти не выпадает. " +
+                            "Дубликаты остаются в пуле — закрытая низкая коллекция не гарантирует " +
+                            "старший ранг. Премиум чуть поднимает удачу на старших рангах.",
+                        color = TomiloMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     Button(
                         onClick = { if (isAuthenticated) onPull() else onLogin() },
                         enabled = action == null,
