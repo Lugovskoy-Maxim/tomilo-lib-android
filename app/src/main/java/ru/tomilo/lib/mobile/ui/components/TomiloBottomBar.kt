@@ -1,9 +1,11 @@
 package ru.tomilo.lib.mobile.ui.components
 
+import android.animation.ValueAnimator
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -200,27 +202,30 @@ private fun NavTabItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     val contentColor by animateColorAsState(
         targetValue = if (selected) Color.White else TomiloText.copy(alpha = 0.70f),
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabColor",
     )
     val scale by animateFloatAsState(
-        targetValue = if (selected) 1.08f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow,
-        ),
+        targetValue = if (selected && motionEnabled) 1.08f else 1f,
+        animationSpec = if (motionEnabled) {
+            spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow,
+            )
+        } else snap(),
         label = "tabScale",
     )
     val bg by animateColorAsState(
         targetValue = if (selected) Color(0xFF824A4B) else Color.Transparent,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabBg",
     )
     val border by animateColorAsState(
         targetValue = if (selected) TomiloPrimary.copy(alpha = 0.58f) else Color.Transparent,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabBorder",
     )
 
