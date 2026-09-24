@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -1144,12 +1145,10 @@ private fun TitleHero(
     onRead: () -> Unit,
 ) {
     val posterHeight = 258.dp
-    val heroHeight = 528.dp
 
     Box(
         Modifier
             .fillMaxWidth()
-            .height(heroHeight)
             .clipToBounds()
             .background(TomiloBg),
     ) {
@@ -1158,13 +1157,13 @@ private fun TitleHero(
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .graphicsLayer { scaleX = 1.18f; scaleY = 1.18f }
                 .blur(28.dp),
         )
         Box(
             Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .background(
                     Brush.verticalGradient(
                         listOf(
@@ -1177,7 +1176,7 @@ private fun TitleHero(
         )
         Column(
             Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
@@ -1321,7 +1320,9 @@ private fun TitleHeroMetadataChip(
 ) {
     Surface(color = Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(9.dp)) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+            modifier = Modifier
+                .heightIn(min = 38.dp)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1329,8 +1330,8 @@ private fun TitleHeroMetadataChip(
             Text(
                 label,
                 color = Color.White.copy(alpha = 0.88f),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
