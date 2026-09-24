@@ -114,6 +114,7 @@ import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlin.math.floor
 import kotlin.math.pow
 import ru.tomilo.lib.mobile.BuildConfig
@@ -127,6 +128,7 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ActionRow
+import ru.tomilo.lib.mobile.ui.components.ProfileScreenSkeleton
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.TomiloRingLogo
@@ -176,6 +178,12 @@ fun ProfileScreen(
     var cacheMsg by remember { mutableStateOf<String?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
     var selectedProfileTab by rememberSaveable { mutableIntStateOf(0) }
+    var profileLoaded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(authRepository) {
+        authRepository.userFlow.first()
+        profileLoaded = true
+    }
 
     LaunchedEffect(user?.stableId()) {
         if (user != null) {
@@ -189,9 +197,9 @@ fun ProfileScreen(
 
     Scaffold(
         containerColor = TomiloBg,
-        contentWindowInsets = if (user == null) ScaffoldDefaults.contentWindowInsets else WindowInsets(0),
+        contentWindowInsets = if (!profileLoaded || user == null) ScaffoldDefaults.contentWindowInsets else WindowInsets(0),
         topBar = {
-            if (user == null) {
+            if (profileLoaded && user == null) {
                 TopAppBar(
                     title = {
                         Text(
@@ -206,6 +214,9 @@ fun ProfileScreen(
             }
         },
     ) { padding ->
+        if (!profileLoaded) {
+            ProfileScreenSkeleton(Modifier.padding(padding).fillMaxSize())
+        } else {
         Column(
             Modifier
                 .padding(padding)
@@ -213,7 +224,8 @@ fun ProfileScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 110.dp),
         ) {
-            if (user == null) {
+            val profileUser = user
+            if (profileUser == null) {
                 Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp)) {
                     LoggedOutProfileCard(
                         onLogin = onLogin,
@@ -224,17 +236,17 @@ fun ProfileScreen(
                     )
                 }
             } else {
-                val premium = Premium.isActive(user!!.subscriptionExpiresAt)
+                val premium = Premium.isActive(profileUser.subscriptionExpiresAt)
 
                 UserProfileHeaderCard(
-                    user = user!!,
+                    user = profileUser,
                     isPremium = premium,
-                    onOpenPublic = { onOpenMyPublicProfile(user!!.stableId()) },
+                    onOpenPublic = { onOpenMyPublicProfile(profileUser.stableId()) },
                     onOpenNotifications = onOpenNotifications,
                     notificationCount = notifUnread,
                     onCopyId = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Tomilo User ID", user!!.stableId()))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Tomilo User ID", profileUser.stableId()))
                         Toast.makeText(context, "ID скопирован в буфер обмена", Toast.LENGTH_SHORT).show()
                     },
                 )
@@ -244,7 +256,7 @@ fun ProfileScreen(
                         when (selectedProfileTab) {
                             0 -> {
                                 ProfileOverviewTab(
-                                    user = user!!,
+                                    user = profileUser,
                                     isPremium = premium,
                                     offlineBytes = offlineBytes,
                                     onOpenLibrary = onOpenOffline,
@@ -265,7 +277,7 @@ fun ProfileScreen(
                             1 -> {
                                 ProfileSubscreenHeader("Оформление", onBack = { selectedProfileTab = 0 })
                                 ProfileCustomizationTab(
-                                    user = user!!,
+                                    user = profileUser,
                                     isPremium = premium,
                                     onOpenShop = onOpenShop,
                                     onOpenPremium = onOpenPremium,
@@ -278,7 +290,7 @@ fun ProfileScreen(
                                     contentSettings = contentSettings,
                                     offlineBytes = offlineBytes,
                                     cacheMsg = cacheMsg,
-                                    isStaff = user!!.isStaff(),
+                                    isStaff = profileUser.isStaff(),
                                     onKeepScreenOn = { scope.launch { readingPrefs.setKeepScreenOn(it) } },
                                     onStartFullscreen = { scope.launch { readingPrefs.setStartFullscreen(it) } },
                                     onAutoAdvanceChapters = { scope.launch { readingPrefs.setAutoAdvanceChapters(it) } },
@@ -303,6 +315,7 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(24.dp))
             Box(Modifier.padding(horizontal = 16.dp)) { AppVersionFooter() }
+        }
         }
     }
 
