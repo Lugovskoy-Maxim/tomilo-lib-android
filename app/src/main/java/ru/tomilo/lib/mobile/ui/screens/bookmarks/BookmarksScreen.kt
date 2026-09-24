@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -102,7 +103,7 @@ fun BookmarksScreen(
                         it.coverPath() != null
                 }.ifEmpty { list }
             }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить закладки.") }
         loading = false
     }
 
@@ -214,7 +215,7 @@ fun BookmarksScreen(
                                         .onSuccess { snackbar.showSnackbar("Удалено из закладок") }
                                         .onFailure {
                                             items = snapshot
-                                            snackbar.showSnackbar(it.message ?: "Не удалось удалить")
+                                            snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить закладку."))
                                         }
                                 }
                             },

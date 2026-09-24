@@ -2,6 +2,7 @@ package ru.tomilo.lib.mobile.ui.components
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.core.userFacingError
 
 class UserFacingErrorTest {
@@ -54,5 +55,14 @@ class UserFacingErrorTest {
     @Test
     fun preservesShortActionableServerMessages() {
         assertEquals("Недостаточно монет", userFacingError("Недостаточно монет"))
+    }
+
+    @Test
+    fun throwableErrorUsesFallbackOrSanitizesTechnicalMessage() {
+        assertEquals("Не удалось удалить запись.", IllegalStateException().toUserFacingError("Не удалось удалить запись."))
+        assertEquals(
+            "Произошла техническая ошибка. Попробуйте снова.",
+            IllegalStateException("{\"secret\":\"internal\"}").toUserFacingError("Не удалось удалить запись."),
+        )
     }
 }

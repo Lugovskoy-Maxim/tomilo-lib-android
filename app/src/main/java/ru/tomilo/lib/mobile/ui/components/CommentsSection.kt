@@ -67,7 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ChatTime
-import ru.tomilo.lib.mobile.core.userFacingError
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.CommentDto
 import ru.tomilo.lib.mobile.data.api.UserDto
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
@@ -140,7 +140,7 @@ fun CommentsSection(
                 comments = it.comments.sortedComments(sortOrder)
                 commentsTotal = it.total.coerceAtLeast(it.comments.totalCommentCount())
             }
-            .onFailure { error = it.commentError("Не удалось загрузить комментарии.") }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить комментарии.") }
         loading = false
     }
 
@@ -165,7 +165,7 @@ fun CommentsSection(
         scope.launch {
             socialRepository.toggleCommentReaction(id, emoji)
                 .onSuccess { reload += 1 }
-                .onFailure { error = it.commentError("Не удалось отправить реакцию.") }
+                .onFailure { error = it.toUserFacingError("Не удалось отправить реакцию.") }
             pendingReactionIds = pendingReactionIds - id
         }
     }
@@ -196,7 +196,7 @@ fun CommentsSection(
                     keyboard?.hide()
                     reload += 1
                 }
-                .onFailure { error = it.commentError("Не удалось сохранить комментарий.") }
+                .onFailure { error = it.toUserFacingError("Не удалось сохранить комментарий.") }
             posting = false
         }
     }
@@ -521,7 +521,7 @@ fun CommentsSection(
                             posting = true
                             socialRepository.deleteComment(id)
                                 .onSuccess { reload += 1 }
-                                .onFailure { error = it.commentError("Не удалось удалить комментарий.") }
+                                .onFailure { error = it.toUserFacingError("Не удалось удалить комментарий.") }
                             posting = false
                         }
                     },
@@ -579,7 +579,7 @@ fun CommentsSection(
                                     notice = "Жалоба отправлена. Модераторы рассмотрят её в ближайшее время."
                                     error = null
                                 }
-                                .onFailure { error = it.commentError("Не удалось отправить жалобу.") }
+                                .onFailure { error = it.toUserFacingError("Не удалось отправить жалобу.") }
                             posting = false
                         }
                     },
@@ -1033,6 +1033,3 @@ private fun List<CommentDto>.sortedComments(order: String): List<CommentDto> {
 private fun List<CommentDto>.totalCommentCount(): Int = sumOf { comment ->
     1 + comment.replies.orEmpty().totalCommentCount()
 }
-
-private fun Throwable.commentError(fallback: String): String =
-    userFacingError(message?.takeIf(String::isNotBlank) ?: fallback)

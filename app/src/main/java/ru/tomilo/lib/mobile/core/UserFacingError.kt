@@ -48,3 +48,6 @@ fun userFacingError(raw: String): String {
         else -> message
     }
 }
+
+fun Throwable.toUserFacingError(fallback: String): String =
+    userFacingError(message?.takeIf(String::isNotBlank) ?: fallback)

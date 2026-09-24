@@ -63,6 +63,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.EquippedDecorationsDto
 import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
@@ -115,7 +116,7 @@ fun ShopScreen(
         error = null
         socialRepository.shopDecorations(category.type)
             .onSuccess { catalog = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить магазин.") }
         owned = if (user != null) {
             socialRepository.ownedDecorations().getOrDefault(emptyList())
         } else {
@@ -148,7 +149,7 @@ fun ShopScreen(
                     authRepository.refreshProfile()
                     reloadShop("«${item.name}» добавлено в инвентарь")
                 }
-                .onFailure { snackbar.showSnackbar(it.message ?: "Покупка не выполнена") }
+                .onFailure { snackbar.showSnackbar(it.toUserFacingError("Покупка не выполнена.")) }
             busyId = null
         }
     }
@@ -167,7 +168,7 @@ fun ShopScreen(
                     authRepository.refreshProfile()
                     reloadShop(if (equipped) "Украшение снято" else "Украшение надето")
                 }
-                .onFailure { snackbar.showSnackbar(it.message ?: "Не удалось изменить украшение") }
+                .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить украшение.")) }
             busyId = null
         }
     }

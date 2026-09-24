@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
 import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
@@ -222,11 +223,11 @@ fun LibraryScreen(
         when (tab) {
             ShelfTab.History -> historyRepository.history()
                 .onSuccess { history = it }
-                .onFailure { error = it.message }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить историю чтения.") }
             ShelfTab.Offline -> Unit
             else -> socialRepository.bookmarks(bookmarkCategory)
                 .onSuccess { bookmarks = it }
-                .onFailure { error = it.message }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить закладки.") }
         }
         loading = false
     }
@@ -462,7 +463,7 @@ fun LibraryScreen(
                                             .onSuccess { snackbar.showSnackbar("Убрано с полки") }
                                             .onFailure {
                                                 bookmarks = snapshot
-                                                snackbar.showSnackbar(it.message ?: "Не удалось удалить")
+                                                snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить запись."))
                                             }
                                     }
                                 },
@@ -507,7 +508,7 @@ fun LibraryScreen(
                                             .onSuccess { snackbar.showSnackbar("Удалено из истории") }
                                             .onFailure {
                                                 history = snapshot
-                                                snackbar.showSnackbar(it.message ?: "Не удалось удалить")
+                                                snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить запись."))
                                             }
                                     }
                                 },
@@ -594,7 +595,7 @@ fun LibraryScreen(
                                 editingGroup = null
                                 showCreateGroup = false
                                 snackbar.showSnackbar("Группа «${group.name}» создана")
-                            }.onFailure { snackbar.showSnackbar(it.message ?: "Не удалось создать группу") }
+                            }.onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось создать группу.")) }
                         }
                     },
                     enabled = newGroupName.trim().isNotBlank(),
@@ -667,7 +668,7 @@ fun LibraryScreen(
                                             }
                                             .onFailure {
                                                 categoryPickerBookmark = null
-                                                snackbar.showSnackbar(it.message ?: "Не удалось изменить категорию")
+                                                snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить категорию."))
                                             }
                                         updatingBookmarkCategory = false
                                     }

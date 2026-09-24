@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.ConversationUserDto
 import ru.tomilo.lib.mobile.data.api.FriendEntryDto
 import ru.tomilo.lib.mobile.data.api.FriendRequestEntryDto
@@ -102,8 +103,8 @@ fun FriendsScreen(
         error = null
         val f = socialRepository.friends()
         val r = socialRepository.friendRequests()
-        f.onSuccess { friends = it }.onFailure { error = it.message }
-        r.onSuccess { requests = it }.onFailure { if (error == null) error = it.message }
+        f.onSuccess { friends = it }.onFailure { error = it.toUserFacingError("Не удалось загрузить список друзей.") }
+        r.onSuccess { requests = it }.onFailure { if (error == null) error = it.toUserFacingError("Не удалось загрузить заявки.") }
         loading = false
     }
 
@@ -113,14 +114,14 @@ fun FriendsScreen(
         delay(300)
         socialRepository.searchFriends(q)
             .onSuccess { searchResults = it }
-            .onFailure { error = it.message }
+            .onFailure { error = it.toUserFacingError("Не удалось загрузить результаты поиска.") }
     }
 
     suspend fun openChat(user: ConversationUserDto) {
         actionBusy = true
         socialRepository.openConversationWith(user.stableId())
             .onSuccess { onOpenChat(it.stableId(), user.username ?: "Диалог") }
-            .onFailure { notify(it.message ?: "Не удалось открыть диалог") }
+            .onFailure { notify(it.toUserFacingError("Не удалось открыть диалог.")) }
         actionBusy = false
     }
 
@@ -203,7 +204,7 @@ fun FriendsScreen(
                             actionBusy = true
                             socialRepository.acceptFriendRequest(request.stableId())
                                 .onSuccess { notify("Заявка принята"); reload += 1 }
-                                .onFailure { notify(it.message ?: "Не удалось принять заявку") }
+                                .onFailure { notify(it.toUserFacingError("Не удалось принять заявку.")) }
                             actionBusy = false
                         }
                     },
@@ -212,7 +213,7 @@ fun FriendsScreen(
                             actionBusy = true
                             socialRepository.rejectFriendRequest(request.stableId())
                                 .onSuccess { notify("Заявка отклонена"); reload += 1 }
-                                .onFailure { notify(it.message ?: "Не удалось отклонить заявку") }
+                                .onFailure { notify(it.toUserFacingError("Не удалось отклонить заявку.")) }
                             actionBusy = false
                         }
                     },
@@ -227,7 +228,7 @@ fun FriendsScreen(
                             actionBusy = true
                             socialRepository.sendFriendRequest(result.user.stableId())
                                 .onSuccess { notify("Заявка отправлена"); searchResults = searchResults.map { if (it.user.stableId() == result.user.stableId()) it.copy(status = "pending_outgoing") else it } }
-                                .onFailure { notify(it.message ?: "Не удалось отправить заявку") }
+                                .onFailure { notify(it.toUserFacingError("Не удалось отправить заявку.")) }
                             actionBusy = false
                         }
                     },
@@ -246,7 +247,7 @@ fun FriendsScreen(
                 scope.launch {
                     socialRepository.removeFriend(entry.user.stableId())
                         .onSuccess { friends = friends.filterNot { it.user.stableId() == entry.user.stableId() }; notify("Удалено из друзей") }
-                        .onFailure { notify(it.message ?: "Не удалось удалить друга") }
+                        .onFailure { notify(it.toUserFacingError("Не удалось удалить друга.")) }
                 }
             },
             onDismiss = { removeRequest = null },
