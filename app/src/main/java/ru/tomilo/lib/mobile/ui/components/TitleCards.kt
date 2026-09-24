@@ -3,7 +3,6 @@ package ru.tomilo.lib.mobile.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,11 +12,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -504,46 +503,36 @@ fun TitleWideCard(
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                year?.let { WideOutlineChip("$it") }
-                if (!type.isNullOrBlank()) {
-                    WideOutlineChip(typeLabel(type), color = TomiloPrimary)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (year != null || !type.isNullOrBlank()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        year?.let { WideOutlineChip("$it") }
+                        if (!type.isNullOrBlank()) WideOutlineChip(typeLabel(type), color = TomiloPrimary)
+                    }
                 }
                 if (rating != null && rating > 0) {
-                    WideOutlineChip(
-                        formatRating(rating),
-                        leading = {
-                            Icon(
-                                Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = TomiloPremium,
-                                modifier = Modifier.size(12.dp),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                        },
-                    )
+                    Row {
+                        WideOutlineChip(
+                            formatRating(rating),
+                            leading = {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = TomiloPremium, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                            },
+                        )
+                    }
                 }
                 if (!status.isNullOrBlank()) {
                     val sColor = statusColor(status)
-                    WideOutlineChip(
-                        statusLabel(status),
-                        borderColor = sColor.copy(alpha = 0.55f),
-                        leading = {
-                            Box(
-                                Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(sColor),
-                            )
-                            Spacer(Modifier.width(5.dp))
-                        },
-                    )
+                    Row {
+                        WideOutlineChip(
+                            statusLabel(status),
+                            borderColor = sColor.copy(alpha = 0.55f),
+                            leading = {
+                                Box(Modifier.size(8.dp).clip(CircleShape).background(sColor))
+                                Spacer(Modifier.width(5.dp))
+                            },
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -589,16 +578,19 @@ private fun WideOutlineChip(
         Modifier
             .clip(RoundedCornerShape(999.dp))
             .border(1.dp, borderColor, RoundedCornerShape(999.dp))
-            .padding(horizontal = 9.dp, vertical = 4.dp),
+            .heightIn(min = 38.dp)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke()
         Text(
             text,
             color = color,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
+            lineHeight = 16.sp,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
