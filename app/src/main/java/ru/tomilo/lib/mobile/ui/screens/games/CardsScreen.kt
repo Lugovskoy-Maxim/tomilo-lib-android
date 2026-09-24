@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -1329,8 +1330,10 @@ private fun ForgeTab(
             val id = card.id
             val selectedCopies = selectedIds.count { it == id }
             val isRankValid = selectedRank == null || cardRank(card) == selectedRank
+            val motionEnabled = ValueAnimator.areAnimatorsEnabled()
             val selectedColor by animateColorAsState(
                 targetValue = if (selectedCopies > 0) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .28f) else TomiloSurface,
+                animationSpec = if (motionEnabled) tween(durationMillis = 160) else snap(),
                 label = "forgeCardSelection",
             )
             Surface(
@@ -1343,7 +1346,7 @@ private fun ForgeTab(
                     AsyncImage(MediaUrl.resolve(card.stageImageUrl ?: card.imageUrl), card.characterName ?: card.name, contentScale = ContentScale.Crop, modifier = Modifier.size(52.dp, 68.dp).clip(RoundedCornerShape(9.dp)))
                     Checkbox(checked = selectedCopies > 0, onCheckedChange = null)
                     Column(Modifier.weight(1f)) {
-                        Text(card.characterName ?: card.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(card.characterName ?: card.name, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text("Ранг ${cardRank(card)} · копий ${card.copies.coerceAtLeast(0)}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                         TextButton(
                             onClick = { onSell(card) },
