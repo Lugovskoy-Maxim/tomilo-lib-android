@@ -109,6 +109,7 @@ import ru.tomilo.lib.mobile.ui.components.CardTradesSkeleton
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.SkeletonBox
+import ru.tomilo.lib.mobile.ui.components.TomiloBottomBarContentGap
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.core.userFacingError
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
@@ -367,7 +368,12 @@ fun CardsScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { insets ->
-        Column(Modifier.fillMaxSize().padding(insets)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(insets)
+                .padding(bottom = TomiloBottomBarContentGap),
+        ) {
             androidx.compose.foundation.lazy.LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

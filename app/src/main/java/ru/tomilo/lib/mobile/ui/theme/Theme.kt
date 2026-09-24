@@ -11,6 +11,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 
 private val DarkColors = darkColorScheme(
@@ -82,8 +84,14 @@ fun TomiloTheme(
             onPrimaryContainer = Color.White,
         )
     }
+    val systemDensity = LocalDensity.current
+    val normalFontScale = minOf(systemDensity.fontScale, 1f)
+    val appDensity = remember(systemDensity.density, normalFontScale) {
+        Density(density = systemDensity.density, fontScale = normalFontScale)
+    }
     CompositionLocalProvider(
         LocalTomiloAccent provides activePrimary,
+        LocalDensity provides appDensity,
     ) {
         MaterialTheme(
             colorScheme = colors,

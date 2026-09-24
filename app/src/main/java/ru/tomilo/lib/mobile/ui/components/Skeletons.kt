@@ -163,10 +163,10 @@ fun CardCollectionSkeleton(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun CardShopSkeleton(modifier: Modifier = Modifier) {
+fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = false) {
     ShimmerScope {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(148.dp),
+            columns = if (singleColumn) GridCells.Fixed(1) else GridCells.Adaptive(148.dp),
             modifier = modifier,
             contentPadding = androidx.compose.foundation.layout.PaddingValues(14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
