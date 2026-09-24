@@ -108,6 +108,7 @@ import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
+import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.local.AdRewardStore
 import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
@@ -170,6 +171,7 @@ fun TitleScreen(
     val offlineCredits = adStatus.credits
     val isPremium = Premium.isActive(user?.subscriptionExpiresAt)
     val context = LocalContext.current
+    val readingPrefs = remember(context) { ReadingPrefs(context) }
     val activity = context as? Activity
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -190,6 +192,7 @@ fun TitleScreen(
     var sort by remember { mutableStateOf(ChapterSort.NumberDesc) }
     var myRating by remember { mutableIntStateOf(0) }
     var readChapterIds by remember { mutableStateOf(setOf<String>()) }
+    var unmarkingChapterIds by remember { mutableStateOf(setOf<String>()) }
     var continueChapterId by remember { mutableStateOf<String?>(null) }
     /** Главы, ждущие просмотр рекламы перед скачиванием */
     var pendingAdChapters by remember { mutableStateOf<List<ChapterDto>?>(null) }
@@ -776,12 +779,37 @@ fun TitleScreen(
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     if (isRead) {
-                                        Icon(
-                                            Icons.Default.CheckCircle,
-                                            contentDescription = "Прочитано",
-                                            tint = TomiloPrimary,
-                                            modifier = Modifier.size(21.dp),
-                                        )
+                                        IconButton(
+                                            onClick = {
+                                                val titleId = t.stableId()
+                                                if (titleId.isBlank() || id.isBlank() || id in unmarkingChapterIds) return@IconButton
+                                                val previousReadIds = readChapterIds
+                                                unmarkingChapterIds = unmarkingChapterIds + id
+                                                readChapterIds = readChapterIds - id
+                                                continueChapterId = id
+                                                scope.launch {
+                                                    historyRepository.removeChapterFromHistory(titleId, id)
+                                                        .onSuccess {
+                                                            readingPrefs.unmarkLocalRead(titleId, id)
+                                                            snackbar.showSnackbar("Отметка «прочитано» снята")
+                                                        }
+                                                        .onFailure { error ->
+                                                            readChapterIds = previousReadIds
+                                                            snackbar.showSnackbar(error.message ?: "Не удалось снять отметку")
+                                                        }
+                                                    unmarkingChapterIds = unmarkingChapterIds - id
+                                                }
+                                            },
+                                            enabled = id !in unmarkingChapterIds,
+                                            modifier = Modifier.size(42.dp),
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = if (id in unmarkingChapterIds) "Снимаем отметку" else "Снять отметку «прочитано»",
+                                                tint = TomiloPrimary,
+                                                modifier = Modifier.size(21.dp),
+                                            )
+                                        }
                                     } else {
                                         Text(
                                             chapter.numberLabel(),

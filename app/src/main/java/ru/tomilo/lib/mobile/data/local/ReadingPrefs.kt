@@ -103,6 +103,15 @@ class ReadingPrefs(private val context: Context) {
             .orEmpty()
     }
 
+    suspend fun unmarkLocalRead(titleId: String, chapterId: String) {
+        if (titleId.isBlank() || chapterId.isBlank()) return
+        val readKey = stringSetPreferencesKey("offline_read_$titleId")
+        context.readingDataStore.edit { prefs ->
+            prefs[readKey] = prefs[readKey].orEmpty() - chapterId
+            prefs[pendingHistoryKey] = prefs[pendingHistoryKey].orEmpty() - "$titleId|$chapterId"
+        }
+    }
+
     suspend fun pendingHistory(): Set<Pair<String, String>> =
         context.readingDataStore.data.first()[pendingHistoryKey]
             .orEmpty()

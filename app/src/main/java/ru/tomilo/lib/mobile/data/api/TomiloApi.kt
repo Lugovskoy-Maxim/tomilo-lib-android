@@ -419,6 +419,12 @@ interface TomiloApi {
         @Path("chapterId") chapterId: String,
     ): ApiResponse<JsonElement>
 
+    @DELETE("users/profile/history/{titleId}/{chapterId}")
+    suspend fun removeChapterFromHistory(
+        @Path("titleId") titleId: String,
+        @Path("chapterId") chapterId: String,
+    ): ApiResponse<JsonElement>
+
     @DELETE("users/profile/history/{titleId}")
     suspend fun deleteTitleHistory(@Path("titleId") titleId: String): ApiResponse<JsonElement>
 

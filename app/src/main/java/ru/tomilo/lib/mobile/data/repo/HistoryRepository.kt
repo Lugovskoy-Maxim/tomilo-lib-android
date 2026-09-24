@@ -70,6 +70,12 @@ class HistoryRepository(private val api: TomiloApi) {
         parseHistoryReward(res.data)
     }
 
+    suspend fun removeChapterFromHistory(titleId: String, chapterId: String): Result<Unit> = runCatchingCancellable {
+        if (titleId.isBlank() || chapterId.isBlank()) error("Не удалось определить главу")
+        val res = api.removeChapterFromHistory(titleId, chapterId)
+        if (!res.success) error(res.message ?: "Не удалось снять отметку о прочтении")
+    }
+
     suspend fun rateTitle(titleId: String, rating: Int): Result<Unit> = runCatchingCancellable {
         val res = api.rateTitle(titleId, RateTitleRequest(rating.coerceIn(1, 10)))
         if (!res.success) error(res.message ?: "Не удалось оценить")
