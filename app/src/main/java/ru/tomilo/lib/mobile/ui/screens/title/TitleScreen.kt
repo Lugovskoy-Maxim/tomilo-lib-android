@@ -1327,7 +1327,7 @@ private fun TitleHeroMetadataChip(
         Row(
             modifier = Modifier
                 .heightIn(min = 48.dp)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1337,7 +1337,8 @@ private fun TitleHeroMetadataChip(
                 color = Color.White.copy(alpha = 0.88f),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                lineHeight = 20.sp,
+                fontSize = 14.sp,
+                lineHeight = 22.sp,
             )
         }
     }
@@ -1731,7 +1732,10 @@ private fun DetailChip(label: String) {
             label,
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            lineHeight = 18.sp,
+            modifier = Modifier
+                .heightIn(min = 36.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         )
     }
 }

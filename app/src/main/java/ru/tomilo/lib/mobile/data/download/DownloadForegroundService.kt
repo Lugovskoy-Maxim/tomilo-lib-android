@@ -136,46 +136,37 @@ class DownloadForegroundService : Service() {
         progress: Int,
         indeterminate: Boolean,
         ongoing: Boolean,
-    ): Notification {
-        val open = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val cancel = PendingIntent.getService(
-            this,
-            1,
-            Intent(this, DownloadForegroundService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_tomilo)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setContentIntent(open)
-            .setOnlyAlertOnce(true)
-            .setOngoing(ongoing)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
-
-        if (ongoing) {
-            builder.setProgress(100, progress, indeterminate)
-            builder.addAction(0, "Отменить", cancel)
-        } else {
-            builder.setProgress(0, 0, false)
-            builder.setAutoCancel(true)
-        }
-        return builder.build()
-    }
+    ): Notification = buildDownloadNotification(this, title, text, progress, indeterminate, ongoing)
 
     companion object {
         const val CHANNEL_ID = "tomilo_downloads"
         const val NOTIFICATION_ID = 4201
-        private const val ACTION_STOP = "ru.tomilo.lib.mobile.DOWNLOAD_STOP"
+        const val ACTION_STOP = "ru.tomilo.lib.mobile.DOWNLOAD_STOP"
+
+        /** Updates the detached service notification while WorkManager continues the checkpoint. */
+        fun showState(context: Context, state: BatchDownloadState) {
+            val active = state.activeItem
+            val finished = state.finished
+            val text = if (finished) {
+                state.statusSummary.ifBlank { "Готово: ${state.completedCount}/${state.items.size}" }
+            } else {
+                buildString {
+                    if (state.titleName.isNotBlank()) append(state.titleName).append(" · ")
+                    append("${state.completedCount}/${state.items.size}")
+                    active?.let { append(" · ").append(it.stageLabel) }
+                }
+            }
+            val percent = if (finished) 100 else (state.overallFraction * 100).toInt().coerceIn(0, 100)
+            val notification = buildDownloadNotification(
+                context = context,
+                title = if (finished) "Офлайн: ${state.titleName.ifBlank { "загрузка" }}" else "Скачивание офлайн",
+                text = text,
+                progress = percent,
+                indeterminate = !finished && (active?.stage == DownloadStage.Queued || active?.stage == DownloadStage.CheckingAccess),
+                ongoing = !finished,
+            )
+            context.getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification)
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, DownloadForegroundService::class.java)
@@ -190,4 +181,47 @@ class DownloadForegroundService : Service() {
             context.stopService(Intent(context, DownloadForegroundService::class.java))
         }
     }
+}
+
+private fun buildDownloadNotification(
+    context: Context,
+    title: String,
+    text: String,
+    progress: Int,
+    indeterminate: Boolean,
+    ongoing: Boolean,
+): Notification {
+    val open = PendingIntent.getActivity(
+        context,
+        0,
+        Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        },
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    val cancel = PendingIntent.getService(
+        context,
+        1,
+        Intent(context, DownloadForegroundService::class.java).setAction(DownloadForegroundService.ACTION_STOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    val builder = NotificationCompat.Builder(context, DownloadForegroundService.CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_stat_tomilo)
+        .setContentTitle(title)
+        .setContentText(text)
+        .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+        .setContentIntent(open)
+        .setOnlyAlertOnce(true)
+        .setOngoing(ongoing)
+        .setPriority(NotificationCompat.PRIORITY_LOW)
+        .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+
+    if (ongoing) {
+        builder.setProgress(100, progress, indeterminate)
+        builder.addAction(0, "Отменить", cancel)
+    } else {
+        builder.setProgress(0, 0, false)
+        builder.setAutoCancel(true)
+    }
+    return builder.build()
 }

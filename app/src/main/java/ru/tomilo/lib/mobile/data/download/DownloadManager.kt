@@ -5,13 +5,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 
@@ -27,6 +31,7 @@ class DownloadManager(
     /** Собственный scope — не привязан к Activity. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val queueStore = DownloadQueueStore(appContext)
+    private val executionMutex = Mutex()
 
     private val _state = MutableStateFlow(BatchDownloadState())
     val state: StateFlow<BatchDownloadState> = _state.asStateFlow()
@@ -45,10 +50,11 @@ class DownloadManager(
         return s.items.isNotEmpty() && !s.finished
     }
 
-    /** Resume a saved batch when the user returns after an OS foreground-service time limit. */
+    /** Resume a saved batch from the foreground service when the user opens the app. */
     fun resumePersisted() {
         if (isBusy()) return
         val request = queueStore.load() ?: return
+        DownloadResumeWorker.cancel(appContext)
         pendingRequest = request
         lastRequest = request
         _state.value = BatchDownloadState(
@@ -78,6 +84,44 @@ class DownloadManager(
                     else it.copy(stage = DownloadStage.Cancelled, message = "Приостановлено системой. Откройте приложение, чтобы продолжить.")
                 },
             )
+        }
+        if (pendingRequest != null) DownloadResumeWorker.enqueue(appContext)
+    }
+
+    /** Continue a checkpoint in ordinary deferrable work after Android's FGS data-sync budget expires. */
+    suspend fun runPersistedFromWorker(onProgress: (BatchDownloadState) -> Unit): Boolean {
+        if (job?.isActive == true) return false
+        return executionMutex.withLock {
+            if (job?.isActive == true) return@withLock false
+            val request = queueStore.load() ?: return@withLock true
+            pendingRequest = null
+            lastRequest = request
+            val batchGeneration = ++generation
+            _state.value = queuedState(request)
+            try {
+                executeBatch(request, onProgress)
+                if (batchGeneration != generation) return@withLock false
+                queueStore.clear()
+                pendingRequest = null
+                onProgress(_state.value)
+                true
+            } catch (cancelled: CancellationException) {
+                if (batchGeneration == generation) {
+                    pendingRequest = queueStore.load()
+                    _state.update { state ->
+                        state.copy(
+                            finished = true,
+                            activeIndex = -1,
+                            runningInBackground = false,
+                            items = state.items.map {
+                                if (it.stage == DownloadStage.Completed || it.stage == DownloadStage.Failed) it
+                                else it.copy(stage = DownloadStage.Cancelled, message = "Приостановлено системой. Загрузка продолжится автоматически.")
+                            },
+                        )
+                    }
+                }
+                throw cancelled
+            }
         }
     }
 
@@ -157,8 +201,11 @@ class DownloadManager(
         job = scope.launch {
             previousJob?.join()
             try {
-                executeBatch(request) { state ->
-                    if (generation == batchGeneration) onProgressNotify(state)
+                executionMutex.withLock {
+                    if (generation != batchGeneration || queueStore.load() == null) return@withLock
+                    executeBatch(request) { state ->
+                        if (generation == batchGeneration) onProgressNotify(state)
+                    }
                 }
             } finally {
                 if (generation == batchGeneration) {
@@ -176,7 +223,7 @@ class DownloadManager(
         onNotify: (BatchDownloadState) -> Unit,
     ) {
         request.chapters.forEachIndexed { index, ref ->
-            if (!currentCoroutineContext().isActive) return
+            currentCoroutineContext().ensureActive()
 
             _state.update { s ->
                 s.copy(
@@ -234,6 +281,7 @@ class DownloadManager(
     fun cancel() {
         generation++
         job?.cancel()
+        DownloadResumeWorker.cancel(appContext)
         pendingRequest = null
         queueStore.clear()
         _state.update { s ->
@@ -295,4 +343,14 @@ class DownloadManager(
             )
         }
     }
+
+    private fun queuedState(request: DownloadBatchRequest) = BatchDownloadState(
+        titleName = request.titleName,
+        items = request.chapters.map { ref ->
+            ChapterDownloadProgress(ref.chapterId, ref.chapterLabel, DownloadStage.Queued)
+        },
+        activeIndex = 0,
+        finished = false,
+        runningInBackground = true,
+    )
 }
