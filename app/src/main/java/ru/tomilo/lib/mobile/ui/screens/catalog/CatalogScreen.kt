@@ -182,6 +182,7 @@ fun CatalogScreen(
     var showFilters by remember { mutableStateOf(false) }
     var layoutMode by rememberSaveable { mutableStateOf(CatalogLayoutMode.GRID_2) }
     val compactGridAvailable = configuration.screenWidthDp >= 400 && configuration.fontScale <= 1.15f
+    val catalogStateHeight = if (configuration.fontScale >= 1.2f || configuration.screenHeightDp < 640) 250.dp else 390.dp
     val effectiveLayoutMode = if (layoutMode == CatalogLayoutMode.GRID_3 && !compactGridAvailable) {
         CatalogLayoutMode.GRID_2
     } else {
@@ -627,7 +628,7 @@ fun CatalogScreen(
                     )
                 }
                 error != null && items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_error") {
-                    ErrorBox(error ?: "Ошибка", modifier = Modifier.fillMaxWidth().height(390.dp)) { reload += 1 }
+                    ErrorBox(error ?: "Ошибка", modifier = Modifier.fillMaxWidth().height(catalogStateHeight)) { reload += 1 }
                 }
                 items.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_empty") {
                     EmptyState(
@@ -637,7 +638,7 @@ fun CatalogScreen(
                         illustration = ru.tomilo.lib.mobile.R.drawable.illust_offline_mascot,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(390.dp),
+                            .height(catalogStateHeight),
                         actionLabel = if (activeFilters > 0 || searchInput.isNotBlank()) "Сбросить фильтры" else null,
                         onAction = if (activeFilters > 0 || searchInput.isNotBlank()) {
                             {
