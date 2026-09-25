@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
+
 @Serializable
 data class ApiResponse<T>(
     val success: Boolean = false,
@@ -998,11 +999,29 @@ data class GameAlchemyStatusDto(
 )
 
 @Serializable data class PillMatchCompleteRequest(val level: Int)
+@Serializable data class PillMatchStartRequest(val level: Int)
+@Serializable data class PillMatchMoveRequest(val from: Int, val to: Int)
+@Serializable data class PillMatchBoosterRequest(val booster: String, val index: Int? = null)
+@Serializable data class PillMatchLivesDto(val current: Int = 5, val capacity: Int = 5, val nextLifeAt: String? = null)
+@Serializable data class PillMatchSessionDto(
+    val level: Int = 1, val board: List<String> = emptyList(), val moves: Int = 0,
+    val collected: Int = 0, val target: Int = 18, val targetColor: Int = 0,
+    val obstacles: List<Int> = emptyList(), val boosters: PillMatchBoostersDto = PillMatchBoostersDto(),
+    val version: Int = 0, val finished: Boolean = false,
+)
+@Serializable data class PillMatchBoostersDto(val hammer: Int = 2, val shuffle: Int = 1, val rainbow: Int = 1)
+@Serializable data class PillMatchActionDto(
+    val profileLevel: Int = 1, val experience: Int = 0, val experienceToNext: Int = 100,
+    val completedLevels: List<Int> = emptyList(), val lives: PillMatchLivesDto = PillMatchLivesDto(),
+    val session: PillMatchSessionDto = PillMatchSessionDto(), val validMove: Boolean = true,
+)
 @Serializable data class PillMatchStateDto(
     val profileLevel: Int = 1,
     val experience: Int = 0,
     val experienceToNext: Int = 100,
     val completedLevels: List<Int> = emptyList(),
+    val lives: PillMatchLivesDto = PillMatchLivesDto(),
+    val session: PillMatchSessionDto? = null,
 )
 @Serializable data class PillMatchCompleteDto(
     val awarded: Boolean = false,
@@ -1011,6 +1030,46 @@ data class GameAlchemyStatusDto(
     val profileLevel: Int = 1,
     val experience: Int = 0,
     val experienceToNext: Int = 100,
+)
+
+@Serializable
+data class PillMatchLeaderboardUserDto(
+    val userId: String = "",
+    val username: String = "Игрок",
+    val avatar: String? = null,
+    val completedLevels: Int = 0,
+    val highestLevel: Int = 0,
+    val rank: Int = 0,
+)
+
+@Serializable
+data class PillMatchLeaderboardDto(
+    val period: String = "all",
+    val users: List<PillMatchLeaderboardUserDto> = emptyList(),
+)
+
+@Serializable
+data class PillMatchAdminLevelDto(
+    @SerialName("_id") val id: String = "",
+    val level: Int = 1,
+    val target: Int = 18,
+    val moves: Int = 24,
+    val targetColor: Int = 0,
+    val obstacles: List<Int> = emptyList(),
+    val seed: Int = 1,
+    val published: Boolean = true,
+    val sortOrder: Int = 0,
+)
+
+@Serializable
+data class PillMatchAdminLevelRequest(
+    val level: Int,
+    val target: Int,
+    val moves: Int,
+    val targetColor: Int,
+    val obstacles: List<Int>,
+    val seed: Int,
+    val published: Boolean = true,
 )
 
 @Serializable

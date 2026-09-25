@@ -27,6 +27,13 @@ import ru.tomilo.lib.mobile.data.api.GameWarehouseRequest
 import ru.tomilo.lib.mobile.data.api.PillMatchCompleteDto
 import ru.tomilo.lib.mobile.data.api.PillMatchCompleteRequest
 import ru.tomilo.lib.mobile.data.api.PillMatchStateDto
+import ru.tomilo.lib.mobile.data.api.PillMatchStartRequest
+import ru.tomilo.lib.mobile.data.api.PillMatchMoveRequest
+import ru.tomilo.lib.mobile.data.api.PillMatchBoosterRequest
+import ru.tomilo.lib.mobile.data.api.PillMatchActionDto
+import ru.tomilo.lib.mobile.data.api.PillMatchLeaderboardDto
+import ru.tomilo.lib.mobile.data.api.PillMatchAdminLevelDto
+import ru.tomilo.lib.mobile.data.api.PillMatchAdminLevelRequest
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 
 data class GamesDashboard(
@@ -53,6 +60,53 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.completePillMatchLevel(PillMatchCompleteRequest(level))
         if (!response.success) error(response.message ?: "Не удалось сохранить прохождение")
         response.data ?: error("Сервер не вернул награду")
+    }
+
+    suspend fun startPillMatchLevel(level: Int): Result<PillMatchStateDto> = runCatchingCancellable {
+        val response = api.startPillMatchLevel(PillMatchStartRequest(level))
+        if (!response.success) error(response.message ?: "Не удалось начать уровень")
+        response.data ?: error("Сервер не вернул состояние уровня")
+    }
+
+    suspend fun pillMatchMove(from: Int, to: Int): Result<PillMatchActionDto> = runCatchingCancellable {
+        val response = api.pillMatchMove(PillMatchMoveRequest(from, to))
+        if (!response.success) error(response.message ?: "Не удалось выполнить ход")
+        response.data ?: error("Сервер не вернул состояние хода")
+    }
+
+    suspend fun pillMatchBooster(booster: String, index: Int? = null): Result<PillMatchActionDto> = runCatchingCancellable {
+        val response = api.pillMatchBooster(PillMatchBoosterRequest(booster, index))
+        if (!response.success) error(response.message ?: "Не удалось применить усиление")
+        response.data ?: error("Сервер не вернул состояние усиления")
+    }
+
+    suspend fun pillMatchLeaderboard(period: String): Result<PillMatchLeaderboardDto> = runCatchingCancellable {
+        val response = api.pillMatchLeaderboard(period = period)
+        if (!response.success) error(response.message ?: "Не удалось загрузить рейтинг игры")
+        response.data ?: PillMatchLeaderboardDto(period = period)
+    }
+
+    suspend fun pillMatchAdminLevels(): Result<List<PillMatchAdminLevelDto>> = runCatchingCancellable {
+        val response = api.pillMatchAdminLevels()
+        if (!response.success) error(response.message ?: "Не удалось загрузить уровни")
+        response.data.orEmpty()
+    }
+
+    suspend fun pillMatchPublishedLevels(): Result<List<PillMatchAdminLevelDto>> = runCatchingCancellable {
+        val response = api.pillMatchPublishedLevels()
+        if (!response.success) error(response.message ?: "Не удалось загрузить опубликованные уровни")
+        response.data.orEmpty()
+    }
+
+    suspend fun savePillMatchAdminLevel(body: PillMatchAdminLevelRequest): Result<PillMatchAdminLevelDto> = runCatchingCancellable {
+        val response = api.savePillMatchAdminLevel(body)
+        if (!response.success) error(response.message ?: "Не удалось сохранить уровень")
+        response.data ?: error("Сервер не вернул сохранённый уровень")
+    }
+
+    suspend fun deletePillMatchAdminLevel(level: Int): Result<Unit> = runCatchingCancellable {
+        val response = api.deletePillMatchAdminLevel(level)
+        if (!response.success) error(response.message ?: "Не удалось удалить уровень")
     }
     suspend fun cardDecks(): Result<List<GameCardDeckDto>> = runCatchingCancellable {
         val response = api.gameCardDecks()
