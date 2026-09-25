@@ -52,7 +52,7 @@ import ru.tomilo.lib.mobile.ui.theme.*
 /** Уровень 3-в-ряд: тот же рецепт, поле и прогресс профиля, что и в веб-версии. */
 @Composable fun AlchemyScreen(gamesRepository: GamesRepository, modifier: Modifier = Modifier) {
     var moves by rememberSaveable { mutableIntStateOf(22) }; var target by rememberSaveable { mutableIntStateOf(0) }; var flashedCells by remember { mutableStateOf<Set<Int>>(emptySet()) }; var flashSequence by remember { mutableIntStateOf(0) }; var effect by remember { mutableStateOf<String?>(null) }; var selected by rememberSaveable { mutableStateOf<Int?>(null) }
-    var completion by rememberSaveable { mutableStateOf<String?>(null) }; var saving by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope()
+    var completion by rememberSaveable { mutableStateOf<String?>(null) }; var completionError by remember { mutableStateOf<String?>(null) }; var saving by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope()
     var profileLevel by rememberSaveable { mutableIntStateOf(1) }; var profileXp by rememberSaveable { mutableIntStateOf(0) }; var profileXpNext by rememberSaveable { mutableIntStateOf(100) }
     LaunchedEffect(Unit) { gamesRepository.pillMatchState().onSuccess { profileLevel = it.profileLevel; profileXp = it.experience; profileXpNext = it.experienceToNext } }
     LaunchedEffect(flashSequence) { if (flashSequence > 0) { delay(550); flashedCells = emptySet() } }
@@ -93,6 +93,7 @@ import ru.tomilo.lib.mobile.ui.theme.*
                     onClick = {
                         scope.launch {
                             saving = true
+                            completionError = null
                             try {
                                 gamesRepository.completePillMatchLevel(18)
                                     .onSuccess {
@@ -106,8 +107,12 @@ import ru.tomilo.lib.mobile.ui.theme.*
                                         }
                                     }
                                     .onFailure {
-                                        completion = it.toUserFacingError("Не удалось сохранить награду.")
+                                        completionError = it.toUserFacingError("Не удалось сохранить награду.")
                                     }
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                throw cancelled
+                            } catch (error: Throwable) {
+                                completionError = error.toUserFacingError("Не удалось сохранить награду.")
                             } finally {
                                 saving = false
                             }
@@ -118,6 +123,9 @@ import ru.tomilo.lib.mobile.ui.theme.*
                 ) {
                     Text(if (saving) "Сохраняем…" else "Завершить рецепт · +56 XP")
                 }
+            }
+            completionError?.let { error ->
+                Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.CenterHorizontally))
             }
             completion?.let { Text(it, color = Color(0xFFFFE7A3), fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.CenterHorizontally)) }
         }
