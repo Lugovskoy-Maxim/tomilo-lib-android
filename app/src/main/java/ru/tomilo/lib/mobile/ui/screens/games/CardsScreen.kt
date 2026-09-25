@@ -76,6 +76,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -212,6 +213,7 @@ fun CardsScreen(
     var cardToSell by remember { mutableStateOf<GameCardDto?>(null) }
     var tab by rememberSaveable { mutableStateOf(CardTab.Album) }
     var forgeMode by rememberSaveable { mutableStateOf(ForgeMode.Random) }
+    val tabStateHolder = rememberSaveableStateHolder()
     var loading by remember { mutableStateOf(true) }
     var cardsLoading by remember { mutableStateOf(true) }
     var decksLoading by remember { mutableStateOf(true) }
@@ -449,7 +451,8 @@ fun CardsScreen(
                 },
                 label = "cardTabContent",
             ) { currentTab ->
-                when {
+                tabStateHolder.SaveableStateProvider(currentTab.name) {
+                    when {
                     currentTab == CardTab.Album && catalogLoading && catalog.isEmpty() && cards.isEmpty() -> CardsGridSkeleton(Modifier.fillMaxSize())
                     currentTab == CardTab.Album && cardsLoading && cards.isEmpty() && catalog.isNotEmpty() -> CardsGridSkeleton(Modifier.fillMaxSize())
                     currentTab == CardTab.Album && catalogError != null && catalog.isEmpty() && cards.isEmpty() -> ErrorBox(
@@ -623,6 +626,7 @@ fun CardsScreen(
                         },
                         onSell = { card -> cardToSell = card },
                     )
+                    }
                 }
             }
         }
@@ -682,7 +686,7 @@ private fun ShopTab(
     onPull: () -> Unit,
     onOpenDeck: (GameCardDeckDto) -> Unit,
 ) {
-    var titleQuery by remember { mutableStateOf("") }
+    var titleQuery by rememberSaveable { mutableStateOf("") }
     val titleOffers = remember(decks, titleQuery) {
         val normalizedQuery = titleQuery.trim().lowercase()
         groupCardTitleOffers(decks).filter { normalizedQuery.isBlank() || it.title.lowercase().contains(normalizedQuery) }
@@ -960,8 +964,8 @@ private fun TradeTab(
     onCancel: (GameCardTradeDto) -> Unit,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
-    var showWantedOnly by remember { mutableStateOf(true) }
-    var tradeQuery by remember { mutableStateOf("") }
+    var showWantedOnly by rememberSaveable { mutableStateOf(true) }
+    var tradeQuery by rememberSaveable { mutableStateOf("") }
     val visibleTrades = remember(trades, wantedCardIds, showWantedOnly, tradeQuery) {
         val query = tradeQuery.trim().lowercase()
         trades.filter { trade ->
@@ -1117,12 +1121,12 @@ private fun CardTradeCreateDialog(
             CardTradeChoice(it.id, it.name, it.imageUrl, it.titleName.ifBlank { "Без тайтла" })
         }
     }
-    var offerId by remember { mutableStateOf("") }
-    var wantId by remember { mutableStateOf("") }
-    var offerQuery by remember { mutableStateOf("") }
-    var wantQuery by remember { mutableStateOf("") }
-    var offerCopies by remember { mutableIntStateOf(1) }
-    var note by remember { mutableStateOf("") }
+    var offerId by rememberSaveable { mutableStateOf("") }
+    var wantId by rememberSaveable { mutableStateOf("") }
+    var offerQuery by rememberSaveable { mutableStateOf("") }
+    var wantQuery by rememberSaveable { mutableStateOf("") }
+    var offerCopies by rememberSaveable { mutableIntStateOf(1) }
+    var note by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(offerChoices) {
         if (offerChoices.none { it.id == offerId }) offerId = offerChoices.firstOrNull()?.id.orEmpty()
     }
@@ -1496,10 +1500,10 @@ private fun CardCatalogTab(
     onWant: (String) -> Unit,
     onSell: (GameCardDto) -> Unit,
 ) {
-    var query by remember { mutableStateOf("") }
-    var ownedFirst by remember { mutableStateOf(false) }
-    var sort by remember { mutableStateOf(CardCatalogSort.Popular) }
-    var selectedRank by remember { mutableStateOf(CardCatalogRank.All) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var ownedFirst by rememberSaveable { mutableStateOf(false) }
+    var sort by rememberSaveable { mutableStateOf(CardCatalogSort.Popular) }
+    var selectedRank by rememberSaveable { mutableStateOf(CardCatalogRank.All) }
     val owned = remember(ownedCards) { ownedCards.associateBy(GameCardDto::id) }
     val entries = remember(catalog, ownedCards, query, ownedFirst, sort, selectedRank) {
         val normalizedQuery = query.trim().lowercase()
