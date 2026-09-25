@@ -1,9 +1,11 @@
 package ru.tomilo.lib.mobile.core
 
+import java.util.Locale
+
 /** Converts transport and server failures into short, actionable copy for app surfaces. */
 fun userFacingError(raw: String): String {
     val message = raw.trim()
-    val lower = message.lowercase()
+    val lower = message.lowercase(Locale.ROOT)
     val httpStatus = Regex(
         "(?:http(?:\\s+status(?:\\s+code)?)?\\s*|status(?:\\s+code)?\\s*[:=]?\\s*|response\\s+code\\s*[:=]?\\s*)(\\d{3})",
         RegexOption.IGNORE_CASE,
@@ -38,6 +40,16 @@ fun userFacingError(raw: String): String {
             lower.contains("kotlinx.coroutines") ||
             lower.contains("unexpected json token") ||
             lower.contains("expected start of") ||
+            lower.startsWith("expected ") && (
+                lower.contains(" at line ") ||
+                    lower.contains(" at path ") ||
+                    lower.contains("begin_object") ||
+                    lower.contains("begin_array")
+                ) ||
+            lower.startsWith("cannot deserialize") ||
+            lower.contains("jsonsyntaxexception") ||
+            lower.contains("jsondataexception") ||
+            lower.contains("malformedjsonexception") ||
             lower.contains("serializationexception") ||
             lower.contains("jsondecodingexception") ||
             lower.contains("json parse") ||
