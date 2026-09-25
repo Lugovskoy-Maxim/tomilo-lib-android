@@ -32,6 +32,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import ru.tomilo.lib.mobile.core.toUserFacingError
@@ -74,17 +75,26 @@ fun UpdatesScreen(
 
     LaunchedEffect(reload, settings.showAdultContent) {
         loading = true
+        loadingMore = false
         error = null
         paginationError = null
         page = 1
         hasMore = true
-        catalogRepository.latestUpdatesPage(1, 24)
-            .onSuccess {
-                items = filterAdult(it).distinctBy { title -> title.stableId() }
-                hasMore = it.size >= 24
-            }
-            .onFailure { error = it.toUserFacingError("Не удалось загрузить обновления.") }
-        loading = false
+        try {
+            catalogRepository.latestUpdatesPage(1, 24)
+                .onSuccess {
+                    items = filterAdult(it).distinctBy { title -> title.stableId() }
+                    hasMore = it.size >= 24
+                }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить обновления.") }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            error = failure.toUserFacingError("Не удалось загрузить обновления.")
+        } finally {
+            loading = false
+            loadingMore = false
+        }
     }
 
     LaunchedEffect(listState, page, hasMore, loading, paginationError) {
@@ -97,18 +107,25 @@ fun UpdatesScreen(
                 if (loading || loadingMore || !hasMore || paginationError != null) return@collect
                 loadingMore = true
                 val next = page + 1
-                catalogRepository.latestUpdatesPage(next, 24)
-                    .onSuccess { batch ->
-                        val filtered = filterAdult(batch)
-                        items = (items + filtered).distinctBy { it.stableId() }
-                        page = next
-                        hasMore = batch.size >= 24
-                        paginationError = null
-                    }
-                    .onFailure {
-                        paginationError = it.toUserFacingError("Не удалось загрузить следующие обновления.")
-                    }
-                loadingMore = false
+                try {
+                    catalogRepository.latestUpdatesPage(next, 24)
+                        .onSuccess { batch ->
+                            val filtered = filterAdult(batch)
+                            items = (items + filtered).distinctBy { it.stableId() }
+                            page = next
+                            hasMore = batch.size >= 24
+                            paginationError = null
+                        }
+                        .onFailure {
+                            paginationError = it.toUserFacingError("Не удалось загрузить следующие обновления.")
+                        }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    paginationError = failure.toUserFacingError("Не удалось загрузить следующие обновления.")
+                } finally {
+                    loadingMore = false
+                }
             }
     }
 

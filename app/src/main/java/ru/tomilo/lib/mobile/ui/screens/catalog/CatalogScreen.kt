@@ -88,12 +88,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ReaderMode
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
@@ -197,6 +199,7 @@ fun CatalogScreen(
     var loading by remember { mutableStateOf(true) }
     var loadingMore by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var paginationError by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
 
     val gridState = rememberLazyGridState()
@@ -256,34 +259,54 @@ fun CatalogScreen(
         loading = true
         loadingMore = false
         error = null
+        paginationError = null
         page = 1
-        catalogRepository.catalog(buildQuery(1))
-            .onSuccess { data ->
-                items = data.titles.distinctBy { it.stableId().ifBlank { it.slug.orEmpty() } }
-                totalPages = data.pagination?.pages?.coerceAtLeast(1) ?: 1
-                total = data.pagination?.total ?: data.titles.size
-            }
-            .onFailure {
-                error = it.message
-                items = emptyList()
-            }
-        loading = false
-        runCatching { gridState.scrollToItem(0) }
+        try {
+            catalogRepository.catalog(buildQuery(1))
+                .onSuccess { data ->
+                    items = data.titles.distinctBy { it.stableId().ifBlank { it.slug.orEmpty() } }
+                    totalPages = data.pagination?.pages?.coerceAtLeast(1) ?: 1
+                    total = data.pagination?.total ?: data.titles.size
+                }
+                .onFailure {
+                    error = it.toUserFacingError("Не удалось загрузить каталог.")
+                    items = emptyList()
+                }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            error = failure.toUserFacingError("Не удалось загрузить каталог.")
+            items = emptyList()
+        } finally {
+            loading = false
+        }
+        gridState.scrollToItem(0)
     }
 
     // Infinite scroll
-    LaunchedEffect(gridState) {
+    LaunchedEffect(
+        gridState,
+        debouncedSearch,
+        sortIndex,
+        selectedTypes,
+        selectedStatus,
+        selectedGenres,
+        selectedYears,
+        selectedAges,
+        includeAdult,
+        reload,
+    ) {
         snapshotFlow {
             val info = gridState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
             val totalItems = info.totalItemsCount
-            Triple(last, totalItems, loading || loadingMore)
+            Triple(last, totalItems, loading || loadingMore || paginationError != null)
         }
             .filter { (last, totalItems, busy) ->
                 !busy && totalItems > 0 && last >= totalItems - 6
             }
             .collect {
-                if (loading || loadingMore) return@collect
+                if (loading || loadingMore || paginationError != null) return@collect
                 if (page >= totalPages) return@collect
                 loadingMore = true
                 val next = page + 1
@@ -301,9 +324,15 @@ fun CatalogScreen(
                             page = next
                             totalPages = data.pagination?.pages?.coerceAtLeast(1) ?: totalPages
                             total = data.pagination?.total ?: total
+                            paginationError = null
                         }
-                        .onFailure {}
-                } catch (_: Throwable) {
+                        .onFailure {
+                            paginationError = it.toUserFacingError("Не удалось загрузить следующую страницу.")
+                        }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Throwable) {
+                    paginationError = failure.toUserFacingError("Не удалось загрузить следующую страницу.")
                 } finally {
                     loadingMore = false
                 }
@@ -715,7 +744,22 @@ fun CatalogScreen(
                         }
                     }
 
-                    if (loadingMore) {
+                    if (paginationError != null) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "more_error") {
+                            Column(
+                                Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(
+                                    paginationError.orEmpty(),
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                )
+                                TextButton(onClick = { paginationError = null }) { Text("Повторить") }
+                            }
+                        }
+                    } else if (loadingMore) {
                         item(span = { GridItemSpan(maxLineSpan) }, key = "more_loading") {
                             Column(
                                 Modifier
