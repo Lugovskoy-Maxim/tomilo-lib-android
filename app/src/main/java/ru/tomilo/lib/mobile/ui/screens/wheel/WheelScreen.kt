@@ -168,7 +168,8 @@ fun WheelScreen(
         }
     }
 
-    LaunchedEffect(user?.stableId(), reload) {
+    LaunchedEffect(user?.stableId(), reload, screenStarted) {
+        if (!screenStarted) return@LaunchedEffect
         if (user == null) {
             loading = false
             return@LaunchedEffect
