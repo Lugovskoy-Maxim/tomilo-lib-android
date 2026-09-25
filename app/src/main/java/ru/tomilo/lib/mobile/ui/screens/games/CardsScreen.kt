@@ -1556,7 +1556,7 @@ private fun CardCatalogItem(
             FilterChip(
                 selected = isWanted,
                 onClick = onWant,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 label = { Text(if (isWanted) "Хочу · добавлено" else "Хочу", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 leadingIcon = {
                     Icon(if (isWanted) Icons.Default.Bookmark else Icons.Default.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -1566,7 +1566,7 @@ private fun CardCatalogItem(
                 TextButton(
                     onClick = onSell,
                     enabled = action == null,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
                 ) {
                     Text(
