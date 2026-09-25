@@ -98,6 +98,7 @@ import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.CardEconomy
 import ru.tomilo.lib.mobile.core.CardForgeSelection
 import ru.tomilo.lib.mobile.core.CardTradeChoiceLayout
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.GameCardDeckDto
 import ru.tomilo.lib.mobile.data.api.GameCardCatalogItemDto
 import ru.tomilo.lib.mobile.data.api.GameCardDto
@@ -248,12 +249,12 @@ fun CardsScreen(
                         forgeTargetId = null
                     }
                 }
-                    ?.onFailure { error = it.message ?: "Не удалось загрузить коллекцию карточек" }
+                    ?.onFailure { error = it.toUserFacingError("Не удалось загрузить коллекцию карточек") }
                     ?: run { cards = emptyList(); error = null }
                 decksResult.onSuccess { decks = it; deckError = null }
-                    .onFailure { deckError = it.message ?: "Не удалось загрузить магазин карточек" }
+                    .onFailure { deckError = it.toUserFacingError("Не удалось загрузить магазин карточек") }
                 tradesResult?.onSuccess { trades = it.offers; tradeError = null }
-                    ?.onFailure { tradeError = it.message ?: "Не удалось загрузить обмены" }
+                    ?.onFailure { tradeError = it.toUserFacingError("Не удалось загрузить обмены") }
                     ?: run { trades = emptyList(); tradeError = null }
             } finally {
                 loading = false
@@ -268,7 +269,7 @@ fun CardsScreen(
         catalogError = null
         try {
             gamesRepository.cardCatalog().onSuccess { catalog = it }
-                .onFailure { catalogError = it.message ?: "Не удалось загрузить каталог карточек" }
+                .onFailure { catalogError = it.toUserFacingError("Не удалось загрузить каталог карточек") }
         } finally {
             catalogLoading = false
         }
@@ -282,7 +283,7 @@ fun CardsScreen(
             try {
                 gamesRepository.cardTradeCatalog()
                     .onSuccess { tradeCatalog = it.cards }
-                    .onFailure { tradeCatalogError = it.message ?: "Не удалось загрузить каталог для обмена" }
+                    .onFailure { tradeCatalogError = it.toUserFacingError("Не удалось загрузить каталог для обмена") }
             } finally {
                 tradeCatalogLoading = false
             }
