@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.toUserFacingError
@@ -98,6 +100,7 @@ fun UserProfileScreen(
     onOpenChat: (conversationId: String, title: String) -> Unit,
 ) {
     val me by authRepository.userFlow.collectAsState(initial = null)
+    var reload by remember(userId) { mutableIntStateOf(0) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var user by remember { mutableStateOf<PublicUserDto?>(null) }
@@ -107,13 +110,22 @@ fun UserProfileScreen(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(userId) {
+    LaunchedEffect(userId, reload) {
+        user = null
+        friendStatus = "none"
         loading = true
         error = null
-        socialRepository.publicUser(userId)
-            .onSuccess { user = it }
-            .onFailure { error = it.toUserFacingError("Не удалось загрузить профиль пользователя.") }
-        loading = false
+        try {
+            socialRepository.publicUser(userId)
+                .onSuccess { user = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить профиль пользователя.") }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            error = failure.toUserFacingError("Не удалось загрузить профиль пользователя.")
+        } finally {
+            loading = false
+        }
     }
 
     LaunchedEffect(userId, me?.stableId()) {
@@ -203,7 +215,7 @@ fun UserProfileScreen(
         when {
             loading -> LoadingBox(Modifier.padding(padding))
             error != null && user == null -> Column(Modifier.padding(padding)) {
-                ErrorBox(error ?: "Ошибка")
+                ErrorBox(error ?: "Не удалось загрузить профиль пользователя.", onRetry = { reload += 1 })
             }
             user != null -> user?.let { u ->
                 PublicProfileContent(
