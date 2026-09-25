@@ -709,7 +709,7 @@ private fun ShopTab(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Купите случайную карту или набор карт по выбранному тайтлу.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Купите случайную карту или набор карт из выбранного произведения.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
