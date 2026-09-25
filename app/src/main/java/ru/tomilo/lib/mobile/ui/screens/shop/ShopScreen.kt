@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.ui.screens.shop
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
@@ -103,7 +106,9 @@ fun ShopScreen(
     val snackbar = remember { SnackbarHostState() }
     var categoryIndex by remember { mutableIntStateOf(0) }
     var catalog by remember { mutableStateOf<List<ShopDecorationDto>>(emptyList()) }
+    var catalogCategory by remember { mutableStateOf<String?>(null) }
     var owned by remember { mutableStateOf<List<ShopDecorationDto>>(emptyList()) }
+    var ownedError by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
@@ -114,15 +119,30 @@ fun ShopScreen(
     LaunchedEffect(category.type, user?.stableId(), reload) {
         loading = true
         error = null
-        socialRepository.shopDecorations(category.type)
-            .onSuccess { catalog = it }
-            .onFailure { error = it.toUserFacingError("Не удалось загрузить магазин.") }
-        owned = if (user != null) {
-            socialRepository.ownedDecorations().getOrDefault(emptyList())
-        } else {
-            emptyList()
+        ownedError = null
+        if (catalogCategory != category.type) {
+            catalog = emptyList()
+            catalogCategory = category.type
         }
-        loading = false
+        try {
+            socialRepository.shopDecorations(category.type)
+                .onSuccess { catalog = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить магазин.") }
+            if (user != null) {
+                socialRepository.ownedDecorations()
+                    .onSuccess { owned = it }
+                    .onFailure { ownedError = it.toUserFacingError("Не удалось проверить инвентарь.") }
+            } else {
+                owned = emptyList()
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            error = failure.toUserFacingError("Не удалось загрузить магазин.")
+            if (user != null) ownedError = failure.toUserFacingError("Не удалось проверить инвентарь.")
+        } finally {
+            loading = false
+        }
     }
 
     val ownedIds = remember(owned) { owned.map { it.stableId() }.toSet() }
@@ -270,6 +290,29 @@ fun ShopScreen(
                     horizontalArrangement = Arrangement.spacedBy(9.dp),
                     verticalArrangement = Arrangement.spacedBy(9.dp),
                 ) {
+                    if (ownedError != null) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Surface(
+                                color = TomiloSurface2,
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Text(
+                                        ownedError ?: "Не удалось проверить инвентарь.",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(onClick = { reload += 1 }) { Text("Повторить") }
+                                }
+                            }
+                        }
+                    }
                     items(catalog, key = { it.stableId() }) { item ->
                         val id = item.stableId()
                         ShopDecorationCard(
@@ -278,6 +321,7 @@ fun ShopScreen(
                             owned = id in ownedIds,
                             equipped = id in equippedIds,
                             busy = busyId == id,
+                            actionEnabled = user == null || ownedError == null,
                             previewAvatar = user?.avatar,
                             previewUsername = user?.username,
                             equippedDecorations = user?.decorations(),
@@ -343,6 +387,7 @@ private fun ShopDecorationCard(
     owned: Boolean,
     equipped: Boolean,
     busy: Boolean,
+    actionEnabled: Boolean,
     previewAvatar: String?,
     previewUsername: String?,
     equippedDecorations: EquippedDecorationsDto?,
@@ -495,18 +540,19 @@ private fun ShopDecorationCard(
             }
             Spacer(Modifier.height(8.dp))
             if (equipped) {
-                OutlinedButton(onClick = onAction, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (busy) "Подождите…" else "Снять")
+                OutlinedButton(onClick = onAction, enabled = actionEnabled && !busy, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (!actionEnabled) "Инвентарь недоступен" else if (busy) "Подождите…" else "Снять")
                 }
             } else {
                 Button(
                     onClick = onAction,
-                    enabled = !busy && !item.soldOut(),
+                    enabled = actionEnabled && !busy && !item.soldOut(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         when {
                             busy -> "Подождите…"
+                            !actionEnabled -> "Инвентарь недоступен"
                             item.soldOut() -> "Распродано"
                             owned -> "Надеть"
                             item.price == 0 -> "Получить"
