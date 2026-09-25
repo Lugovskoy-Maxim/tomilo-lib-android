@@ -227,8 +227,8 @@ private fun GamesContent(
                 Text("Коллекция и задания", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 GameModeRow(
                     icon = Icons.Default.Collections,
-                    title = "Карточки тайтлов",
-                    subtitle = "Декоративные карточки, наборы и обмен",
+                    title = "Альбом карт",
+                    subtitle = "Коллекция, магазин, обмен и улучшение карт",
                     onClick = onOpenCards,
                 )
                 GameModeRow(
