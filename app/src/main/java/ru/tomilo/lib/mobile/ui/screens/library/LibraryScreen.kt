@@ -60,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -202,6 +203,12 @@ fun LibraryScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val reveal = rememberSwipeRevealCoordinator()
+    val configuration = LocalConfiguration.current
+    val libraryStateHeight = if (
+        configuration.fontScale >= 1.2f ||
+        configuration.screenHeightDp < 700 ||
+        configuration.screenWidthDp < 400
+    ) 240.dp else 380.dp
 
     val bookmarkCategory = customGroup?.id ?: tab.bookmarkCategory
     val bookmarkLabel = customGroup?.name ?: tab.label
@@ -397,7 +404,7 @@ fun LibraryScreen(
                     EmptyState(
                         title = "Ваша читательская полка",
                         message = "Войдите, чтобы видеть закладки и историю чтения. Скачанные главы доступны без входа во вкладке «Офлайн».",
-                        modifier = Modifier.fillMaxWidth().height(380.dp),
+                        modifier = Modifier.fillMaxWidth().height(libraryStateHeight),
                         actionLabel = "Войти в аккаунт",
                         onAction = onLogin,
                         illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
@@ -409,7 +416,7 @@ fun LibraryScreen(
                 error != null && tab != ShelfTab.Offline -> item(key = "library_error") {
                     ErrorBox(
                         error ?: "Ошибка",
-                        modifier = Modifier.fillMaxWidth().height(380.dp),
+                        modifier = Modifier.fillMaxWidth().height(libraryStateHeight),
                     ) { reload += 1 }
                 }
                 bookmarkCategory != null && filteredBookmarks.isEmpty() -> item(key = "library_empty_bookmarks") {
@@ -421,7 +428,7 @@ fun LibraryScreen(
                             "На полке нет «$needle» в категории «$bookmarkLabel»."
                         },
                         icon = Icons.Outlined.BookmarkBorder,
-                        modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                        modifier = Modifier.fillMaxWidth().height(libraryStateHeight).padding(ScreenPadding),
                         illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                     )
                 }
@@ -430,7 +437,7 @@ fun LibraryScreen(
                         title = "История пуста",
                         message = "Откройте главу — продолжение чтения появится на полке и на ленте.",
                         icon = Icons.Outlined.History,
-                        modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                        modifier = Modifier.fillMaxWidth().height(libraryStateHeight).padding(ScreenPadding),
                         illustration = ru.tomilo.lib.mobile.R.drawable.illust_mascot_guardian,
                     )
                 }
@@ -439,7 +446,7 @@ fun LibraryScreen(
                         title = "Нет офлайн-глав",
                         message = "Скачайте главы со страницы тайтла — они откроются без сети.",
                         icon = Icons.Outlined.CloudOff,
-                        modifier = Modifier.fillMaxWidth().height(380.dp).padding(ScreenPadding),
+                        modifier = Modifier.fillMaxWidth().height(libraryStateHeight).padding(ScreenPadding),
                         illustration = ru.tomilo.lib.mobile.R.drawable.illust_offline_mascot,
                     )
                 }
