@@ -77,6 +77,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -89,6 +90,7 @@ import ru.tomilo.lib.mobile.core.ChatTime
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.ReaderMode
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
@@ -217,25 +219,32 @@ fun HomeScreen(
     LaunchedEffect(reloadToken, contentSettings.showAdultContent) {
         loading = true
         error = null
-        val (u, p, random) = coroutineScope {
-            val updatesRequest = async { catalogRepository.latestUpdates() }
-            val popularRequest = async { catalogRepository.popular() }
-            val randomRequest = async { catalogRepository.randomTitles(limit = 12, includeAdult = contentSettings.showAdultContent) }
-            Triple(updatesRequest.await(), popularRequest.await(), randomRequest.await())
-        }
-        if (u.isFailure && p.isFailure) {
-            error = u.exceptionOrNull()?.message ?: "Не удалось загрузить данные"
+        try {
+            val (u, p, random) = coroutineScope {
+                val updatesRequest = async { catalogRepository.latestUpdates() }
+                val popularRequest = async { catalogRepository.popular() }
+                val randomRequest = async {
+                    catalogRepository.randomTitles(limit = 12, includeAdult = contentSettings.showAdultContent)
+                }
+                Triple(updatesRequest.await(), popularRequest.await(), randomRequest.await())
+            }
+            if (u.isFailure && p.isFailure) {
+                error = u.exceptionOrNull()?.message ?: "Не удалось загрузить данные"
+                return@LaunchedEffect
+            }
+            val showAdult = contentSettings.showAdultContent
+            fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
+            updates = u.getOrDefault(emptyList()).filterAdult()
+            popular = p.getOrDefault(emptyList()).filterAdult()
+            randomTitles = random.getOrDefault(emptyList()).filterAdult()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            error = failure.toUserFacingError("Не удалось загрузить ленту.")
+        } finally {
             loading = false
             refreshing = false
-            return@LaunchedEffect
         }
-        val showAdult = contentSettings.showAdultContent
-        fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
-        updates = u.getOrDefault(emptyList()).filterAdult()
-        popular = p.getOrDefault(emptyList()).filterAdult()
-        randomTitles = random.getOrDefault(emptyList()).filterAdult()
-        loading = false
-        refreshing = false
     }
 
     val filteredUpdates = remember(updates, selectedFilter) {
