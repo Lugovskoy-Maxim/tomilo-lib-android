@@ -109,6 +109,7 @@ import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.rememberScreenStarted
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -154,11 +155,13 @@ fun WheelScreen(
     var result by remember { mutableStateOf<WheelSpinResultDto?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    val screenStarted = rememberScreenStarted()
 
     // Pointer flap animation during spinning
     var pointerFlap by remember { mutableStateOf(0f) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(screenStarted) {
+        if (!screenStarted) return@LaunchedEffect
         while (true) {
             nowMs = System.currentTimeMillis()
             delay(1_000)
