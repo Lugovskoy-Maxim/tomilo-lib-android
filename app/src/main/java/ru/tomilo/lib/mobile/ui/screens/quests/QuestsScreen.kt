@@ -135,7 +135,7 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                         message("+${result.experienceGained} опыта · +${result.coinsGained} монет")
                                         reload += 1
                                     }
-                                    .onFailure { message(it.message ?: "Бонус уже получен") }
+                                    .onFailure { message(it.toUserFacingError("Бонус уже получен")) }
                                 actionBusy = false
                             }
                         },
@@ -174,7 +174,7 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                                 message("Получено: +${result.expGained} XP · +${result.coinsGained} монет")
                                                 reload += 1
                                             }
-                                            .onFailure { message(it.message ?: "Награды недоступны") }
+                                            .onFailure { message(it.toUserFacingError("Награды недоступны")) }
                                         actionBusy = false
                                     }
                                 },
@@ -199,7 +199,7 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                             message("+${result.expGained} XP · +${result.coinsGained} монет")
                                             reload += 1
                                         }
-                                        .onFailure { message(it.message ?: "Награда недоступна") }
+                                        .onFailure { message(it.toUserFacingError("Награда недоступна")) }
                                     actionBusy = false
                                 }
                             },
