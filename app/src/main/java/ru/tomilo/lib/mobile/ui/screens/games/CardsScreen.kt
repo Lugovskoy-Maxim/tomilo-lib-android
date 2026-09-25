@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Refresh
@@ -1595,7 +1596,27 @@ private fun CardCatalogItem(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                     loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 0.dp) },
-                    error = { Box(Modifier.fillMaxSize().background(TomiloSurface2)) },
+                    error = {
+                        Column(
+                            Modifier.fillMaxSize().background(TomiloSurface2).padding(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(
+                                Icons.Default.BrokenImage,
+                                contentDescription = null,
+                                tint = TomiloMuted,
+                                modifier = Modifier.size(28.dp),
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "Обложка недоступна",
+                                color = TomiloMuted,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    },
                 )
                 if (ownedCard == null) {
                     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .32f)))
