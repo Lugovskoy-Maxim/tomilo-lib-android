@@ -1328,6 +1328,9 @@ private fun ForgeTab(
     onSell: (GameCardDto) -> Unit,
     resultCard: GameCardDto?,
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val targetCardWidth = if (fontScale >= 1.3f) 144.dp else 112.dp
+    val targetLabelLines = if (fontScale > 1.15f) 3 else 2
     val selectedRank = selectedIds.firstOrNull()?.let { id -> cards.firstOrNull { it.id == id }?.let(::cardRank) }
     val validCount = selectedIds.size == mode.count
     val sameRank = selectedIds.all { id -> cards.firstOrNull { it.id == id }?.let(::cardRank) == selectedRank }
@@ -1410,16 +1413,19 @@ private fun ForgeTab(
                         else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(targetCards, key = { it.id }) { target ->
                                 val selected = selectedTargetId == target.id
+                                val targetName = target.characterName?.takeIf(String::isNotBlank) ?: target.name
+                                val targetTitle = target.titleName?.takeIf(String::isNotBlank) ?: "Без тайтла"
                                 Surface(
                                     onClick = { onSelectTarget(target.id) },
+                                    modifier = Modifier.semantics { this.selected = selected },
                                     color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .3f) else TomiloSurface,
                                     shape = RoundedCornerShape(14.dp),
                                     border = BorderStroke(1.dp, if (selected) TomiloPrimary else TomiloBorder),
                                 ) {
-                                    Column(Modifier.width(112.dp).padding(7.dp)) {
-                                        CardArtwork(target.imageUrl, target.characterName ?: target.name, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(9.dp)))
-                                        Text(target.characterName ?: target.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 5.dp))
-                                        Text(target.titleName ?: "Без тайтла", maxLines = 1, overflow = TextOverflow.Ellipsis, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+                                    Column(Modifier.width(targetCardWidth).padding(7.dp)) {
+                                        CardArtwork(target.imageUrl, targetName, modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4.15f).clip(RoundedCornerShape(9.dp)))
+                                        Text(targetName, maxLines = targetLabelLines, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 5.dp))
+                                        Text(targetTitle, maxLines = targetLabelLines, overflow = TextOverflow.Ellipsis, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
