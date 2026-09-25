@@ -709,7 +709,7 @@ private fun ShopTab(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Купите случайную карту или набор карт из выбранного произведения.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Пополняйте коллекцию случайными картами и наборами по любимым произведениям.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -717,8 +717,7 @@ private fun ShopTab(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Пополните коллекцию картой из выбранного произведения. Какая именно карта " +
-                            "выпадет — сюрприз!",
+                        "Получите карту из коллекции произведения. Какая именно выпадет — сюрприз!",
                         color = TomiloMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -732,7 +731,7 @@ private fun ShopTab(
                             Spacer(Modifier.width(8.dp))
                             Text("Крутим…")
                         } else Text(
-                            if (isAuthenticated) "Купить за $randomCardPrice монет"
+                            if (isAuthenticated) "Получить карту · $randomCardPrice монет"
                             else "Войти · $randomCardPrice монет",
                         )
                     }
@@ -753,12 +752,12 @@ private fun ShopTab(
                 onValueChange = { titleQuery = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                placeholder = { Text("Найти тайтл") },
+                placeholder = { Text("Найти произведение") },
                 shape = RoundedCornerShape(16.dp),
             )
         }
         if (decks.isNotEmpty() && titleOffers.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-            EmptyState("Тайтлы не найдены", "Измените запрос и попробуйте снова.", icon = Icons.Default.Collections)
+            EmptyState("Произведения не найдены", "Проверьте название или попробуйте другой запрос.", icon = Icons.Default.Collections)
         }
         items(titleOffers, key = { it.key }) { offer ->
             Surface(
@@ -773,7 +772,9 @@ private fun ShopTab(
                         modifier = Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(12.dp)),
                     )
                     Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text("В пуле ${offer.poolSize?.toString() ?: "?"} карт", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    offer.poolSize?.let { count ->
+                        Text("Доступно карт: $count", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    }
                     offer.roulette?.let { deck ->
                         val id = deck.stableId()
                         val pending = action == "deck:$id"
@@ -790,10 +791,10 @@ private fun ShopTab(
                             } else {
                                 Text(
                                     when {
-                                        !available && deck.isAvailable -> "Нет карт в пуле"
+                                        !available && deck.isAvailable -> "Пока нет карт для получения"
                                         !deck.isAvailable -> "Сейчас недоступно"
-                                        isAuthenticated -> "Прокрутка · ${deck.price} монет"
-                                        else -> "Войти · прокрутка ${deck.price} монет"
+                                        isAuthenticated -> "Получить карту · ${deck.price} монет"
+                                        else -> "Войти · ${deck.price} монет"
                                     },
                                 )
                             }
@@ -815,10 +816,10 @@ private fun ShopTab(
                             } else {
                                 Text(
                                     when {
-                                        !available && deck.isAvailable -> "Нет карт в пуле"
+                                        !available && deck.isAvailable -> "Пока нет карт для получения"
                                         !deck.isAvailable -> "Сейчас недоступно"
-                                        isAuthenticated -> "Пак ${deck.cardsPerOpen} · ${deck.price} монет"
-                                        else -> "Войти · пак ${deck.cardsPerOpen} · ${deck.price} монет"
+                                        isAuthenticated -> "Набор · ${deck.price} монет"
+                                        else -> "Войти · ${deck.price} монет"
                                     },
                                 )
                             }
@@ -847,7 +848,7 @@ private fun CardRewardReveal(cards: List<GameCardDto>) {
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    if (cards.size == 1) "Новая карта" else "Карты из пака · ${cards.size}",
+                    if (cards.size == 1) "Новая карта" else "Карты из набора · ${cards.size}",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1566,7 +1567,7 @@ private fun CardCatalogTab(
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Найти карточку или тайтл") },
+                    placeholder = { Text("Найти карточку или произведение") },
                     shape = RoundedCornerShape(16.dp),
                 )
                 Row(
@@ -1603,7 +1604,7 @@ private fun CardCatalogTab(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 EmptyState(
                     title = if (query.isBlank()) "Карточек пока нет" else "Ничего не найдено",
-                    message = if (query.isBlank()) "Карточки появятся в каталоге по мере публикации." else "Попробуйте другое название или тайтл.",
+                    message = if (query.isBlank()) "Карточки появятся в каталоге по мере публикации." else "Проверьте название или попробуйте другой запрос.",
                     modifier = Modifier.fillMaxWidth().height(280.dp),
                     illustration = ru.tomilo.lib.mobile.R.drawable.illust_card_stack,
                 )
