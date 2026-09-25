@@ -1,0 +1,40 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="68dp"
+    android:height="100dp"
+    android:viewportWidth="102"
+    android:viewportHeight="150">
+    <group android:rotation="-13" android:pivotX="51" android:pivotY="84">
+        <path
+            android:fillColor="#222529"
+            android:pathData="M17,39a8,8 0,0 1,8 -8h42a8,8 0,0 1,8 8v68a8,8 0,0 1,-8 8H25a8,8 0,0 1,-8 -8z" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#45494F"
+            android:strokeWidth="2"
+            android:pathData="M17,39a8,8 0,0 1,8 -8h42a8,8 0,0 1,8 8v68a8,8 0,0 1,-8 8H25a8,8 0,0 1,-8 -8z" />
+        <path android:fillColor="#45494F" android:pathData="M31,47h30v2H31zM31,99h30v2H31z" />
+    </group>
+    <group android:rotation="13" android:pivotX="51" android:pivotY="84">
+        <path
+            android:fillColor="#181A1D"
+            android:pathData="M29,33a8,8 0,0 1,8 -8h42a8,8 0,0 1,8 8v68a8,8 0,0 1,-8 8H37a8,8 0,0 1,-8 -8z" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#2B2E32"
+            android:strokeWidth="2"
+            android:pathData="M29,33a8,8 0,0 1,8 -8h42a8,8 0,0 1,8 8v68a8,8 0,0 1,-8 8H37a8,8 0,0 1,-8 -8z" />
+    </group>
+    <path
+        android:fillColor="#222529"
+        android:pathData="M25,31a8,8 0,0 1,8 -8h42a8,8 0,0 1,8 8v68a8,8 0,0 1,-8 8H33a8,8 0,0 1,-8 -8z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF5F57"
+        android:strokeWidth="2"
+        android:pathData="M25,31a8,8 0,0 1,8 -8h42a8,8 0,0 1,8 8v68a8,8 0,0 1,-8 8H33a8,8 0,0 1,-8 -8z" />
+    <path
+        android:fillColor="#FF5F57"
+        android:pathData="M54,46l4.8,9.8 10.8,1.6 -7.8,7.6 1.8,10.8L54,74.7l-9.6,5.1 1.8,-10.8 -7.8,-7.6 10.8,-1.6z" />
+    <path android:fillColor="#E8C07A" android:pathData="M54,83a2.5,2.5 0,1 0,0 5a2.5,2.5 0,1 0,0 -5" />
+    <path android:fillColor="#FF5F57" android:pathData="M12,20h2v8h-2zM9,23h8v2h-8zM87,112h2v8h-2zM84,115h8v2h-8z" />
+</vector>

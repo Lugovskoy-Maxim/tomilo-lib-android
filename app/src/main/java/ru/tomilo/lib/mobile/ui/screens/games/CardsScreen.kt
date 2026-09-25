@@ -687,7 +687,12 @@ private fun ShopTab(
             }
         }
         if (decks.isEmpty() && error == null) item(span = { GridItemSpan(maxLineSpan) }) {
-            EmptyState("Паков по тайтлам пока нет", "Случайная карта выше всё равно доступна.", icon = Icons.Default.Collections)
+            EmptyState(
+                title = "Паков по тайтлам пока нет",
+                message = "Случайная карта выше всё равно доступна.",
+                modifier = Modifier.fillMaxWidth().height(280.dp),
+                illustration = ru.tomilo.lib.mobile.R.drawable.illust_card_stack,
+            )
         }
         if (decks.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
             OutlinedTextField(
@@ -1496,8 +1501,8 @@ private fun CardCatalogTab(
                 EmptyState(
                     title = if (query.isBlank()) "Карточек пока нет" else "Ничего не найдено",
                     message = if (query.isBlank()) "Карточки появятся в каталоге по мере публикации." else "Попробуйте другое название или тайтл.",
-                    modifier = Modifier.fillMaxWidth().height(220.dp),
-                    icon = Icons.Default.Collections,
+                    modifier = Modifier.fillMaxWidth().height(280.dp),
+                    illustration = ru.tomilo.lib.mobile.R.drawable.illust_card_stack,
                 )
             }
         }
