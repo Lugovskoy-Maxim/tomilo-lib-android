@@ -232,7 +232,7 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
 }
 
 @Composable
-fun CardTradesSkeleton(modifier: Modifier = Modifier) {
+fun CardTradesSkeleton(modifier: Modifier = Modifier, hasBookmarkFilter: Boolean = false) {
     ShimmerScope {
         Column(
             modifier.fillMaxSize().loadingSemantics("Загрузка предложений обмена").padding(14.dp),
@@ -241,6 +241,14 @@ fun CardTradesSkeleton(modifier: Modifier = Modifier) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 SkeletonBox(Modifier.fillMaxWidth(.38f).height(18.dp), radius = 6.dp)
                 SkeletonBox(Modifier.size(width = 142.dp, height = 40.dp), radius = 20.dp)
+            }
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (hasBookmarkFilter) {
+                    SkeletonBox(Modifier.width(128.dp).height(40.dp), radius = 20.dp)
+                } else {
+                    SkeletonBox(Modifier.fillMaxWidth(.72f).height(14.dp), radius = 5.dp)
+                }
+                SkeletonBox(Modifier.fillMaxWidth().height(56.dp), radius = 14.dp)
             }
             repeat(3) {
                 Column(

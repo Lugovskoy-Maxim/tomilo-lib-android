@@ -980,7 +980,7 @@ private fun TradeTab(
         }
     }
     if (loading) {
-        CardTradesSkeleton(Modifier.fillMaxSize())
+        CardTradesSkeleton(Modifier.fillMaxSize(), hasBookmarkFilter = wantedCardIds.isNotEmpty())
         return
     }
     LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
