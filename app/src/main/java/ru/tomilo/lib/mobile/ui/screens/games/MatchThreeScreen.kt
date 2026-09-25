@@ -7,7 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -583,7 +582,7 @@ private fun obsLabel(obs: Obstacle) = when (obs) { Obstacle.ROCK -> "🪨 Кам
 @Composable private fun MatchBoard(board: List<Int>, obstacles: Map<Int, Obstacle>, selected: Int, editor: Boolean = false, onCell: (Int) -> Unit) {
     var startCell by remember { mutableIntStateOf(-1) }
     var dragX by remember { mutableStateOf(0f) }; var dragY by remember { mutableStateOf(0f) }
-    BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(21.dp)).background(Color(0xFF17223B).copy(alpha = .97f)).border(1.dp, Color(0xFFFFD689).copy(alpha = .48f), RoundedCornerShape(21.dp)).padding(6.dp)) {
+    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(21.dp)).background(Color(0xFF17223B).copy(alpha = .97f)).border(1.dp, Color(0xFFFFD689).copy(alpha = .48f), RoundedCornerShape(21.dp)).padding(6.dp)) {
         Column(Modifier.fillMaxSize().pointerInput(board, obstacles, editor) {
             detectDragGestures(onDragStart = { point ->
                 val unit = size.width / 8f
