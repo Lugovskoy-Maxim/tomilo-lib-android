@@ -1111,13 +1111,13 @@ private fun CardTradeCreateDialog(
                 id = it.id,
                 name = it.characterName?.takeIf(String::isNotBlank) ?: it.name,
                 imageUrl = it.stageImageUrl?.takeIf(String::isNotBlank) ?: it.imageUrl,
-                subtitle = "${it.copies} коп. · ${it.titleName ?: "Без тайтла"}",
+                subtitle = "${it.copies} коп. · ${it.titleName ?: "Название не указано"}",
             )
         }
     }
     val wantChoices = remember(catalog) {
         catalog.filter { it.id.isNotBlank() }.map {
-            CardTradeChoice(it.id, it.name, it.imageUrl, it.titleName.ifBlank { "Без тайтла" })
+            CardTradeChoice(it.id, it.name, it.imageUrl, it.titleName.ifBlank { "Название не указано" })
         }
     }
     var offerId by rememberSaveable { mutableStateOf("") }
@@ -1393,7 +1393,7 @@ private fun ForgeTab(
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text("Карта получена", color = TomiloPrimary, style = MaterialTheme.typography.labelMedium)
                                     Text(card.characterName ?: card.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                    Text("${cardRank(card)} ранг · ${card.titleName ?: "Без тайтла"}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${cardRank(card)} ранг · ${card.titleName ?: "Название не указано"}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
@@ -1408,12 +1408,12 @@ private fun ForgeTab(
                     when {
                         catalogLoading -> SkeletonBox(Modifier.fillMaxWidth().height(116.dp), radius = 14.dp)
                         catalogError != null -> ErrorBox(message = catalogError, onRetry = onRetryCatalog)
-                        targetCards.isEmpty() -> Text("Нет доступных карточек следующего ранга.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        targetCards.isEmpty() -> Text("Для улучшения пока нет подходящих карт.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                         else -> LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(targetCards, key = { it.id }) { target ->
                                 val selected = selectedTargetId == target.id
                                 val targetName = target.characterName?.takeIf(String::isNotBlank) ?: target.name
-                                val targetTitle = target.titleName?.takeIf(String::isNotBlank) ?: "Без тайтла"
+                                val targetTitle = target.titleName?.takeIf(String::isNotBlank) ?: "Название не указано"
                                 Surface(
                                     onClick = { onSelectTarget(target.id) },
                                     modifier = Modifier.semantics { this.selected = selected },
@@ -1435,7 +1435,7 @@ private fun ForgeTab(
         }
         if (cards.isEmpty()) {
             item {
-                Text("Коллекция пуста — откройте пак или каталог.", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
+                Text("Пока нет карт. Получите первую в магазине.", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
             }
         } else {
             item {
@@ -1658,7 +1658,7 @@ private fun CardCatalogItem(
                 }
             }
             Text(entry.characterName?.takeIf(String::isNotBlank) ?: entry.name, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(entry.titleName ?: "Без тайтла", color = TomiloMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.titleName ?: "Название не указано", color = TomiloMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             FilterChip(
                 selected = isWanted,
                 onClick = onWant,
