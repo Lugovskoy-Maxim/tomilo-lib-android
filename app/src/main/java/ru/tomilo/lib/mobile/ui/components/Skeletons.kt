@@ -179,6 +179,9 @@ fun CardCollectionSkeleton(modifier: Modifier = Modifier) {
 
 @Composable
 fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = false) {
+    val fontScale = LocalConfiguration.current.fontScale.coerceIn(1f, 1.5f)
+    val descriptionLineCount = kotlin.math.ceil(fontScale * 4).toInt().coerceIn(4, 6)
+    val descriptionLineWidths = listOf(.98f, .91f, .96f, .82f, .73f, .58f)
     ShimmerScope {
         LazyVerticalGrid(
             columns = if (singleColumn) GridCells.Fixed(1) else GridCells.Adaptive(148.dp),
@@ -196,10 +199,15 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(TomiloSurface).padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     SkeletonBox(Modifier.fillMaxWidth(.42f).height(15.dp), radius = 5.dp)
-                    SkeletonBox(Modifier.fillMaxWidth(.65f).height(12.dp), radius = 5.dp)
+                    repeat(descriptionLineCount) { line ->
+                        SkeletonBox(
+                            Modifier.fillMaxWidth(descriptionLineWidths[line]).height(16.dp * fontScale),
+                            radius = 5.dp,
+                        )
+                    }
                     SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 20.dp)
                 }
             }
@@ -213,6 +221,7 @@ fun CardShopSkeleton(modifier: Modifier = Modifier, singleColumn: Boolean = fals
                 ) {
                     SkeletonBox(Modifier.fillMaxWidth().height(154.dp), radius = 12.dp)
                     SkeletonBox(Modifier.fillMaxWidth(.85f).height(14.dp), radius = 5.dp)
+                    SkeletonBox(Modifier.fillMaxWidth(.56f).height(14.dp), radius = 5.dp)
                     SkeletonBox(Modifier.fillMaxWidth(.6f).height(12.dp), radius = 5.dp)
                     SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 20.dp)
                     SkeletonBox(Modifier.fillMaxWidth().height(40.dp), radius = 20.dp)
