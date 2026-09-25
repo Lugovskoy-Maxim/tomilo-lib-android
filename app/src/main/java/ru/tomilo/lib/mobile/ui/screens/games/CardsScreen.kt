@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -88,7 +89,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -765,10 +765,9 @@ private fun ShopTab(
                 border = BorderStroke(1.dp, TomiloPremium.copy(alpha = .6f)),
             ) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AsyncImage(
-                        MediaUrl.resolve(offer.imageUrl),
-                        offer.title,
-                        contentScale = ContentScale.Crop,
+                    CardArtwork(
+                        imageUrl = offer.imageUrl,
+                        contentDescription = offer.title,
                         modifier = Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(12.dp)),
                     )
                     Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -853,10 +852,9 @@ private fun CardRewardReveal(cards: List<GameCardDto>) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     itemsIndexed(cards, key = { index, card -> "${card.id.ifBlank { card.name }}:$index" }) { _, card ->
                         Column(Modifier.width(100.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            AsyncImage(
-                                MediaUrl.resolve(card.stageImageUrl?.takeIf(String::isNotBlank) ?: card.imageUrl),
-                                card.characterName ?: card.name,
-                                contentScale = ContentScale.Crop,
+                            CardArtwork(
+                                imageUrl = card.stageImageUrl?.takeIf(String::isNotBlank) ?: card.imageUrl,
+                                contentDescription = card.characterName ?: card.name,
                                 modifier = Modifier.fillMaxWidth().height(132.dp).clip(RoundedCornerShape(10.dp)).background(TomiloBg),
                             )
                             Text(card.characterName ?: card.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -864,6 +862,56 @@ private fun CardRewardReveal(cards: List<GameCardDto>) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardArtwork(
+    imageUrl: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+) {
+    SubcomposeAsyncImage(
+        model = MediaUrl.resolve(imageUrl),
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        modifier = modifier,
+        loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 0.dp) },
+        error = { CardArtworkFallback() },
+    )
+}
+
+@Composable
+private fun CardArtworkFallback() {
+    BoxWithConstraints(
+        Modifier.fillMaxSize().background(TomiloSurface2),
+        contentAlignment = Alignment.Center,
+    ) {
+        val showLabel = maxWidth >= 76.dp && maxHeight >= 88.dp
+        Column(
+            Modifier.fillMaxSize().padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                Icons.Default.BrokenImage,
+                contentDescription = null,
+                tint = TomiloMuted,
+                modifier = Modifier.size(if (showLabel) 28.dp else 20.dp),
+            )
+            if (showLabel) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Обложка недоступна",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -1237,14 +1285,11 @@ private fun CardTradeChoicePicker(
                     border = BorderStroke(1.dp, if (isSelected) TomiloPrimary else TomiloBorder),
                 ) {
                     Column(Modifier.width(choiceWidth).padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        SubcomposeAsyncImage(
-                            model = MediaUrl.resolve(choice.imageUrl),
+                        CardArtwork(
+                            imageUrl = choice.imageUrl,
                             contentDescription = null,
-                            contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4.15f)
                                 .clip(RoundedCornerShape(9.dp)).background(TomiloBg),
-                            loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 9.dp) },
-                            error = { Box(Modifier.fillMaxSize().background(TomiloSurface2)) },
                         )
                         Text(choice.name, maxLines = labelLines, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium)
                         Text(choice.subtitle, maxLines = labelLines, overflow = TextOverflow.Ellipsis, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
@@ -1261,7 +1306,7 @@ private fun CardTradeChoicePicker(
 @Composable
 private fun TradeCardFace(name: String, image: String?, label: String, modifier: Modifier = Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        AsyncImage(MediaUrl.resolve(image), name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(12.dp)).background(TomiloBg))
+        CardArtwork(image, name, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(12.dp)).background(TomiloBg))
         Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 5.dp))
         Text(label, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
     }
@@ -1334,10 +1379,9 @@ private fun ForgeTab(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                AsyncImage(
-                                    MediaUrl.resolve(card.stageImageUrl ?: card.imageUrl),
+                                CardArtwork(
+                                    card.stageImageUrl ?: card.imageUrl,
                                     card.characterName ?: card.name,
-                                    contentScale = ContentScale.Crop,
                                     modifier = Modifier.size(56.dp, 74.dp).clip(RoundedCornerShape(10.dp)),
                                 )
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1369,7 +1413,7 @@ private fun ForgeTab(
                                     border = BorderStroke(1.dp, if (selected) TomiloPrimary else TomiloBorder),
                                 ) {
                                     Column(Modifier.width(112.dp).padding(7.dp)) {
-                                        AsyncImage(MediaUrl.resolve(target.imageUrl), target.characterName ?: target.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(9.dp)))
+                                        CardArtwork(target.imageUrl, target.characterName ?: target.name, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(9.dp)))
                                         Text(target.characterName ?: target.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 5.dp))
                                         Text(target.titleName ?: "Без тайтла", maxLines = 1, overflow = TextOverflow.Ellipsis, color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
                                     }
@@ -1414,7 +1458,7 @@ private fun ForgeTab(
                 border = BorderStroke(1.dp, if (selectedCopies > 0) TomiloPrimary.copy(alpha = .7f) else TomiloBorder),
             ) {
                 Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(MediaUrl.resolve(card.stageImageUrl ?: card.imageUrl), card.characterName ?: card.name, contentScale = ContentScale.Crop, modifier = Modifier.size(52.dp, 68.dp).clip(RoundedCornerShape(9.dp)))
+                    CardArtwork(card.stageImageUrl ?: card.imageUrl, card.characterName ?: card.name, modifier = Modifier.size(52.dp, 68.dp).clip(RoundedCornerShape(9.dp)))
                     Checkbox(checked = selectedCopies > 0, onCheckedChange = null)
                     Column(Modifier.weight(1f)) {
                         Text(card.characterName ?: card.name, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -1590,33 +1634,10 @@ private fun CardCatalogItem(
     ) {
         Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Box(Modifier.fillMaxWidth().height(164.dp).clip(RoundedCornerShape(10.dp)).background(TomiloBg)) {
-                SubcomposeAsyncImage(
-                    model = MediaUrl.resolve(entry.imageUrl),
+                CardArtwork(
+                    imageUrl = entry.imageUrl,
                     contentDescription = entry.characterName?.takeIf(String::isNotBlank) ?: entry.name,
-                    contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    loading = { SkeletonBox(Modifier.fillMaxSize(), radius = 0.dp) },
-                    error = {
-                        Column(
-                            Modifier.fillMaxSize().background(TomiloSurface2).padding(8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Icon(
-                                Icons.Default.BrokenImage,
-                                contentDescription = null,
-                                tint = TomiloMuted,
-                                modifier = Modifier.size(28.dp),
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                "Обложка недоступна",
-                                color = TomiloMuted,
-                                style = MaterialTheme.typography.labelSmall,
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    },
                 )
                 if (ownedCard == null) {
                     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .32f)))
