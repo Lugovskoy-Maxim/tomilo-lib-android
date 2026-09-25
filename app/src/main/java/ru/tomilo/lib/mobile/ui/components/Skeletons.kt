@@ -366,6 +366,7 @@ fun CatalogGridSkeleton(
         Column(
             modifier
                 .fillMaxSize()
+                .loadingSemantics("Загрузка каталога произведений")
                 .padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -396,6 +397,7 @@ fun HomeFeedSkeleton(modifier: Modifier = Modifier) {
         Column(
             modifier
                 .fillMaxSize()
+                .loadingSemantics("Загрузка ленты")
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 110.dp),
         ) {
@@ -539,6 +541,7 @@ fun TitleDetailSkeleton(modifier: Modifier = Modifier) {
         Column(
             modifier
                 .fillMaxSize()
+                .loadingSemantics("Загрузка информации о произведении")
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = 100.dp),
         ) {
@@ -624,6 +627,7 @@ fun ListCardsSkeleton(modifier: Modifier = Modifier, count: Int = 6) {
         Column(
             modifier
                 .fillMaxWidth()
+                .loadingSemantics("Загрузка списка")
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -638,6 +642,7 @@ fun LeaderboardSkeleton(modifier: Modifier = Modifier) {
         Column(
             modifier
                 .fillMaxSize()
+                .loadingSemantics("Загрузка рейтинга")
                 .padding(bottom = 110.dp),
         ) {
             // Period switch skeleton
