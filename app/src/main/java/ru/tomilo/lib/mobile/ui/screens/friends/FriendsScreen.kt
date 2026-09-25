@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.ConversationUserDto
@@ -89,11 +90,14 @@ fun FriendsScreen(
     var friends by remember { mutableStateOf<List<FriendEntryDto>>(emptyList()) }
     var requests by remember { mutableStateOf(FriendRequestsDto()) }
     var searchResults by remember { mutableStateOf<List<FriendSearchResultDto>>(emptyList()) }
+    var searchLoading by remember { mutableStateOf(false) }
+    var searchError by remember { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var actionBusy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    var searchRetry by remember { mutableIntStateOf(0) }
     var removeRequest by remember { mutableStateOf<FriendEntryDto?>(null) }
 
     fun notify(text: String) { scope.launch { snackbar.showSnackbar(text) } }
@@ -108,13 +112,28 @@ fun FriendsScreen(
         loading = false
     }
 
-    LaunchedEffect(query) {
+    LaunchedEffect(query, searchRetry) {
         val q = query.trim()
-        if (q.length < 2) { searchResults = emptyList(); return@LaunchedEffect }
-        delay(300)
-        socialRepository.searchFriends(q)
-            .onSuccess { searchResults = it }
-            .onFailure { error = it.toUserFacingError("Не удалось загрузить результаты поиска.") }
+        if (q.length < 2) {
+            searchResults = emptyList()
+            searchError = null
+            searchLoading = false
+            return@LaunchedEffect
+        }
+        searchLoading = true
+        searchError = null
+        try {
+            delay(300)
+            socialRepository.searchFriends(q)
+                .onSuccess { searchResults = it }
+                .onFailure { searchError = it.toUserFacingError("Не удалось загрузить результаты поиска.") }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Throwable) {
+            searchError = failure.toUserFacingError("Не удалось загрузить результаты поиска.")
+        } finally {
+            searchLoading = false
+        }
     }
 
     suspend fun openChat(user: ConversationUserDto) {
@@ -221,7 +240,10 @@ fun FriendsScreen(
                 else -> SearchContent(
                     query = query,
                     results = searchResults,
+                    loading = searchLoading,
+                    error = searchError,
                     busy = actionBusy,
+                    onRetry = { searchRetry += 1 },
                     onOpenUser = onOpenUser,
                     onAdd = { result ->
                         scope.launch {
@@ -283,9 +305,20 @@ private fun RequestsContent(
 }
 
 @Composable
-private fun SearchContent(query: String, results: List<FriendSearchResultDto>, busy: Boolean, onOpenUser: (String) -> Unit, onAdd: (FriendSearchResultDto) -> Unit) {
+private fun SearchContent(
+    query: String,
+    results: List<FriendSearchResultDto>,
+    loading: Boolean,
+    error: String?,
+    busy: Boolean,
+    onRetry: () -> Unit,
+    onOpenUser: (String) -> Unit,
+    onAdd: (FriendSearchResultDto) -> Unit,
+) {
     when {
         query.trim().length < 2 -> EmptyState("Найдите читателей", "Введите минимум два символа никнейма.", icon = Icons.Outlined.PersonSearch)
+        loading -> LoadingBox(message = "Ищем читателей…")
+        error != null -> ErrorBox(error, onRetry = onRetry)
         results.isEmpty() -> EmptyState("Никого не нашли", "Проверьте написание никнейма или попробуйте другой запрос.", icon = Icons.Outlined.PersonSearch)
         else -> LazyColumn(contentPadding = ScreenPadding) {
             items(results, key = { it.user.stableId() }) { result ->
