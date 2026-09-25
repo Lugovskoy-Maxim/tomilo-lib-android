@@ -52,6 +52,7 @@ import ru.tomilo.lib.mobile.ui.theme.*
 /** Уровень 3-в-ряд: тот же рецепт, поле и прогресс профиля, что и в веб-версии. */
 @Composable fun AlchemyScreen(gamesRepository: GamesRepository, modifier: Modifier = Modifier) {
     var moves by rememberSaveable { mutableIntStateOf(22) }; var target by rememberSaveable { mutableIntStateOf(0) }; var flashedCells by remember { mutableStateOf<Set<Int>>(emptySet()) }; var flashSequence by remember { mutableIntStateOf(0) }; var effect by remember { mutableStateOf<String?>(null) }; var selected by rememberSaveable { mutableStateOf<Int?>(null) }
+    var cursor by rememberSaveable { mutableIntStateOf(27) }; var boardControlsVisible by rememberSaveable { mutableStateOf(false) }
     var completion by rememberSaveable { mutableStateOf<String?>(null) }; var completionError by remember { mutableStateOf<String?>(null) }; var saving by remember { mutableStateOf(false) }; val scope = rememberCoroutineScope()
     var profileLevel by rememberSaveable { mutableIntStateOf(1) }; var profileXp by rememberSaveable { mutableIntStateOf(0) }; var profileXpNext by rememberSaveable { mutableIntStateOf(100) }
     LaunchedEffect(Unit) { gamesRepository.pillMatchState().onSuccess { profileLevel = it.profileLevel; profileXp = it.experience; profileXpNext = it.experienceToNext } }
@@ -61,6 +62,7 @@ import ru.tomilo.lib.mobile.ui.theme.*
     val pillNames = listOf("коралловая", "голубая", "жёлтая", "фиолетовая", "зелёная")
     var board by rememberSaveable { mutableStateOf(PillMatchRules.initialBoard) }
     val onPillClick: (Int) -> Unit = { index ->
+        cursor = index
         val first = selected
         if (first == null || !PillMatchRules.isAdjacent(first, index)) {
             selected = index
@@ -77,17 +79,78 @@ import ru.tomilo.lib.mobile.ui.theme.*
             selected = null
         }
     }
+    val moveCursor: (Int, Int) -> Unit = { rowDelta, columnDelta ->
+        val row = (cursor / 8 + rowDelta).coerceIn(0, 7)
+        val column = (cursor % 8 + columnDelta).coerceIn(0, 7)
+        cursor = row * 8 + column
+    }
     Box(modifier.fillMaxSize()) {
         Image(painterResource(R.drawable.pill_lab_backdrop), null, Modifier.fillMaxSize().alpha(.25f), contentScale = ContentScale.Crop)
         Column(
             Modifier.fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 14.dp, top = 14.dp, end = 14.dp, bottom = TomiloBottomBarContentGap),
+                .padding(start = 8.dp, top = 14.dp, end = 8.dp, bottom = TomiloBottomBarContentGap),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text("УРОВЕНЬ 18 · профиль $profileLevel ур. · $profileXp / $profileXpNext XP", Modifier.weight(1f), color = Color(0xFFFFD36E)); Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("$moves", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold); Text("хода", color = TomiloMuted) } }
             Surface(color = Color(0xFF120D2B).copy(alpha = .9f), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Color(0xFFFFD36E).copy(alpha = .5f))) { Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { Pill(Color(0xFFE84B68)); Spacer(Modifier.width(10.dp)); Column(Modifier.weight(1f)) { Text("Соберите коралловые пилюли", fontWeight = FontWeight.Bold); Text("3 в ряд — сбор · 4 — линия · 5+ — вспышка", color = TomiloMuted) }; Text("$target/16", color = Color(0xFFFFD36E), fontWeight = FontWeight.Bold) } }
-            Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) { repeat(8) { column -> val index = row * 8 + column; val color = board[index]; val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { onPillClick(index) }.semantics { contentDescription = "${pillNames[color]} пилюля, ряд ${row + 1}, столбец ${column + 1}"; role = Role.Button; this.selected = selected == index }.background(colors[color], shape).border(if (selected == index) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (index in flashedCells) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
+            Surface(Modifier.fillMaxWidth(), color = Color(0xFF0B0824).copy(alpha = .9f), shape = RoundedCornerShape(22.dp), border = BorderStroke(2.dp, Color(0xFFFFD36E).copy(alpha = .65f))) { Box { Column(Modifier.padding(4.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) { repeat(8) { row -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(0.dp)) { repeat(8) { column -> val index = row * 8 + column; val color = board[index]; val shape = pillShape(color); Box(Modifier.weight(1f).aspectRatio(1f).clickable(enabled = moves > 0 && completion == null) { onPillClick(index) }.semantics { contentDescription = "${pillNames[color]} пилюля, ряд ${row + 1}, столбец ${column + 1}${if (boardControlsVisible && cursor == index) ", текущая клетка" else ""}"; role = Role.Button; this.selected = selected == index }.padding(2.dp).background(colors[color], shape).border(if (selected == index || (boardControlsVisible && cursor == index)) 3.dp else 2.dp, if (selected == index) Color(0xFFFFF3A6) else if (boardControlsVisible && cursor == index) Color.White else Color.White.copy(alpha = .42f), shape)) { if (color == 1) Box(Modifier.fillMaxWidth(.6f).height(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .72f), CircleShape)); if (color == 0) Box(Modifier.fillMaxHeight(.58f).width(2.dp).align(Alignment.Center).background(Color.White.copy(alpha = .58f))); if (index in flashedCells) Icon(Icons.Default.AutoAwesome, null, tint = Color.White, modifier = Modifier.align(Alignment.Center)) } } } } }; if (effect == "line") Box(Modifier.fillMaxWidth(.88f).height(9.dp).align(Alignment.Center).background(Color(0xFFFFF6B5).copy(alpha = .9f), CircleShape)); if (effect == "burst") Box(Modifier.size(118.dp).align(Alignment.Center).background(Brush.radialGradient(listOf(Color(0xFFFFF8C0), Color(0xFFFF7D8C).copy(alpha = .55f), Color.Transparent)), CircleShape)) } }
+            TextButton(onClick = { boardControlsVisible = !boardControlsVisible }) {
+                Text(if (boardControlsVisible) "Скрыть управление" else "Играть крупными кнопками")
+            }
+            if (boardControlsVisible) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF120D2B).copy(alpha = .9f),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFFFD36E).copy(alpha = .5f)),
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text("Клетка ${cursor / 8 + 1}, ${cursor % 8 + 1}", color = Color(0xFFFFD36E))
+                        OutlinedButton(
+                            onClick = { moveCursor(-1, 0) },
+                            enabled = moves > 0 && completion == null,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        ) { Text("↑ Выше") }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(
+                                onClick = { moveCursor(0, -1) },
+                                enabled = moves > 0 && completion == null,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            ) { Text("← Влево") }
+                            Button(
+                                onClick = { onPillClick(cursor) },
+                                enabled = moves > 0 && completion == null,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            ) { Text("Выбрать") }
+                            OutlinedButton(
+                                onClick = { moveCursor(0, 1) },
+                                enabled = moves > 0 && completion == null,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            ) { Text("Вправо →") }
+                        }
+                        OutlinedButton(
+                            onClick = { moveCursor(1, 0) },
+                            enabled = moves > 0 && completion == null,
+                            modifier = Modifier.heightIn(min = 48.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        ) { Text("↓ Ниже") }
+                        Text(
+                            "Выберите клетку стрелками и нажмите «Выбрать». Для хода выберите соседнюю клетку и нажмите ещё раз.",
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
+            }
             if (target >= 16 && completion == null) {
                 Button(
                     onClick = {
