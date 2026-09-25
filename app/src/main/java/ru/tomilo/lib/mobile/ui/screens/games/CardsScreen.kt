@@ -717,9 +717,8 @@ private fun ShopTab(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Вы получите одну случайную карту. Она может повториться. Редкие карты " +
-                            "и карты с номером встречаются реже. Премиум немного повышает шанс " +
-                            "получить редкую карту.",
+                        "Пополните коллекцию картой из выбранного произведения. Какая именно карта " +
+                            "выпадет — сюрприз!",
                         color = TomiloMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -742,7 +741,7 @@ private fun ShopTab(
         }
         if (decks.isEmpty() && error == null) item(span = { GridItemSpan(maxLineSpan) }) {
             EmptyState(
-                title = "Паков по тайтлам пока нет",
+                title = "Наборов пока нет",
                 message = "Случайная карта выше всё равно доступна.",
                 modifier = Modifier.fillMaxWidth().height(280.dp),
                 illustration = ru.tomilo.lib.mobile.R.drawable.illust_card_stack,
