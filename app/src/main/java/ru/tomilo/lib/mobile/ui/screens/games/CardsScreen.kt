@@ -708,8 +708,8 @@ private fun ShopTab(
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Одна случайная карта или набор по выбранному тайтлу — за монеты.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                    Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("Купите случайную карту или набор карт по выбранному тайтлу.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -717,9 +717,9 @@ private fun ShopTab(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "За покупку вы получите одну случайную карту. Повторы возможны, а редкие " +
-                            "карты и карты с номером выпадают реже. Премиум немного повышает шанс " +
-                            "получить карту высокого ранга.",
+                        "Вы получите одну случайную карту. Она может повториться. Редкие карты " +
+                            "и карты с номером встречаются реже. Премиум немного повышает шанс " +
+                            "получить редкую карту.",
                         color = TomiloMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
