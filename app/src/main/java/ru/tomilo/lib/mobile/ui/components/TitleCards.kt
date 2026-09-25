@@ -330,12 +330,12 @@ fun TitlePosterCard(
             if (!status.isNullOrBlank()) {
                 val sLabel = statusLabel(status)
                 val sColor = statusColor(status)
-                    Row(
-                        Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(6.dp)
-                            .widthIn(max = if (fontScale >= 1.2f) 116.dp else 160.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                Row(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .widthIn(max = if (fontScale >= 1.2f) 116.dp else 160.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(Color.Black.copy(alpha = 0.82f))
                         .border(0.8.dp, sColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
