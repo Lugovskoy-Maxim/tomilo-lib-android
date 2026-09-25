@@ -113,13 +113,17 @@ import androidx.compose.ui.unit.sp
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlin.math.floor
 import kotlin.math.pow
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.core.toUserFacingError
+import ru.tomilo.lib.mobile.data.api.UserDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
@@ -131,6 +135,7 @@ import ru.tomilo.lib.mobile.ui.components.ActionRow
 import ru.tomilo.lib.mobile.ui.components.ProfileScreenSkeleton
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
+import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.TomiloRingLogo
 import ru.tomilo.lib.mobile.ui.components.TomiloWordmark
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
@@ -142,6 +147,12 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
+
+private sealed interface ProfileUserState {
+    data object Loading : ProfileUserState
+    data class Loaded(val user: UserDto?) : ProfileUserState
+    data class Failed(val message: String) : ProfileUserState
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalCoilApi::class)
 @Composable
@@ -167,7 +178,19 @@ fun ProfileScreen(
     onOpenGames: () -> Unit,
     onOpenMyPublicProfile: (userId: String) -> Unit,
 ) {
-    val user by authRepository.userFlow.collectAsState(initial = null)
+    var profileReload by rememberSaveable { mutableIntStateOf(0) }
+    val profileUserFlow = remember(authRepository, profileReload) {
+        authRepository.userFlow
+            .map<UserDto?, ProfileUserState> { ProfileUserState.Loaded(it) }
+            .catch { failure ->
+                if (failure is CancellationException) throw failure
+                emit(ProfileUserState.Failed(failure.toUserFacingError("Не удалось загрузить профиль.")))
+            }
+    }
+    val profileUserState by profileUserFlow.collectAsState(initial = ProfileUserState.Loading)
+    val user = (profileUserState as? ProfileUserState.Loaded)?.user
+    val profileError = (profileUserState as? ProfileUserState.Failed)?.message
+    val profileLoaded = profileUserState !is ProfileUserState.Loading
     val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
     val readingSettings by readingPrefs.settingsFlow.collectAsState(initial = ReadingSettings())
     val scope = rememberCoroutineScope()
@@ -178,13 +201,6 @@ fun ProfileScreen(
     var cacheMsg by remember { mutableStateOf<String?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
     var selectedProfileTab by rememberSaveable { mutableIntStateOf(0) }
-    var profileLoaded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(authRepository) {
-        authRepository.userFlow.first()
-        profileLoaded = true
-    }
-
     LaunchedEffect(user?.stableId()) {
         if (user != null) {
             authRepository.refreshProfile()
@@ -216,6 +232,12 @@ fun ProfileScreen(
     ) { padding ->
         if (!profileLoaded) {
             ProfileScreenSkeleton(Modifier.padding(padding).fillMaxSize())
+        } else if (profileError != null) {
+            ErrorBox(
+                message = profileError,
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                onRetry = { profileReload += 1 },
+            )
         } else {
         Column(
             Modifier

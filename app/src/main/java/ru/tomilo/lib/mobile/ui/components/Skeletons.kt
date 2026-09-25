@@ -732,6 +732,7 @@ fun ProfileScreenSkeleton(modifier: Modifier = Modifier) {
         Column(
             modifier
                 .fillMaxSize()
+                .loadingSemantics("Загрузка профиля")
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 110.dp),
         ) {
             // Profile Hero Header Skeleton
