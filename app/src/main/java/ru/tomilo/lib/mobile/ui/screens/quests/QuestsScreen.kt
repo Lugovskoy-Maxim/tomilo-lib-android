@@ -124,19 +124,22 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                         onClaim = {
                             scope.launch {
                                 actionBusy = true
-                                authRepository.claimDailyBonus()
-                                    .onSuccess { result ->
-                                        RewardNotifications.show(
-                                            experience = result.experienceGained,
-                                            coins = result.coinsGained,
-                                            source = "Ежедневный бонус",
-                                        )
-                                        authRepository.refreshProfile()
-                                        message("+${result.experienceGained} опыта · +${result.coinsGained} монет")
-                                        reload += 1
-                                    }
-                                    .onFailure { message(it.toUserFacingError("Бонус уже получен")) }
-                                actionBusy = false
+                                try {
+                                    authRepository.claimDailyBonus()
+                                        .onSuccess { result ->
+                                            RewardNotifications.show(
+                                                experience = result.experienceGained,
+                                                coins = result.coinsGained,
+                                                source = "Ежедневный бонус",
+                                            )
+                                            authRepository.refreshProfile()
+                                            message("+${result.experienceGained} опыта · +${result.coinsGained} монет")
+                                            reload += 1
+                                        }
+                                        .onFailure { message(it.toUserFacingError("Бонус уже получен")) }
+                                } finally {
+                                    actionBusy = false
+                                }
                             }
                         },
                     )
@@ -163,19 +166,22 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                 onClick = {
                                     scope.launch {
                                         actionBusy = true
-                                        authRepository.claimAllQuests()
-                                            .onSuccess { result ->
-                                                RewardNotifications.show(
-                                                    experience = result.expGained,
-                                                    coins = result.coinsGained,
-                                                    source = "${result.claimedCount} заданий выполнено",
-                                                )
-                                                authRepository.refreshProfile()
-                                                message("Получено: +${result.expGained} XP · +${result.coinsGained} монет")
-                                                reload += 1
-                                            }
-                                            .onFailure { message(it.toUserFacingError("Награды недоступны")) }
-                                        actionBusy = false
+                                        try {
+                                            authRepository.claimAllQuests()
+                                                .onSuccess { result ->
+                                                    RewardNotifications.show(
+                                                        experience = result.expGained,
+                                                        coins = result.coinsGained,
+                                                        source = "${result.claimedCount} заданий выполнено",
+                                                    )
+                                                    authRepository.refreshProfile()
+                                                    message("Получено: +${result.expGained} XP · +${result.coinsGained} монет")
+                                                    reload += 1
+                                                }
+                                                .onFailure { message(it.toUserFacingError("Награды недоступны")) }
+                                        } finally {
+                                            actionBusy = false
+                                        }
                                     }
                                 },
                             ) { Text("Забрать все") }
@@ -188,19 +194,22 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                             onClaim = {
                                 scope.launch {
                                     actionBusy = true
-                                    authRepository.claimQuest(quest.id)
-                                        .onSuccess { result ->
-                                            RewardNotifications.show(
-                                                experience = result.expGained,
-                                                coins = result.coinsGained,
-                                                source = quest.name,
-                                            )
-                                            authRepository.refreshProfile()
-                                            message("+${result.expGained} XP · +${result.coinsGained} монет")
-                                            reload += 1
-                                        }
-                                        .onFailure { message(it.toUserFacingError("Награда недоступна")) }
-                                    actionBusy = false
+                                    try {
+                                        authRepository.claimQuest(quest.id)
+                                            .onSuccess { result ->
+                                                RewardNotifications.show(
+                                                    experience = result.expGained,
+                                                    coins = result.coinsGained,
+                                                    source = quest.name,
+                                                )
+                                                authRepository.refreshProfile()
+                                                message("+${result.expGained} XP · +${result.coinsGained} монет")
+                                                reload += 1
+                                            }
+                                            .onFailure { message(it.toUserFacingError("Награда недоступна")) }
+                                    } finally {
+                                        actionBusy = false
+                                    }
                                 }
                             },
                         )

@@ -203,49 +203,52 @@ fun WheelScreen(
         if (spinning) return
         scope.launch {
             spinning = true
-            result = null
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            authRepository.spinWheel(skipCooldown)
-                .onSuccess { won ->
-                    val count = current.segments.size.coerceAtLeast(1)
-                    val index = won.selectedSegmentIndex
-                        ?.takeIf { it in 0 until count }
-                        ?: current.segments.indexOfFirst { it.label == won.label }.coerceAtLeast(0)
-                    val slice = 360f / count
-                    val currentNormalized = ((rotation.value % 360f) + 360f) % 360f
-                    val landing = 360f - (index + 0.5f) * slice
-                    val target = rotation.value + 6f * 360f + (landing - currentNormalized + 360f) % 360f
-                    rotation.animateTo(
-                        target,
-                        tween(
-                            durationMillis = 6_200,
-                            easing = CubicBezierEasing(0.08f, 0.62f, 0.08f, 1f),
-                        ),
-                    )
-                    pointerFlap = 0f
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    RewardNotifications.show(
-                        experience = won.expGained ?: 0,
-                        coins = (won.coinsGained ?: 0) + (won.compensationCoins ?: 0),
-                        source = "Колесо судьбы",
-                    )
-                    authRepository.refreshProfile()
-                    result = won
-                    wheel = authRepository.wheel().getOrDefault(
-                        current.copy(
-                            balance = won.balance ?: current.balance,
-                            canSpin = false,
-                            nextSpinAt = won.nextSpinAt ?: current.nextSpinAt,
-                        ),
-                    )
-                    winners = authRepository.wheelRecentWins().getOrNull()?.let { data ->
-                        listOfNotNull(data.highlight) + data.recent
-                    }.orEmpty().distinctBy { it.username + it.wonAt + it.label }
-                }
-                .onFailure {
-                    snackbar.showSnackbar(it.toUserFacingError("Не удалось запустить колесо."))
-                }
-            spinning = false
+            try {
+                result = null
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                authRepository.spinWheel(skipCooldown)
+                    .onSuccess { won ->
+                        val count = current.segments.size.coerceAtLeast(1)
+                        val index = won.selectedSegmentIndex
+                            ?.takeIf { it in 0 until count }
+                            ?: current.segments.indexOfFirst { it.label == won.label }.coerceAtLeast(0)
+                        val slice = 360f / count
+                        val currentNormalized = ((rotation.value % 360f) + 360f) % 360f
+                        val landing = 360f - (index + 0.5f) * slice
+                        val target = rotation.value + 6f * 360f + (landing - currentNormalized + 360f) % 360f
+                        rotation.animateTo(
+                            target,
+                            tween(
+                                durationMillis = 6_200,
+                                easing = CubicBezierEasing(0.08f, 0.62f, 0.08f, 1f),
+                            ),
+                        )
+                        pointerFlap = 0f
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        RewardNotifications.show(
+                            experience = won.expGained ?: 0,
+                            coins = (won.coinsGained ?: 0) + (won.compensationCoins ?: 0),
+                            source = "Колесо судьбы",
+                        )
+                        authRepository.refreshProfile()
+                        result = won
+                        wheel = authRepository.wheel().getOrDefault(
+                            current.copy(
+                                balance = won.balance ?: current.balance,
+                                canSpin = false,
+                                nextSpinAt = won.nextSpinAt ?: current.nextSpinAt,
+                            ),
+                        )
+                        winners = authRepository.wheelRecentWins().getOrNull()?.let { data ->
+                            listOfNotNull(data.highlight) + data.recent
+                        }.orEmpty().distinctBy { it.username + it.wonAt + it.label }
+                    }
+                    .onFailure {
+                        snackbar.showSnackbar(it.toUserFacingError("Не удалось запустить колесо."))
+                    }
+            } finally {
+                spinning = false
+            }
         }
     }
 
