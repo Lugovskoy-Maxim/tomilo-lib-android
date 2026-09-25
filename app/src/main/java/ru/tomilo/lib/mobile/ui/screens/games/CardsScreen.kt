@@ -73,6 +73,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -207,8 +208,8 @@ fun CardsScreen(
     var forgeTargetId by remember { mutableStateOf<String?>(null) }
     var forgedCard by remember { mutableStateOf<GameCardDto?>(null) }
     var cardToSell by remember { mutableStateOf<GameCardDto?>(null) }
-    var tab by remember { mutableStateOf(CardTab.Album) }
-    var forgeMode by remember { mutableStateOf(ForgeMode.Random) }
+    var tab by rememberSaveable { mutableStateOf(CardTab.Album) }
+    var forgeMode by rememberSaveable { mutableStateOf(ForgeMode.Random) }
     var loading by remember { mutableStateOf(true) }
     var refreshing by remember { mutableStateOf(false) }
     var action by remember { mutableStateOf<String?>(null) }

@@ -217,8 +217,12 @@ fun TomiloNavHost(container: AppContainer) {
     }
 
     val pendingNotification by container.pendingNotificationOpen.collectAsState()
-    LaunchedEffect(pendingNotification) {
+    LaunchedEffect(pendingNotification, backStack?.destination?.id) {
         val nav = pendingNotification ?: return@LaunchedEffect
+        // Notification/deep-link intents can arrive before NavHost installs its graph.
+        // Keep the pending request until the first destination exists instead of
+        // navigating against an uninitialized NavController.
+        if (backStack == null) return@LaunchedEffect
         container.pendingNotificationOpen.value = null
         when {
             !nav.conversationId.isNullOrBlank() -> navController.navigate(

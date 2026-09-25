@@ -39,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,7 +75,7 @@ fun GamesScreen(
     onOpenWebTab: (String) -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
-    var page by remember { mutableStateOf(GamesPage.HUB) }
+    var page by rememberSaveable { mutableStateOf(GamesPage.HUB) }
 
     BackHandler(enabled = page != GamesPage.HUB) { page = GamesPage.HUB }
 
