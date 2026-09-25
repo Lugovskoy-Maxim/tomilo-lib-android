@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Button
@@ -61,7 +62,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS }
+private enum class GamesPage { HUB, CARDS, ALCHEMY }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,9 +86,19 @@ fun GamesScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(if (page == GamesPage.HUB) "Игры и награды" else "Карточки")
                         Text(
-                            if (page == GamesPage.HUB) "Колесо и коллекция" else "Декоративная коллекция",
+                            when (page) {
+                                GamesPage.HUB -> "Игры и награды"
+                                GamesPage.CARDS -> "Карточки"
+                                GamesPage.ALCHEMY -> "Рецепт бодрости"
+                            },
+                        )
+                        Text(
+                            when (page) {
+                                GamesPage.HUB -> "Колесо и коллекция"
+                                GamesPage.CARDS -> "Декоративная коллекция"
+                                GamesPage.ALCHEMY -> "Собирайте коралловые пилюли"
+                            },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
                         )
@@ -113,9 +124,10 @@ fun GamesScreen(
                 onOpenQuests = onOpenQuests,
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
+                onOpenAlchemy = { page = GamesPage.ALCHEMY },
                 modifier = Modifier.padding(padding),
             )
-            else -> CardsScreen(
+            page == GamesPage.CARDS -> CardsScreen(
                 gamesRepository = gamesRepository,
                 authRepository = authRepository,
                 isAuthenticated = user != null,
@@ -124,6 +136,7 @@ fun GamesScreen(
                 onOpenSubmit = { onOpenWebTab("cards/submit") },
                 onOpenWebTab = onOpenWebTab,
             )
+            else -> AlchemyScreen(gamesRepository, Modifier.padding(padding))
         }
     }
 }
@@ -166,6 +179,7 @@ private fun GamesContent(
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
+    onOpenAlchemy: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -216,6 +230,12 @@ private fun GamesContent(
                     title = "Карточки тайтлов",
                     subtitle = "Декоративные карточки, наборы и обмен",
                     onClick = onOpenCards,
+                )
+                GameModeRow(
+                    icon = Icons.Default.AutoAwesome,
+                    title = "Рецепт бодрости",
+                    subtitle = "Соберите коралловые пилюли и получите XP",
+                    onClick = onOpenAlchemy,
                 )
                 GameModeRow(
                     icon = Icons.Default.TaskAlt,
