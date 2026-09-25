@@ -85,9 +85,11 @@ fun TomiloTheme(
         )
     }
     val systemDensity = LocalDensity.current
-    val normalFontScale = minOf(systemDensity.fontScale, 1f)
-    val appDensity = remember(systemDensity.density, normalFontScale) {
-        Density(density = systemDensity.density, fontScale = normalFontScale)
+    // Preserve the user's accessibility setting while capping extreme scales that
+    // can make tightly composed cards and controls unusable.
+    val appFontScale = systemDensity.fontScale.coerceIn(1f, 1.3f)
+    val appDensity = remember(systemDensity.density, appFontScale) {
+        Density(density = systemDensity.density, fontScale = appFontScale)
     }
     CompositionLocalProvider(
         LocalTomiloAccent provides activePrimary,

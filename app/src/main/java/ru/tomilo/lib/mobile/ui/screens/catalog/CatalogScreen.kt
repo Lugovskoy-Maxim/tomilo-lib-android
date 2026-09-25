@@ -181,7 +181,7 @@ fun CatalogScreen(
     var includeAdult by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
     var layoutMode by rememberSaveable { mutableStateOf(CatalogLayoutMode.GRID_2) }
-    val compactGridAvailable = configuration.screenWidthDp >= 360 && configuration.fontScale <= 1.15f
+    val compactGridAvailable = configuration.screenWidthDp >= 400 && configuration.fontScale <= 1.15f
     val effectiveLayoutMode = if (layoutMode == CatalogLayoutMode.GRID_3 && !compactGridAvailable) {
         CatalogLayoutMode.GRID_2
     } else {

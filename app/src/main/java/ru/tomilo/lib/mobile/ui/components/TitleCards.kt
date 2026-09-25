@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -139,6 +141,7 @@ fun TitlePosterCard(
     footerTrailingAccent: Boolean = false,
     readingProgress: Float? = null,
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
     val coverRadius = if (plain) 16.dp else CardRadius
     val coverShape = RoundedCornerShape(coverRadius)
     val base = if (width != null) modifier.width(width) else modifier.fillMaxWidth()
@@ -327,11 +330,12 @@ fun TitlePosterCard(
             if (!status.isNullOrBlank()) {
                 val sLabel = statusLabel(status)
                 val sColor = statusColor(status)
-                Row(
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(6.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                    Row(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(6.dp)
+                            .widthIn(max = if (fontScale >= 1.2f) 116.dp else 160.dp)
+                            .clip(RoundedCornerShape(8.dp))
                         .background(Color.Black.copy(alpha = 0.82f))
                         .border(0.8.dp, sColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
@@ -349,6 +353,8 @@ fun TitlePosterCard(
                         color = Color.White,
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
+                        maxLines = if (fontScale >= 1.2f) 2 else 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
