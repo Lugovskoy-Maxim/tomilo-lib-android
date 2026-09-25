@@ -656,7 +656,7 @@ private fun ShopTab(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Магазин карт", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Случайная карта или пак по тайтлу за монеты активности.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                Text("Одна случайная карта или набор по выбранному тайтлу — за монеты.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -664,9 +664,9 @@ private fun ShopTab(
                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Случайная карта", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Покупка без пака. Шансы от F к SSS жёсткие, номерная почти не выпадает. " +
-                            "Дубликаты остаются в пуле — закрытая низкая коллекция не гарантирует " +
-                            "старший ранг. Премиум чуть поднимает удачу на старших рангах.",
+                        "За покупку вы получите одну случайную карту. Повторы возможны, а редкие " +
+                            "карты и карты с номером выпадают реже. Премиум немного повышает шанс " +
+                            "получить карту высокого ранга.",
                         color = TomiloMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
