@@ -657,7 +657,6 @@ fun CardsScreen(
                                 gamesRepository.sellCardCopy(card.id).onSuccess { authRepository.refreshProfile() }
                             },
                             onSuccess = { result ->
-                                forgeSelection.removeAll { it == card.id }
                                 if (result.copies == 1 && lastCopy) "Карточка продана · +${result.coins} монет"
                                 else "Копия продана · +${result.coins} монет"
                             },
