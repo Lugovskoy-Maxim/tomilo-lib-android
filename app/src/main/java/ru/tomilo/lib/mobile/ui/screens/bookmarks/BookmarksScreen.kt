@@ -19,6 +19,16 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,6 +44,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.BookmarkEntryDto
+import ru.tomilo.lib.mobile.data.api.BookmarkGroupDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
@@ -73,6 +84,13 @@ fun BookmarksScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<BookmarkEntryDto>>(emptyList()) }
     var progressByTitle by remember { mutableStateOf<Map<String, ReadingProgressDto>>(emptyMap()) }
+    var groups by remember { mutableStateOf<List<BookmarkGroupDto>>(emptyList()) }
+    var selectedGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
+    var movingBookmark by remember { mutableStateOf<BookmarkEntryDto?>(null) }
+    var editingGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
+    var showGroupDialog by remember { mutableStateOf(false) }
+    var showCreateGroupDialog by remember { mutableStateOf(false) }
+    var groupName by remember { mutableStateOf("") }
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -84,7 +102,7 @@ fun BookmarksScreen(
         authReady = true
     }
 
-    LaunchedEffect(user?.stableId(), catIndex, reload, authReady) {
+    LaunchedEffect(user?.stableId(), catIndex, selectedGroup, reload, authReady) {
         if (!authReady) return@LaunchedEffect
         if (user == null) {
             items = emptyList()
@@ -94,7 +112,8 @@ fun BookmarksScreen(
         }
         loading = true
         error = null
-        val cat = CATEGORIES[catIndex].first
+        groups = socialRepository.bookmarkGroups().getOrDefault(emptyList())
+        val cat = selectedGroup?.let { "group:${it.id.removePrefix("group:")}" } ?: CATEGORIES[catIndex].first
         socialRepository.bookmarks(cat)
             .onSuccess { list ->
                 items = list.filter {
@@ -139,15 +158,22 @@ fun BookmarksScreen(
         }
         when {
             loading -> Column(Modifier.padding(padding).fillMaxSize()) {
-                BookmarkCategorySelector(catIndex) { catIndex = it }
+                BookmarkCategorySelector(catIndex, selectedGroup != null) { catIndex = it; selectedGroup = null }
                 ListCardsSkeleton()
             }
             error != null && items.isEmpty() -> Column(Modifier.padding(padding).fillMaxSize()) {
-                BookmarkCategorySelector(catIndex) { catIndex = it }
+                BookmarkCategorySelector(catIndex, selectedGroup != null) { catIndex = it; selectedGroup = null }
                 ErrorBox(error ?: "Ошибка") { reload += 1 }
             }
             items.isEmpty() -> Column(Modifier.padding(padding).fillMaxSize()) {
-                BookmarkCategorySelector(catIndex) { catIndex = it }
+                BookmarkCategorySelector(catIndex, selectedGroup != null) { catIndex = it; selectedGroup = null }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+                    groups.forEach { group ->
+                        FilterChip(selected = selectedGroup?.id == group.id, onClick = { selectedGroup = group }, label = { Text(group.name) }, modifier = Modifier.padding(horizontal = 3.dp))
+                    }
+                    FilterChip(selected = false, onClick = { groupName = ""; showCreateGroupDialog = true }, label = { Text("Создать группу") }, leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) })
+                    if (groups.isNotEmpty()) TextButton(onClick = { showGroupDialog = true }) { Text("Порядок") }
+                }
                 EmptyState(
                     title = "Здесь пока пусто",
                     message = if (catIndex == 0) {
@@ -164,7 +190,21 @@ fun BookmarksScreen(
                 contentPadding = ScreenPadding,
             ) {
                     item(key = "bookmark_filters") {
-                        BookmarkCategorySelector(catIndex) { catIndex = it }
+                        BookmarkCategorySelector(catIndex, selectedGroup != null) { catIndex = it; selectedGroup = null }
+                    }
+                    item(key = "bookmark_groups") {
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+                            groups.forEach { group ->
+                                FilterChip(
+                                    selected = selectedGroup?.id == group.id,
+                                    onClick = { selectedGroup = group; catIndex = 0 },
+                                    label = { Text(group.name) },
+                                    modifier = Modifier.padding(horizontal = 3.dp),
+                                )
+                            }
+                            FilterChip(selected = false, onClick = { editingGroup = null; groupName = ""; showCreateGroupDialog = true }, label = { Text("Создать") }, leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) })
+                            TextButton(onClick = { showGroupDialog = true }) { Text("Порядок") }
+                        }
                     }
                     items(
                         items,
@@ -227,7 +267,10 @@ fun BookmarksScreen(
                                 rating = t?.averageRating,
                                 totalChapters = totalFromTitle,
                                 status = t?.status,
-                                subtitle = categoryLabel(bm.category),
+                                subtitle = selectedGroup?.name ?: categoryLabel(bm.category, groups),
+                                secondaryActionIcon = Icons.Default.Edit,
+                                secondaryActionDescription = "Переместить в группу",
+                                onSecondaryAction = { movingBookmark = bm },
                                 progressLine = progressLine,
                                 onClick = {
                                     if (titleId.isNotBlank()) {
@@ -240,11 +283,113 @@ fun BookmarksScreen(
                 }
         }
     }
+
+    if (movingBookmark != null) {
+        AlertDialog(
+            onDismissRequest = { movingBookmark = null },
+            title = { Text("Переместить закладку") },
+            text = {
+                Column {
+                    CATEGORIES.filter { it.first != null }.forEach { (category, label) ->
+                        TextButton(onClick = {
+                            val bookmark = movingBookmark ?: return@TextButton
+                            scope.launch {
+                                socialRepository.updateBookmarkCategory(bookmark.resolvedTitleId(), category!!)
+                                    .onSuccess { reload += 1; snackbar.showSnackbar("Перемещено в «$label»") }
+                                    .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось переместить закладку.")) }
+                                movingBookmark = null
+                            }
+                        }) { Text(label) }
+                    }
+                    groups.forEach { group ->
+                        TextButton(onClick = {
+                            val bookmark = movingBookmark ?: return@TextButton
+                            scope.launch {
+                                socialRepository.updateBookmarkCategory(bookmark.resolvedTitleId(), "group:${group.id.removePrefix("group:")}")
+                                    .onSuccess { reload += 1; snackbar.showSnackbar("Перемещено в «${group.name}»") }
+                                    .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось переместить закладку.")) }
+                                movingBookmark = null
+                            }
+                        }) { Text(group.name) }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { movingBookmark = null }) { Text("Отмена") } },
+        )
+    }
+
+    if (showGroupDialog) {
+        AlertDialog(
+            onDismissRequest = { showGroupDialog = false },
+            title = { Text(if (editingGroup == null) "Порядок групп" else "Изменить группу") },
+            text = {
+                Column {
+                    if (editingGroup != null) OutlinedTextField(value = groupName, onValueChange = { groupName = it }, label = { Text("Название") }, singleLine = true)
+                    groups.forEachIndexed { index, group ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(group.name, Modifier.weight(1f))
+                            IconButton(enabled = index > 0, onClick = {
+                                val ordered = groups.toMutableList().also { it.add(index - 1, it.removeAt(index)) }
+                                scope.launch {
+                                    socialRepository.reorderBookmarkGroups(ordered.map { it.id })
+                                        .onSuccess { groups = it; reload += 1 }
+                                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить порядок групп.")) }
+                                }
+                            }) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Выше") }
+                            IconButton(enabled = index < groups.lastIndex, onClick = {
+                                val ordered = groups.toMutableList().also { it.add(index + 1, it.removeAt(index)) }
+                                scope.launch {
+                                    socialRepository.reorderBookmarkGroups(ordered.map { it.id })
+                                        .onSuccess { groups = it; reload += 1 }
+                                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить порядок групп.")) }
+                                }
+                            }) { Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Ниже") }
+                            IconButton(onClick = { editingGroup = group; groupName = group.name }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Переименовать")
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (editingGroup != null) Button(onClick = {
+                    val current = editingGroup ?: return@Button
+                    scope.launch {
+                        socialRepository.renameBookmarkGroup(current.id, groupName).onSuccess { updated ->
+                            groups = groups.map { if (it.id == updated.id) updated else it }
+                            if (selectedGroup?.id == updated.id) selectedGroup = updated
+                            editingGroup = null
+                            groupName = ""
+                            reload += 1
+                        }.onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось переименовать группу.")) }
+                    }
+                }, enabled = groupName.isNotBlank()) { Text("Сохранить") }
+                else TextButton(onClick = { showGroupDialog = false }) { Text("Готово") }
+            },
+            dismissButton = {},
+        )
+    }
+
+    if (showCreateGroupDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateGroupDialog = false },
+            title = { Text("Новая группа") },
+            text = { OutlinedTextField(value = groupName, onValueChange = { groupName = it }, label = { Text("Название") }) },
+            confirmButton = { Button(onClick = {
+                scope.launch {
+                    socialRepository.createBookmarkGroup(groupName).onSuccess { groups = groups + it; groupName = ""; showCreateGroupDialog = false }
+                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось создать группу.")) }
+                }
+            }, enabled = groupName.isNotBlank()) { Text("Создать") } },
+            dismissButton = { TextButton(onClick = { showCreateGroupDialog = false }) { Text("Отмена") } },
+        )
+    }
 }
 
 @Composable
 private fun BookmarkCategorySelector(
     selectedIndex: Int,
+    customGroupSelected: Boolean = false,
     onSelect: (Int) -> Unit,
 ) {
     Row(
@@ -255,7 +400,7 @@ private fun BookmarkCategorySelector(
     ) {
         CATEGORIES.forEachIndexed { index, pair ->
             FilterChip(
-                selected = selectedIndex == index,
+                selected = !customGroupSelected && selectedIndex == index,
                 onClick = { onSelect(index) },
                 label = { Text(pair.second) },
                 modifier = Modifier.padding(horizontal = 3.dp),
@@ -264,11 +409,11 @@ private fun BookmarkCategorySelector(
     }
 }
 
-private fun categoryLabel(c: String?): String = when (c) {
+private fun categoryLabel(c: String?, groups: List<BookmarkGroupDto> = emptyList()): String = when (c) {
     "reading" -> "Читаю"
     "planned" -> "В планах"
     "completed" -> "Прочитано"
     "favorites" -> "Избранное"
     "dropped" -> "Брошено"
-    else -> c.orEmpty()
+    else -> c?.let { id -> groups.firstOrNull { it.id == id || it.id == "group:$id" }?.name } ?: c.orEmpty()
 }

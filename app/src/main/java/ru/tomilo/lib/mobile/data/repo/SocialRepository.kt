@@ -26,6 +26,7 @@ import ru.tomilo.lib.mobile.data.api.ShopDecorationDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 import ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest
 import ru.tomilo.lib.mobile.data.api.CreateBookmarkGroupRequest
+import ru.tomilo.lib.mobile.data.api.ReorderBookmarkGroupsRequest
 import ru.tomilo.lib.mobile.data.api.UpdateCommentRequest
 
 class SocialRepository(private val api: TomiloApi) {
@@ -87,6 +88,12 @@ class SocialRepository(private val api: TomiloApi) {
     suspend fun deleteBookmarkGroup(id: String): Result<Unit> = runCatchingCancellable {
         val res = api.deleteBookmarkGroup(id.removePrefix("group:"))
         if (!res.success) error(res.message ?: "Не удалось удалить группу")
+    }
+
+    suspend fun reorderBookmarkGroups(groupIds: List<String>): Result<List<BookmarkGroupDto>> = runCatchingCancellable {
+        val res = api.reorderBookmarkGroups(ReorderBookmarkGroupsRequest(groupIds))
+        if (!res.success) error(res.message ?: "Не удалось изменить порядок групп")
+        res.data.orEmpty()
     }
 
     suspend fun bookmarkStatus(titleId: String): Result<BookmarkStatusDto> = runCatchingCancellable {

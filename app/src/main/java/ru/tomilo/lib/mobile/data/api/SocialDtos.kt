@@ -151,11 +151,15 @@ data class UpdateBookmarkRequest(val category: String)
 data class BookmarkGroupDto(
     val id: String = "",
     val name: String = "",
+    val order: Int = 0,
     val createdAt: String? = null,
 )
 
 @kotlinx.serialization.Serializable
 data class CreateBookmarkGroupRequest(val name: String)
+
+@kotlinx.serialization.Serializable
+data class ReorderBookmarkGroupsRequest(val groupIds: List<String>)
 
 @Serializable
 data class CreateCommentRequest(
