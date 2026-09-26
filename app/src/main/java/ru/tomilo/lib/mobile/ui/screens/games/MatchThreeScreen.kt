@@ -41,6 +41,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -85,9 +90,26 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private enum class MatchThreeTab { PLAY, RANK, EDITOR }
+private enum class GardenBackdrop(val title: String, val drawable: Int) {
+    GARDEN("Оранжерея", ru.tomilo.lib.mobile.R.drawable.pill_garden_backdrop),
+    LAB("Лаборатория", ru.tomilo.lib.mobile.R.drawable.pill_lab_backdrop),
+    CAVE("Кристальная пещера", ru.tomilo.lib.mobile.R.drawable.pill_crystal_cave_backdrop),
+}
 private enum class RankPeriod(val title: String, val apiValue: String) { WEEK("Неделя", "week"), MONTH("Месяц", "month"), ALL("Всё время", "all") }
 private val gemColors = listOf(Color(0xFFFF6F7D), Color(0xFF47D4E7), Color(0xFFFFC64F), Color(0xFFB18AFF), Color(0xFF73D99A))
 private val gemMarks = listOf("✦", "◆", "☾", "✿", "●")
+private val gemSprites = listOf(
+    ru.tomilo.lib.mobile.R.drawable.pill_gem_coral,
+    ru.tomilo.lib.mobile.R.drawable.pill_gem_cyan,
+    ru.tomilo.lib.mobile.R.drawable.pill_gem_lemon,
+    ru.tomilo.lib.mobile.R.drawable.pill_gem_violet,
+    ru.tomilo.lib.mobile.R.drawable.pill_gem_mint,
+)
+private val matchFxFrames = listOf(
+    ru.tomilo.lib.mobile.R.drawable.pill_fx_match_small,
+    ru.tomilo.lib.mobile.R.drawable.pill_fx_match_burst,
+    ru.tomilo.lib.mobile.R.drawable.pill_fx_match_fade,
+)
 
 @Composable
 fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier: Modifier = Modifier) {
@@ -102,6 +124,9 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
     var selectedLevel by rememberSaveable { mutableIntStateOf(1) }
     var playing by rememberSaveable { mutableStateOf(false) }
     var board by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var matchedFxCells by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var matchedFxFrame by remember { mutableIntStateOf(0) }
+    var matchedFxSequence by remember { mutableIntStateOf(0) }
     var obstacles by remember { mutableStateOf<Map<Int, Obstacle>>(emptyMap()) }
     var moves by rememberSaveable { mutableIntStateOf(0) }
     var collected by rememberSaveable { mutableIntStateOf(0) }
@@ -110,11 +135,11 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
     var boosterHammer by rememberSaveable { mutableIntStateOf(2) }
     var boosterRainbow by rememberSaveable { mutableIntStateOf(1) }
     var boosterShuffle by rememberSaveable { mutableIntStateOf(1) }
-    var selectedCell by rememberSaveable { mutableIntStateOf(-1) }
     var activeBooster by rememberSaveable { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
     var finished by rememberSaveable { mutableStateOf(false) }
     var rankPeriod by rememberSaveable { mutableStateOf(RankPeriod.WEEK) }
+    var gardenBackdrop by rememberSaveable { mutableStateOf(GardenBackdrop.GARDEN) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var saving by rememberSaveable { mutableStateOf(false) }
     var editorObstacle by rememberSaveable { mutableStateOf(Obstacle.ROCK) }
@@ -178,6 +203,16 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         saved = refreshed
         store.write(refreshed)
     }
+    LaunchedEffect(matchedFxSequence) {
+        if (matchedFxCells.isNotEmpty()) {
+            matchedFxFrame = 0
+            repeat(matchFxFrames.size) { frame ->
+                matchedFxFrame = frame
+                delay(95)
+            }
+            matchedFxCells = emptySet()
+        }
+    }
     LaunchedEffect(Unit) {
         gamesRepository.pillMatchPublishedLevels().onSuccess { publishedLevels = it }
     }
@@ -239,7 +274,7 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         moves = spec.moves
         collected = 0
         boosterHammer = 2; boosterRainbow = 1; boosterShuffle = 1
-        selectedCell = -1; activeBooster = ""; finished = false; playing = true; notice = null; remoteMode = false
+        activeBooster = ""; finished = false; playing = true; notice = null; remoteMode = false
         if (!user?.stableId().isNullOrBlank()) scope.launch {
             saving = true
             gamesRepository.startPillMatchLevel(number).onSuccess { response ->
@@ -297,11 +332,16 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         notice = "Уровень пройден! Новая глава уже открыта ✨"
     }
 
+    fun triggerMatchFx(cells: Set<Int>) {
+        matchedFxCells = cells
+        matchedFxSequence++
+    }
+
     fun applyMove(result: MatchThreeEngine.Move) {
+        triggerMatchFx(result.matchedCells)
         board = result.board; obstacles = result.obstacles
         collected = (collected + result.collected).coerceAtMost(target)
         moves = (moves - 1).coerceAtLeast(0)
-        selectedCell = -1
         if (collected >= target) recordWin() else if (moves == 0) notice = "Ходы закончились. Можно начать эту главу заново."
     }
 
@@ -310,7 +350,19 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         if (activeBooster.isNotEmpty()) {
             if (remoteMode) {
                 val booster = activeBooster
-                scope.launch { saving = true; gamesRepository.pillMatchBooster(booster, index).onSuccess { applyRemoteState(it) }.onFailure { notice = it.message }; saving = false }
+                val preview = when (booster) {
+                    "hammer" -> MatchThreeEngine.clearAt(board, obstacles, index, targetColor, now.toInt())
+                    "rainbow" -> board.getOrNull(index)?.let { MatchThreeEngine.clearColor(board, obstacles, it, targetColor, now.toInt()) }
+                    else -> null
+                }
+                scope.launch {
+                    saving = true
+                    gamesRepository.pillMatchBooster(booster, index).onSuccess {
+                        preview?.let { triggerMatchFx(it.matchedCells) }
+                        applyRemoteState(it)
+                    }.onFailure { notice = it.message }
+                    saving = false
+                }
                 activeBooster = ""; return
             }
             when (activeBooster) {
@@ -319,30 +371,27 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
             }
             activeBooster = ""; return
         }
-        if (index in obstacles) { selectedCell = index; return }
-        if (selectedCell < 0 || !MatchThreeEngine.adjacent(selectedCell, index)) { selectedCell = index; return }
+    }
+
+    fun playSwipe(from: Int, to: Int) {
+        if (!playing || finished || moves <= 0 || saving || activeBooster.isNotEmpty()) return
+        if (!MatchThreeEngine.adjacent(from, to) || from in obstacles || to in obstacles) return
+        val preview = MatchThreeEngine.swap(board, obstacles, from, to, targetColor, now.toInt())
         if (remoteMode) {
-            val from = selectedCell
-            scope.launch { saving = true; gamesRepository.pillMatchMove(from, index).onSuccess { action ->
+            scope.launch { saving = true; gamesRepository.pillMatchMove(from, to).onSuccess { action ->
                 if (action.validMove) {
+                    preview?.let { triggerMatchFx(it.matchedCells) }
                     applyRemoteState(action)
                     if (action.session.collected >= action.session.target) recordWin()
                 } else notice = "Нужно собрать три или больше самоцветов."
-                selectedCell = -1
             }.onFailure { notice = it.message ?: "Не удалось отправить ход" }; saving = false }
-        } else MatchThreeEngine.swap(board, obstacles, selectedCell, index, targetColor, now.toInt())?.let(::applyMove)
-            ?: run { selectedCell = index; notice = "Свайпните соседние камни, чтобы собрать три в ряд." }
+        } else MatchThreeEngine.swap(board, obstacles, from, to, targetColor, now.toInt())?.let(::applyMove)
+            ?: run { notice = "Свайпните соседний самоцвет, чтобы собрать три в ряд." }
     }
 
     Box(modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(ru.tomilo.lib.mobile.R.drawable.pill_lab_backdrop),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x8817243B), Color(0xC6171A32), Color(0xE0101624)))))
-        StarryBackdrop(Modifier.fillMaxSize())
+        StarryBackdrop(gardenBackdrop, Modifier.fillMaxSize())
         LazyColumn(
             Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 14.dp, top = 10.dp, end = 14.dp, bottom = 30.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -357,6 +406,13 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
             }
             when (selectedTab) {
                 MatchThreeTab.PLAY -> {
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            GardenBackdrop.entries.forEach { backdrop ->
+                                FilterChip(selected = gardenBackdrop == backdrop, onClick = { gardenBackdrop = backdrop }, label = { Text(backdrop.title, style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
                     item {
                         MatchThreeHero(
                             level = selectedLevel, lives = if (remoteLives >= 0) remoteLives else saved.lives, capacity = if (remoteLives >= 0) remoteCapacity else capacity, premium = premium, minutes = if (remoteLives >= 0) remoteMinutes else saved.nextLifeMinutes(capacity),
@@ -396,15 +452,15 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
                         }
                         item { MissionPanel(color = targetColor, collected = collected, target = target, moves = moves) }
                         item {
-                            MatchBoard(board, obstacles, selectedCell, selectedTab == MatchThreeTab.EDITOR, onCell = ::playCell)
+                            MatchBoard(board, obstacles, editor = selectedTab == MatchThreeTab.EDITOR, matchedFxCells = matchedFxCells, matchedFxFrame = matchedFxFrame, allowTap = activeBooster.isNotEmpty(), onCell = ::playCell, onSwipe = ::playSwipe)
                             Spacer(Modifier.height(5.dp))
                             Text("Перетащите самоцвет в соседнюю клетку", Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = Color(0xFFB9C4D8), style = MaterialTheme.typography.labelSmall)
                         }
                         item {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                BoosterButton("🔨", "Молот", boosterHammer, activeBooster == "hammer", Modifier.weight(1f), enabled = !finished && moves > 0) { activeBooster = if (activeBooster == "hammer") "" else "hammer" }
-                                BoosterButton("🌈", "Радуга", boosterRainbow, activeBooster == "rainbow", Modifier.weight(1f), enabled = !finished && moves > 0) { activeBooster = if (activeBooster == "rainbow") "" else "rainbow" }
-                                BoosterButton("🌀", "Микс", boosterShuffle, false, Modifier.weight(1f), enabled = !finished && moves > 0) {
+                                BoosterButton(ru.tomilo.lib.mobile.R.drawable.pill_booster_hammer, "Молот", boosterHammer, activeBooster == "hammer", Modifier.weight(1f), enabled = !finished && moves > 0) { activeBooster = if (activeBooster == "hammer") "" else "hammer" }
+                                BoosterButton(ru.tomilo.lib.mobile.R.drawable.pill_booster_rainbow, "Радуга", boosterRainbow, activeBooster == "rainbow", Modifier.weight(1f), enabled = !finished && moves > 0) { activeBooster = if (activeBooster == "rainbow") "" else "rainbow" }
+                                BoosterButton(ru.tomilo.lib.mobile.R.drawable.pill_booster_shuffle, "Микс", boosterShuffle, false, Modifier.weight(1f), enabled = !finished && moves > 0) {
                                     if (remoteMode) scope.launch { saving = true; gamesRepository.pillMatchBooster("shuffle").onSuccess { applyRemoteState(it); notice = "Самоцветы перемешаны" }.onFailure { notice = it.message }; saving = false }
                                     else if (boosterShuffle > 0) { board = MatchThreeEngine.shuffle(board, obstacles, now.toInt()); boosterShuffle--; notice = "Самоцветы перемешаны" }
                                 }
@@ -475,7 +531,7 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
                                         editorObstacles = buildMap { repeat(count) { var cell = rng.nextInt(64); while (cell in this || cell in setOf(0,7,56,63,27,28,35,36)) cell = rng.nextInt(64); put(cell, Obstacle.entries.random(rng)) } }
                                     }, modifier = Modifier.fillMaxWidth()) { Text("✦ Сгенерировать расстановку") }
                                     Text("Нажмите на клетки поля, чтобы поставить или убрать выбранное препятствие.", color = Color(0xFF9DAAC2), style = MaterialTheme.typography.bodySmall)
-                                    MatchBoard(MatchThreeEngine.createBoard(editorSeed, editorObstacles), editorObstacles, -1, true) { cell -> editorObstacles = editorObstacles.toMutableMap().apply { if (containsKey(cell)) remove(cell) else put(cell, editorObstacle) } }
+                                    MatchBoard(MatchThreeEngine.createBoard(editorSeed, editorObstacles), editorObstacles, editor = true, allowTap = true, onCell = { cell -> editorObstacles = editorObstacles.toMutableMap().apply { if (containsKey(cell)) remove(cell) else put(cell, editorObstacle) } }, onSwipe = { _, _ -> })
                                     Button(onClick = {
                                         val levelNo = editorEditingLevel ?: maxOf(saved.records.maxOfOrNull { it.level } ?: 0, adminLevels.maxOfOrNull { it.level } ?: 0) + 1
                                         val obstacleKinds = List(64) { editorObstacles[it]?.ordinal ?: -1 }
@@ -543,7 +599,7 @@ private fun MatchThreeSave.refreshed(capacity: Int, now: Long): MatchThreeSave {
 }
 private fun MatchThreeSave.nextLifeMinutes(capacity: Int): Int = if (lives >= capacity) 0 else (((lifeStamp + 1_800_000L - System.currentTimeMillis()).coerceAtLeast(0) + 59_999) / 60_000).toInt()
 private fun colorName(index: Int) = listOf("коралловых", "лазурных", "солнечных", "аметистовых", "мятных")[index.coerceIn(0, 4)]
-private fun obsLabel(obs: Obstacle) = when (obs) { Obstacle.ROCK -> "🪨 Камень"; Obstacle.ICE -> "❄ Лёд"; Obstacle.CHAIN -> "⛓ Цепь" }
+private fun obsLabel(obs: Obstacle) = when (obs) { Obstacle.ROCK -> "Камень"; Obstacle.ICE -> "Лёд"; Obstacle.CHAIN -> "Цепь" }
 
 @Composable private fun MatchThreeHero(level: Int, lives: Int, capacity: Int, premium: Boolean, minutes: Int, completed: Int, onPremium: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = Color.Transparent), shape = RoundedCornerShape(25.dp)) {
@@ -579,35 +635,50 @@ private fun obsLabel(obs: Obstacle) = when (obs) { Obstacle.ROCK -> "🪨 Кам
     }
 }
 
-@Composable private fun MatchBoard(board: List<Int>, obstacles: Map<Int, Obstacle>, selected: Int, editor: Boolean = false, onCell: (Int) -> Unit) {
-    var startCell by remember { mutableIntStateOf(-1) }
-    var dragX by remember { mutableStateOf(0f) }; var dragY by remember { mutableStateOf(0f) }
+@Composable private fun MatchBoard(board: List<Int>, obstacles: Map<Int, Obstacle>, editor: Boolean = false, matchedFxCells: Set<Int> = emptySet(), matchedFxFrame: Int = 0, allowTap: Boolean = editor, onCell: (Int) -> Unit, onSwipe: (Int, Int) -> Unit) {
     Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(21.dp)).background(Color(0xFF17223B).copy(alpha = .97f)).border(1.dp, Color(0xFFFFD689).copy(alpha = .48f), RoundedCornerShape(21.dp)).padding(6.dp)) {
-        Column(Modifier.fillMaxSize().pointerInput(board, obstacles, editor) {
-            detectDragGestures(onDragStart = { point ->
-                val unit = size.width / 8f
-                startCell = ((point.y / unit).toInt().coerceIn(0, 7) * 8 + (point.x / unit).toInt().coerceIn(0, 7))
-                dragX = 0f; dragY = 0f
-            }, onDragEnd = {
-                if (startCell >= 0 && (kotlin.math.abs(dragX) + kotlin.math.abs(dragY) > size.width / 24f)) {
-                    val next = when { kotlin.math.abs(dragX) > kotlin.math.abs(dragY) -> startCell + if (dragX > 0) 1 else -1; else -> startCell + if (dragY > 0) 8 else -8 }
-                    if (next in 0..63 && MatchThreeEngine.adjacent(startCell, next)) {
-                        if (editor) onCell(next) else { onCell(startCell); onCell(next) }
-                    }
-                }
-                startCell = -1
-            }) { change, amount -> dragX += amount.x; dragY += amount.y; change.consume() }
-        }, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             repeat(8) { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     repeat(8) { col ->
                         val index = row * 8 + col
-                        Box(Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(10.dp)).background(if ((row + col) % 2 == 0) Color(0xFF29354E) else Color(0xFF222E46)).clickable { onCell(index) }.border(if (selected == index) 2.dp else 0.dp, if (selected == index) Color(0xFFFFEB91) else Color.Transparent, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-                            Gem(board.getOrElse(index) { 0 }, Modifier.fillMaxSize(.77f).padding(1.dp), highlight = selected == index)
-                            obstacles[index]?.let { obs ->
-                                Box(Modifier.fillMaxSize().background(Color(0x990E1728), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
-                                    Text(when (obs) { Obstacle.ROCK -> "⬟"; Obstacle.ICE -> "❄"; Obstacle.CHAIN -> "⛓" }, color = when (obs) { Obstacle.ROCK -> Color(0xFFD5C3B8); Obstacle.ICE -> Color(0xFFB7F4FF); Obstacle.CHAIN -> Color(0xFFFFD489) }, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                        val tapModifier = if (allowTap) Modifier.clickable { onCell(index) } else Modifier
+                        val swipeModifier = if (!editor) Modifier.pointerInput(index, board, obstacles, onSwipe) {
+                            var dragX = 0f
+                            var dragY = 0f
+                            var sent = false
+                            detectDragGestures(
+                                onDragStart = { dragX = 0f; dragY = 0f; sent = false },
+                                onDragEnd = { sent = false },
+                                onDragCancel = { sent = false },
+                            ) { change, amount ->
+                                dragX += amount.x
+                                dragY += amount.y
+                                val threshold = size.width * .28f
+                                if (!sent && (kotlin.math.abs(dragX) >= threshold || kotlin.math.abs(dragY) >= threshold)) {
+                                    val next = when {
+                                        kotlin.math.abs(dragX) >= kotlin.math.abs(dragY) -> index + if (dragX > 0) 1 else -1
+                                        else -> index + if (dragY > 0) 8 else -8
+                                    }
+                                    if (next in 0..63 && MatchThreeEngine.adjacent(index, next)) onSwipe(index, next)
+                                    sent = true
                                 }
+                                change.consume()
+                            }
+                        } else Modifier
+                        Box(Modifier.weight(1f).aspectRatio(1f).then(swipeModifier).then(tapModifier).clip(RoundedCornerShape(10.dp)).background(if ((row + col) % 2 == 0) Color(0xFF29354E) else Color(0xFF222E46)), contentAlignment = Alignment.Center) {
+                            val gem = board.getOrElse(index) { -1 }
+                            if (gem >= 0) Gem(gem, Modifier.fillMaxSize(.94f).padding(1.dp))
+                            if (index in matchedFxCells) {
+                                Image(painter = painterResource(matchFxFrames[matchedFxFrame.coerceIn(matchFxFrames.indices)]), contentDescription = null, modifier = Modifier.fillMaxSize())
+                            }
+                            obstacles[index]?.let { obs ->
+                                val obstacleIcon = when (obs) {
+                                    Obstacle.ROCK -> ru.tomilo.lib.mobile.R.drawable.pill_obstacle_rock
+                                    Obstacle.ICE -> ru.tomilo.lib.mobile.R.drawable.pill_obstacle_ice
+                                    Obstacle.CHAIN -> ru.tomilo.lib.mobile.R.drawable.pill_obstacle_chain
+                                }
+                                Image(painter = painterResource(obstacleIcon), contentDescription = obsLabel(obs), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize(.9f))
                             }
                         }
                     }
@@ -619,24 +690,35 @@ private fun obsLabel(obs: Obstacle) = when (obs) { Obstacle.ROCK -> "🪨 Кам
 
 @Composable private fun Gem(color: Int, modifier: Modifier = Modifier, highlight: Boolean = false) {
     val safe = color.coerceIn(0, 4)
-    Box(modifier.clip(RoundedCornerShape(11.dp)).background(Brush.linearGradient(listOf(gemColors[safe].copy(alpha = .82f), gemColors[safe], gemColors[safe].copy(alpha = .68f)))).border(if (highlight) 2.dp else 1.dp, if (highlight) Color(0xFFFFF0A6) else Color.White.copy(alpha = .48f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawCircle(Color.White.copy(alpha = .17f), radius = size.minDimension * .44f)
-            drawCircle(Color.White.copy(alpha = .48f), radius = size.minDimension * .075f, center = androidx.compose.ui.geometry.Offset(size.width * .29f, size.height * .25f))
-        }
-        Text(gemMarks[safe], color = Color.White.copy(alpha = .95f), fontSize = 15.sp, fontWeight = FontWeight.Black)
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Image(painter = painterResource(gemSprites[safe]), contentDescription = "${colorName(safe)} самоцвет", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
+        if (highlight) Box(Modifier.fillMaxSize(.93f).border(2.dp, Color(0xFFFFF0A6), CircleShape))
     }
 }
 
-@Composable private fun BoosterButton(symbol: String, label: String, count: Int, active: Boolean, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+@Composable private fun BoosterButton(icon: Int, label: String, count: Int, active: Boolean, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Surface(modifier = modifier.height(60.dp).clickable(enabled = enabled && count > 0, onClick = onClick), shape = RoundedCornerShape(16.dp), color = if (active) Color(0xFF655281) else Color(0xFF212A40), border = BorderStroke(1.dp, if (active) Color(0xFFFFD689) else Color.White.copy(alpha = .12f))) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("$symbol $count", color = if (count > 0) Color.White else Color(0xFF78849A), fontWeight = FontWeight.Bold); Text(label, color = Color(0xFFD1D8E4), style = MaterialTheme.typography.labelSmall) }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(painter = painterResource(icon), contentDescription = null, modifier = Modifier.size(27.dp))
+                Text(" $count", color = if (count > 0) Color.White else Color(0xFF78849A), fontWeight = FontWeight.Bold)
+            }
+            Text(label, color = Color(0xFFD1D8E4), style = MaterialTheme.typography.labelSmall)
+        }
     }
 }
 
-@Composable private fun StarryBackdrop(modifier: Modifier = Modifier) {
+@Composable private fun StarryBackdrop(backdrop: GardenBackdrop, modifier: Modifier = Modifier) {
+    val twinkle = rememberInfiniteTransition(label = "garden-stars")
+    val phase by twinkle.animateFloat(initialValue = .12f, targetValue = .42f, animationSpec = infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "star-twinkle")
+    Image(
+        painter = painterResource(backdrop.drawable),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+    )
     Canvas(modifier) {
         val points = listOf(.08f to .06f, .88f to .1f, .72f to .23f, .14f to .35f, .93f to .43f, .06f to .68f, .78f to .81f, .91f to .92f)
-        points.forEachIndexed { i, point -> drawCircle(Color(0xFFFFD689).copy(alpha = if (i % 2 == 0) .33f else .16f), radius = if (i % 3 == 0) 3f else 1.5f, center = androidx.compose.ui.geometry.Offset(size.width * point.first, size.height * point.second)) }
+        points.forEachIndexed { i, point -> drawCircle(Color(0xFFFFD689).copy(alpha = if (i % 2 == 0) phase else phase * .52f), radius = if (i % 3 == 0) 3f else 1.5f, center = androidx.compose.ui.geometry.Offset(size.width * point.first, size.height * point.second)) }
     }
 }
