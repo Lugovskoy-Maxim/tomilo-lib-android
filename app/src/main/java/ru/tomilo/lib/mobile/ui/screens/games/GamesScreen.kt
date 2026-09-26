@@ -62,7 +62,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS, ALCHEMY, MATCH_THREE }
+private enum class GamesPage { HUB, CARDS, MATCH_THREE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +90,6 @@ fun GamesScreen(
                             when (page) {
                                 GamesPage.HUB -> "Игры и награды"
                                 GamesPage.CARDS -> "Карточки"
-                                GamesPage.ALCHEMY -> "Рецепт бодрости"
                                 GamesPage.MATCH_THREE -> "Сад созвездий"
                             },
                         )
@@ -98,7 +97,6 @@ fun GamesScreen(
                             when (page) {
                                 GamesPage.HUB -> "Колесо и коллекция"
                                 GamesPage.CARDS -> "Декоративная коллекция"
-                                GamesPage.ALCHEMY -> "Собирайте коралловые пилюли"
                                 GamesPage.MATCH_THREE -> "Самоцветы, главы и бустеры"
                             },
                             color = TomiloMuted,
@@ -127,7 +125,6 @@ fun GamesScreen(
                 onOpenQuests = onOpenQuests,
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
-                onOpenAlchemy = { page = GamesPage.ALCHEMY },
                 onOpenMatch = { page = GamesPage.MATCH_THREE },
                 modifier = Modifier.padding(padding),
             )
@@ -140,7 +137,6 @@ fun GamesScreen(
                 onOpenSubmit = { onOpenWebTab("cards/submit") },
                 onOpenWebTab = onOpenWebTab,
             )
-            page == GamesPage.ALCHEMY -> AlchemyScreen(gamesRepository, Modifier.padding(padding))
             else -> MatchThreeScreen(user, gamesRepository, Modifier.padding(padding))
         }
     }
@@ -187,7 +183,6 @@ private fun GamesContent(
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
-    onOpenAlchemy: () -> Unit,
     onOpenMatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -247,12 +242,6 @@ private fun GamesContent(
                     title = "Альбом карт",
                     subtitle = "Коллекция, магазин, обмен и улучшение карт",
                     onClick = onOpenCards,
-                )
-                GameModeRow(
-                    icon = Icons.Default.AutoAwesome,
-                    title = "Рецепт бодрости",
-                    subtitle = "Соберите коралловые пилюли и получите XP",
-                    onClick = onOpenAlchemy,
                 )
                 GameModeRow(
                     icon = Icons.Default.TaskAlt,
