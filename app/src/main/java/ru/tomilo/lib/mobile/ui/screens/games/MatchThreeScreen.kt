@@ -126,6 +126,7 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
     var board by remember { mutableStateOf<List<Int>>(emptyList()) }
     var matchedFxCells by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var matchedFxFrame by remember { mutableIntStateOf(0) }
+    var matchedFxSequence by remember { mutableIntStateOf(0) }
     var obstacles by remember { mutableStateOf<Map<Int, Obstacle>>(emptyMap()) }
     var moves by rememberSaveable { mutableIntStateOf(0) }
     var collected by rememberSaveable { mutableIntStateOf(0) }
@@ -202,7 +203,7 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         saved = refreshed
         store.write(refreshed)
     }
-    LaunchedEffect(matchedFxCells) {
+    LaunchedEffect(matchedFxSequence) {
         if (matchedFxCells.isNotEmpty()) {
             matchedFxFrame = 0
             repeat(matchFxFrames.size) { frame ->
@@ -331,8 +332,13 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         notice = "Уровень пройден! Новая глава уже открыта ✨"
     }
 
+    fun triggerMatchFx(cells: Set<Int>) {
+        matchedFxCells = cells
+        matchedFxSequence++
+    }
+
     fun applyMove(result: MatchThreeEngine.Move) {
-        matchedFxCells = board.indices.filterTo(mutableSetOf()) { result.board.getOrElse(it) { -1 } == -1 && it !in obstacles }
+        triggerMatchFx(result.matchedCells)
         board = result.board; obstacles = result.obstacles
         collected = (collected + result.collected).coerceAtMost(target)
         moves = (moves - 1).coerceAtLeast(0)
@@ -344,7 +350,19 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
         if (activeBooster.isNotEmpty()) {
             if (remoteMode) {
                 val booster = activeBooster
-                scope.launch { saving = true; gamesRepository.pillMatchBooster(booster, index).onSuccess { applyRemoteState(it) }.onFailure { notice = it.message }; saving = false }
+                val preview = when (booster) {
+                    "hammer" -> MatchThreeEngine.clearAt(board, obstacles, index, targetColor, now.toInt())
+                    "rainbow" -> board.getOrNull(index)?.let { MatchThreeEngine.clearColor(board, obstacles, it, targetColor, now.toInt()) }
+                    else -> null
+                }
+                scope.launch {
+                    saving = true
+                    gamesRepository.pillMatchBooster(booster, index).onSuccess {
+                        preview?.let { triggerMatchFx(it.matchedCells) }
+                        applyRemoteState(it)
+                    }.onFailure { notice = it.message }
+                    saving = false
+                }
                 activeBooster = ""; return
             }
             when (activeBooster) {
@@ -358,9 +376,11 @@ fun MatchThreeScreen(user: UserDto?, gamesRepository: GamesRepository, modifier:
     fun playSwipe(from: Int, to: Int) {
         if (!playing || finished || moves <= 0 || saving || activeBooster.isNotEmpty()) return
         if (!MatchThreeEngine.adjacent(from, to) || from in obstacles || to in obstacles) return
+        val preview = MatchThreeEngine.swap(board, obstacles, from, to, targetColor, now.toInt())
         if (remoteMode) {
             scope.launch { saving = true; gamesRepository.pillMatchMove(from, to).onSuccess { action ->
                 if (action.validMove) {
+                    preview?.let { triggerMatchFx(it.matchedCells) }
                     applyRemoteState(action)
                     if (action.session.collected >= action.session.target) recordWin()
                 } else notice = "Нужно собрать три или больше самоцветов."

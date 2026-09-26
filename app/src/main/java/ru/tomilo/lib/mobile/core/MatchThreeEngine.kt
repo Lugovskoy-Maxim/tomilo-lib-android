@@ -9,7 +9,13 @@ object MatchThreeEngine {
 
     enum class Obstacle { ROCK, ICE, CHAIN }
     data class Level(val number: Int, val target: Int, val moves: Int, val color: Int, val obstacles: Map<Int, Obstacle> = emptyMap(), val seed: Int = number)
-    data class Move(val board: List<Int>, val obstacles: Map<Int, Obstacle>, val collected: Int, val cleared: Int)
+    data class Move(
+        val board: List<Int>,
+        val obstacles: Map<Int, Obstacle>,
+        val collected: Int,
+        val cleared: Int,
+        val matchedCells: Set<Int> = emptySet(),
+    )
 
     fun createBoard(seed: Int, obstacles: Map<Int, Obstacle>): List<Int> {
         repeat(40) { attempt ->
@@ -92,11 +98,13 @@ object MatchThreeEngine {
         var cells = initial
         var collected = 0
         var cleared = 0
+        val clearedCells = linkedSetOf<Int>()
         var loopSeed = seed
         repeat(8) {
             if (cells.isEmpty()) return@repeat
             collected += cells.count { board[it] == targetColor }
             cleared += cells.size
+            clearedCells += cells
             val touching = linkedSetOf<Int>()
             for (cell in cells) for (near in neighbors(cell)) if (near in nextObstacles) touching += near
             touching.forEach { index ->
@@ -123,7 +131,7 @@ object MatchThreeEngine {
             cells = matches(board, nextObstacles)
             loopSeed++
         }
-        return Move(board, nextObstacles, collected, cleared)
+        return Move(board, nextObstacles, collected, cleared, clearedCells)
     }
 
     private fun matches(board: List<Int>, obstacles: Map<Int, Obstacle>): Set<Int> {
