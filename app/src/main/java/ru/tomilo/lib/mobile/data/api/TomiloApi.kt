@@ -83,8 +83,35 @@ interface TomiloApi {
     @GET("users/profile/pill-match/state")
     suspend fun pillMatchState(): ApiResponse<PillMatchStateDto>
 
+    @POST("users/profile/pill-match/start")
+    suspend fun startPillMatchLevel(@Body body: PillMatchStartRequest): ApiResponse<PillMatchStateDto>
+
+    @POST("users/profile/pill-match/move")
+    suspend fun pillMatchMove(@Body body: PillMatchMoveRequest): ApiResponse<PillMatchActionDto>
+
+    @POST("users/profile/pill-match/booster")
+    suspend fun pillMatchBooster(@Body body: PillMatchBoosterRequest): ApiResponse<PillMatchActionDto>
+
     @POST("users/profile/pill-match/complete")
     suspend fun completePillMatchLevel(@Body body: PillMatchCompleteRequest): ApiResponse<PillMatchCompleteDto>
+
+    @GET("users/pill-match/leaderboard")
+    suspend fun pillMatchLeaderboard(
+        @Query("period") period: String = "all",
+        @Query("limit") limit: Int = 50,
+    ): ApiResponse<PillMatchLeaderboardDto>
+
+    @GET("users/pill-match/levels")
+    suspend fun pillMatchPublishedLevels(): ApiResponse<List<PillMatchAdminLevelDto>>
+
+    @GET("users/admin/pill-match/levels")
+    suspend fun pillMatchAdminLevels(): ApiResponse<List<PillMatchAdminLevelDto>>
+
+    @POST("users/admin/pill-match/levels")
+    suspend fun savePillMatchAdminLevel(@Body body: PillMatchAdminLevelRequest): ApiResponse<PillMatchAdminLevelDto>
+
+    @DELETE("users/admin/pill-match/levels/{level}")
+    suspend fun deletePillMatchAdminLevel(@Path("level") level: Int): ApiResponse<JsonElement>
 
     @GET("shop/decks")
     suspend fun gameCardDecks(): ApiResponse<GameCardDecksDto>

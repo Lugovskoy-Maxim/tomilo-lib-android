@@ -62,7 +62,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS, ALCHEMY }
+private enum class GamesPage { HUB, CARDS, ALCHEMY, MATCH_THREE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,6 +91,7 @@ fun GamesScreen(
                                 GamesPage.HUB -> "Игры и награды"
                                 GamesPage.CARDS -> "Карточки"
                                 GamesPage.ALCHEMY -> "Рецепт бодрости"
+                                GamesPage.MATCH_THREE -> "Сад созвездий"
                             },
                         )
                         Text(
@@ -98,6 +99,7 @@ fun GamesScreen(
                                 GamesPage.HUB -> "Колесо и коллекция"
                                 GamesPage.CARDS -> "Декоративная коллекция"
                                 GamesPage.ALCHEMY -> "Собирайте коралловые пилюли"
+                                GamesPage.MATCH_THREE -> "Самоцветы, главы и бустеры"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -118,6 +120,7 @@ fun GamesScreen(
                 modifier = Modifier.padding(padding),
                 onLogin = onLogin,
                 onExploreCards = { page = GamesPage.CARDS },
+                onExploreMatch = { page = GamesPage.MATCH_THREE },
             )
             page == GamesPage.HUB -> GamesContent(
                 balance = user?.balance ?: 0,
@@ -125,6 +128,7 @@ fun GamesScreen(
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
                 onOpenAlchemy = { page = GamesPage.ALCHEMY },
+                onOpenMatch = { page = GamesPage.MATCH_THREE },
                 modifier = Modifier.padding(padding),
             )
             page == GamesPage.CARDS -> CardsScreen(
@@ -136,7 +140,8 @@ fun GamesScreen(
                 onOpenSubmit = { onOpenWebTab("cards/submit") },
                 onOpenWebTab = onOpenWebTab,
             )
-            else -> AlchemyScreen(gamesRepository, Modifier.padding(padding))
+            page == GamesPage.ALCHEMY -> AlchemyScreen(gamesRepository, Modifier.padding(padding))
+            else -> MatchThreeScreen(user, gamesRepository, Modifier.padding(padding))
         }
     }
 }
@@ -146,6 +151,7 @@ private fun GamesGuest(
     modifier: Modifier,
     onLogin: () -> Unit,
     onExploreCards: () -> Unit,
+    onExploreMatch: () -> Unit,
 ) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
@@ -169,6 +175,8 @@ private fun GamesGuest(
         Spacer(Modifier.height(22.dp))
         Button(onClick = onExploreCards, modifier = Modifier.fillMaxWidth()) { Text("Открыть каталог карт") }
         Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onExploreMatch, modifier = Modifier.fillMaxWidth()) { Text("Играть в сад созвездий") }
+        Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти в аккаунт") }
     }
 }
@@ -180,6 +188,7 @@ private fun GamesContent(
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
     onOpenAlchemy: () -> Unit,
+    onOpenMatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -221,6 +230,14 @@ private fun GamesContent(
                     }
                 }
             }
+        }
+        item {
+            GameModeRow(
+                icon = Icons.Default.AutoAwesome,
+                title = "Сад созвездий",
+                subtitle = "Три в ряд, новые главы, препятствия и усиления",
+                onClick = onOpenMatch,
+            )
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
