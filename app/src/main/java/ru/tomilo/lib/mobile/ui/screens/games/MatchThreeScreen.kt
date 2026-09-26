@@ -7,7 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -617,7 +616,7 @@ private fun obsLabel(obs: Obstacle) = when (obs) { Obstacle.ROCK -> "Камен�
 }
 
 @Composable private fun MatchBoard(board: List<Int>, obstacles: Map<Int, Obstacle>, editor: Boolean = false, matchedFxCells: Set<Int> = emptySet(), matchedFxFrame: Int = 0, allowTap: Boolean = editor, onCell: (Int) -> Unit, onSwipe: (Int, Int) -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(21.dp)).background(Color(0xFF17223B).copy(alpha = .97f)).border(1.dp, Color(0xFFFFD689).copy(alpha = .48f), RoundedCornerShape(21.dp)).padding(6.dp)) {
+    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(21.dp)).background(Color(0xFF17223B).copy(alpha = .97f)).border(1.dp, Color(0xFFFFD689).copy(alpha = .48f), RoundedCornerShape(21.dp)).padding(6.dp)) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             repeat(8) { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
