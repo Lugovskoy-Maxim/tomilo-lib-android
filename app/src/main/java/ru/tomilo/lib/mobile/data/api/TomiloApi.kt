@@ -636,21 +636,14 @@ interface TomiloApi {
     @POST("payments/checkout")
     suspend fun createTbankPayment(
         @Body body: CreateTbankPaymentRequest,
-    ): ApiResponse<RobokassaPaymentFormDto>
+    ): ApiResponse<TbankPaymentFormDto>
 
-    @POST("payments/robokassa/admin/test")
-    suspend fun createAdminRobokassaTestPayment(): ApiResponse<RobokassaPaymentFormDto>
-
-    @GET("payments/robokassa/status/{invId}")
-    suspend fun robokassaPaymentStatus(
+    @GET("payments/status/{invId}")
+    suspend fun paymentStatus(
         @Path("invId") invId: String,
-    ): ApiResponse<RobokassaPaymentStatusDto>
+    ): ApiResponse<PaymentStatusDto>
 
     @GET("payments/history")
     suspend fun paymentHistory(): ApiResponse<List<PremiumPaymentHistoryItemDto>>
 
-    @POST("payments/premium/coins")
-    suspend fun purchasePremiumWithCoins(
-        @Body body: CoinPremiumPurchaseRequest,
-    ): ApiResponse<CoinPremiumPurchaseResultDto>
 }

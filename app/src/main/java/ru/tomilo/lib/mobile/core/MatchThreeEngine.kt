@@ -18,19 +18,21 @@ object MatchThreeEngine {
     )
 
     fun createBoard(seed: Int, obstacles: Map<Int, Obstacle>): List<Int> {
-        repeat(40) { attempt ->
+        require(obstacles.keys.all { it in 0 until SIZE * SIZE }) { "Препятствие находится за пределами поля" }
+        val safeObstacles = obstacles
+        repeat(512) { attempt ->
             val random = Random(seed + attempt)
             val board = MutableList(SIZE * SIZE) { random.nextInt(COLORS) }
             for (i in board.indices) {
                 var attempts = 0
-                while (attempts < COLORS * 2 && formsLine(board, i, obstacles)) {
+                while (attempts < COLORS * 2 && formsLine(board, i, safeObstacles)) {
                     board[i] = random.nextInt(COLORS)
                     attempts++
                 }
             }
-            if (hasLegalMove(board, obstacles)) return board
+            if (matches(board, safeObstacles).isEmpty() && hasLegalMove(board, safeObstacles)) return board
         }
-        return List(SIZE * SIZE) { (it + seed) % COLORS }
+        throw IllegalArgumentException("Расстановка препятствий не оставляет возможных ходов")
     }
 
     fun level(number: Int): Level {
@@ -46,6 +48,22 @@ object MatchThreeEngine {
         return Level(n, target = (14 + n * 2).coerceAtMost(40), moves = (24 - n / 3).coerceAtLeast(15), color = (n - 1) % COLORS, obstacles = obstacles, seed = n * 431)
     }
 
+    fun nextUnlockedLevel(completedLevels: Collection<Int>): Int {
+        val completed = completedLevels.toHashSet()
+        var level = 1
+        while (level in completed && level < Int.MAX_VALUE) level++
+        return level
+    }
+
+    fun generateObstacles(seed: Int, count: Int): Map<Int, Obstacle> {
+        val reserved = setOf(0, 7, 56, 63, 27, 28, 35, 36)
+        val candidates = (0 until SIZE * SIZE).filterNot { it in reserved }.shuffled(Random(seed))
+        val random = Random(seed xor 0x5F3759DF)
+        return candidates.take(count.coerceIn(0, candidates.size)).sorted().associateWith {
+            Obstacle.entries[random.nextInt(Obstacle.entries.size)]
+        }
+    }
+
     fun swap(board: List<Int>, obstacles: Map<Int, Obstacle>, from: Int, to: Int, targetColor: Int, seed: Int): Move? {
         if (board.size != SIZE * SIZE || !adjacent(from, to) || from in obstacles || to in obstacles) return null
         val next = board.toMutableList()
@@ -59,7 +77,8 @@ object MatchThreeEngine {
         if (index !in board.indices) return null
         val nextObstacles = obstacles.toMutableMap().apply { remove(index) }
         val next = board.toMutableList()
-        return resolve(next, nextObstacles, setOf(index), targetColor, seed)
+        val cells = if (index in obstacles) emptySet() else setOf(index)
+        return resolve(next, nextObstacles, cells, targetColor, seed)
     }
 
     fun clearColor(board: List<Int>, obstacles: Map<Int, Obstacle>, color: Int, targetColor: Int, seed: Int): Move {
@@ -74,12 +93,12 @@ object MatchThreeEngine {
             val next = board.toMutableList()
             val values = movable.map { board[it] }.shuffled(random)
             movable.forEachIndexed { i, index -> next[index] = values[i] }
-            if (hasLegalMove(next, obstacles)) return next
+            if (matches(next, obstacles).isEmpty() && hasLegalMove(next, obstacles)) return next
         }
         return createBoard(seed + 1, obstacles)
     }
 
-    private fun hasLegalMove(board: List<Int>, obstacles: Map<Int, Obstacle>): Boolean {
+    internal fun hasLegalMove(board: List<Int>, obstacles: Map<Int, Obstacle>): Boolean {
         for (from in board.indices) {
             if (from in obstacles) continue
             for (to in listOf(from + 1, from + SIZE)) {
@@ -93,13 +112,24 @@ object MatchThreeEngine {
         return false
     }
 
+    /** Maps a completed drag from one cell to its dominant adjacent direction. */
+    fun swipeTarget(index: Int, deltaX: Float, deltaY: Float, threshold: Float): Int? {
+        if (index !in 0 until SIZE * SIZE || threshold <= 0f) return null
+        if (kotlin.math.abs(deltaX) < threshold && kotlin.math.abs(deltaY) < threshold) return null
+        val destination = when {
+            kotlin.math.abs(deltaX) >= kotlin.math.abs(deltaY) -> index + if (deltaX > 0f) 1 else -1
+            else -> index + if (deltaY > 0f) SIZE else -SIZE
+        }
+        return destination.takeIf { adjacent(index, it) }
+    }
+
     private fun resolve(board: MutableList<Int>, obstacles: Map<Int, Obstacle>, initial: Set<Int>, targetColor: Int, seed: Int): Move {
+        val random = Random(seed)
         val nextObstacles = obstacles.toMutableMap()
         var cells = initial
         var collected = 0
         var cleared = 0
         val clearedCells = linkedSetOf<Int>()
-        var loopSeed = seed
         repeat(8) {
             if (cells.isEmpty()) return@repeat
             collected += cells.count { board[it] == targetColor }
@@ -124,17 +154,16 @@ object MatchThreeEngine {
                     val segment = (segmentStart..segmentEnd).map { column + it * SIZE }
                     val values = segment.map { board[it] }.filter { it >= 0 }
                     val missing = segment.size - values.size
-                    segment.forEachIndexed { i, index -> board[index] = if (i < missing) Random(loopSeed + index * 97).nextInt(COLORS) else values[i - missing] }
+                    segment.forEachIndexed { i, index -> board[index] = if (i < missing) random.nextInt(COLORS) else values[i - missing] }
                     segmentEnd = segmentStart - 1
                 }
             }
             cells = matches(board, nextObstacles)
-            loopSeed++
         }
         return Move(board, nextObstacles, collected, cleared, clearedCells)
     }
 
-    private fun matches(board: List<Int>, obstacles: Map<Int, Obstacle>): Set<Int> {
+    internal fun matches(board: List<Int>, obstacles: Map<Int, Obstacle>): Set<Int> {
         val found = linkedSetOf<Int>()
         for (row in 0 until SIZE) for (col in 0 until SIZE) {
             val start = row * SIZE + col

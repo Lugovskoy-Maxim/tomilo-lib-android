@@ -9,6 +9,9 @@ object AdUnits {
     /** Interstitial между главами: R-M-19689456-2 */
     val interstitial: String = BuildConfig.YANDEX_INTERSTITIAL_AD_UNIT_ID.trim()
 
+    /** Нативное объявление в каталоге: R-M-19689456-4 */
+    const val nativeCatalog: String = "R-M-19689456-4"
+
     const val DEMO_REWARDED = "demo-rewarded-yandex"
     const val DEMO_INTERSTITIAL = "demo-interstitial-yandex"
 }

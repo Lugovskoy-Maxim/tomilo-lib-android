@@ -15,9 +15,28 @@ private val Context.matchThreeStore by preferencesDataStore("match_three_progres
 @Serializable
 data class MatchThreeRecord(val level: Int, val at: Long)
 @Serializable
-data class MatchThreeSave(val lives: Int = 5, val lifeStamp: Long = 0, val records: List<MatchThreeRecord> = emptyList(), val customLevels: List<MatchThreeCustomLevel> = emptyList())
+data class MatchThreeSave(
+    val lives: Int = 5,
+    val lifeStamp: Long = 0,
+    val records: List<MatchThreeRecord> = emptyList(),
+    val customLevels: List<MatchThreeCustomLevel> = emptyList(),
+    val activeSession: MatchThreeLocalSession? = null,
+)
 @Serializable
 data class MatchThreeCustomLevel(val number: Int, val target: Int, val moves: Int, val color: Int, val obstacleKinds: List<Int>, val seed: Int)
+@Serializable
+data class MatchThreeLocalSession(
+    val level: Int,
+    val board: List<Int>,
+    val obstacles: List<Int>,
+    val moves: Int,
+    val collected: Int,
+    val target: Int,
+    val targetColor: Int,
+    val hammer: Int,
+    val rainbow: Int,
+    val shuffle: Int,
+)
 
 class MatchThreeProgressStore(private val context: Context) {
     private val key = stringPreferencesKey("save_v1")

@@ -93,6 +93,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.core.toUserFacingError
@@ -104,16 +105,21 @@ import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.CatalogGridSkeleton
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.NativeCatalogAdCard
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.TitleWideCard
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
+import ru.tomilo.lib.mobile.ui.components.rememberNativeCatalogAd
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
+
+private const val CATALOG_AD_AFTER_TITLES = 8
+private const val CATALOG_AD_TRIGGER_INDEX = 9
 
 private data class SortOption(
     val sortBy: String,
@@ -156,11 +162,61 @@ enum class CatalogLayoutMode {
     LIST,
 }
 
+private fun catalogTitleKey(item: CatalogTitleDto): String =
+    item.stableId().ifBlank {
+        "${item.slug.orEmpty()}_${item.displayTitle()}_${item.hashCode()}"
+    }
+
+@Composable
+private fun CatalogTitleGridItem(
+    item: CatalogTitleDto,
+    layoutMode: CatalogLayoutMode,
+    onOpenTitle: (id: String, slug: String?) -> Unit,
+) {
+    when (layoutMode) {
+        CatalogLayoutMode.GRID_2,
+        CatalogLayoutMode.GRID_3,
+        -> TitlePosterCard(
+            title = item.displayTitle(),
+            cover = item.coverPath(),
+            onClick = { onOpenTitle(item.stableId(), item.slug) },
+            modifier = Modifier.fillMaxWidth(),
+            width = null,
+            type = item.type,
+            rating = item.displayRating(),
+            totalChapters = item.totalChapters,
+            chapterBadge = item.chapterBadge(),
+            status = item.status,
+            isAdult = item.isAdult == true,
+            year = item.releaseYear,
+            compact = layoutMode == CatalogLayoutMode.GRID_3,
+        )
+        CatalogLayoutMode.LIST -> TitleWideCard(
+            title = item.displayTitle(),
+            cover = item.coverPath(),
+            onClick = { onOpenTitle(item.stableId(), item.slug) },
+            modifier = Modifier.fillMaxWidth(),
+            type = item.type,
+            status = item.status,
+            rating = item.displayRating(),
+            year = item.releaseYear,
+            totalChapters = item.totalChapters,
+            description = item.description
+                ?.replace(Regex("<[^>]*>"), " ")
+                ?.replace(Regex("\\s+"), " ")
+                ?.trim()
+                ?.takeIf { it.isNotBlank() },
+            isAdult = item.isAdult == true,
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, FlowPreview::class)
 @Composable
 fun CatalogScreen(
     catalogRepository: CatalogRepository,
     contentPrefs: ContentPrefs,
+    adsEnabled: Boolean,
     initialGenre: String? = null,
     onOpenTitle: (id: String, slug: String?) -> Unit,
 ) {
@@ -203,7 +259,20 @@ fun CatalogScreen(
     var reload by remember { mutableIntStateOf(0) }
 
     val gridState = rememberLazyGridState()
+    var shouldRequestNativeAd by remember { mutableStateOf(false) }
+    val nativeAd = rememberNativeCatalogAd(
+        enabled = adsEnabled,
+        shouldRequest = shouldRequestNativeAd,
+    )
     val canShowAdult = contentSettings.isAdultUser == true
+
+    LaunchedEffect(items.size, adsEnabled) {
+        if (!adsEnabled || items.size < CATALOG_AD_AFTER_TITLES) return@LaunchedEffect
+        snapshotFlow {
+            gridState.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0
+        }.first { lastVisibleIndex -> lastVisibleIndex >= CATALOG_AD_TRIGGER_INDEX }
+        shouldRequestNativeAd = true
+    }
 
     LaunchedEffect(contentSettings.showAdultContent) {
         includeAdult = contentSettings.showAdultContent && canShowAdult
@@ -679,68 +748,23 @@ fun CatalogScreen(
                     )
                 }
                 else -> {
-                    items(
-                        items = items,
-                        key = { item ->
-                            item.stableId().ifBlank {
-                                "${item.slug.orEmpty()}_${item.displayTitle()}_${item.hashCode()}"
-                            }
-                        },
-                    ) { item ->
-                        when (effectiveLayoutMode) {
-                            CatalogLayoutMode.GRID_2 -> {
-                                TitlePosterCard(
-                                    title = item.displayTitle(),
-                                    cover = item.coverPath(),
-                                    onClick = { onOpenTitle(item.stableId(), item.slug) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    width = null,
-                                    type = item.type,
-                                    rating = item.displayRating(),
-                                    totalChapters = item.totalChapters,
-                                    chapterBadge = item.chapterBadge(),
-                                    status = item.status,
-                                    isAdult = item.isAdult == true,
-                                    year = item.releaseYear,
-                                    compact = false,
-                                )
-                            }
-                            CatalogLayoutMode.GRID_3 -> {
-                                TitlePosterCard(
-                                    title = item.displayTitle(),
-                                    cover = item.coverPath(),
-                                    onClick = { onOpenTitle(item.stableId(), item.slug) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    width = null,
-                                    type = item.type,
-                                    rating = item.displayRating(),
-                                    totalChapters = item.totalChapters,
-                                    chapterBadge = item.chapterBadge(),
-                                    status = item.status,
-                                    isAdult = item.isAdult == true,
-                                    year = item.releaseYear,
-                                    compact = true,
-                                )
-                            }
-                            CatalogLayoutMode.LIST -> {
-                                TitleWideCard(
-                                    title = item.displayTitle(),
-                                    cover = item.coverPath(),
-                                    onClick = { onOpenTitle(item.stableId(), item.slug) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    type = item.type,
-                                    status = item.status,
-                                    rating = item.displayRating(),
-                                    year = item.releaseYear,
-                                    totalChapters = item.totalChapters,
-                                    description = item.description
-                                        ?.replace(Regex("<[^>]*>"), " ")
-                                        ?.replace(Regex("\\s+"), " ")
-                                        ?.trim()
-                                        ?.takeIf { it.isNotBlank() },
-                                    isAdult = item.isAdult == true,
-                                )
-                            }
+                    val visibleNativeAd = nativeAd.takeIf {
+                        adsEnabled && items.size >= CATALOG_AD_AFTER_TITLES
+                    }
+                    val firstTitles = if (visibleNativeAd != null) {
+                        items.take(CATALOG_AD_AFTER_TITLES)
+                    } else {
+                        items
+                    }
+                    items(items = firstTitles, key = ::catalogTitleKey) { item ->
+                        CatalogTitleGridItem(item, effectiveLayoutMode, onOpenTitle)
+                    }
+                    if (visibleNativeAd != null) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "catalog_native_ad") {
+                            NativeCatalogAdCard(visibleNativeAd)
+                        }
+                        items(items = items.drop(CATALOG_AD_AFTER_TITLES), key = ::catalogTitleKey) { item ->
+                            CatalogTitleGridItem(item, effectiveLayoutMode, onOpenTitle)
                         }
                     }
 

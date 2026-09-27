@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -75,10 +74,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.Premium
-import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.PremiumPaymentHistoryItemDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.PaymentsRepository
@@ -113,7 +110,6 @@ private val plans = listOf(
     Plan(id = "premium_1y", months = 12, label = "1 год", price = 1200, pricePerMonth = 100, durationDays = 360, saving = "Экономия 600 ₽", badge = "Год"),
 )
 
-private const val PREMIUM_COIN_PRICE = 30_000
 private const val SELLER_INN = "553101511919"
 
 private const val BOOSTY_URL = "https://boosty.to/tomilolib/donate"
@@ -139,7 +135,6 @@ fun PremiumScreen(
     var pendingInvId by rememberSaveable { mutableStateOf<String?>(null) }
     var waitingPayment by rememberSaveable { mutableStateOf(false) }
     var showOtherPaymentMethods by rememberSaveable { mutableStateOf(false) }
-    var confirmCoins by remember { mutableStateOf(false) }
     var history by remember { mutableStateOf<List<PremiumPaymentHistoryItemDto>>(emptyList()) }
     var historyError by remember { mutableStateOf<String?>(null) }
     var historyLoading by remember { mutableStateOf(false) }
@@ -190,30 +185,29 @@ fun PremiumScreen(
     val checkoutLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        val invId = result.data?.getStringExtra(RobokassaCheckoutActivity.EXTRA_INV_ID).orEmpty()
-        when (result.data?.getStringExtra(RobokassaCheckoutActivity.EXTRA_STATUS)) {
-            RobokassaCheckoutActivity.RESULT_SUCCESS -> {
+        val invId = result.data?.getStringExtra(PaymentCheckoutActivity.EXTRA_INV_ID).orEmpty()
+        when (result.data?.getStringExtra(PaymentCheckoutActivity.EXTRA_STATUS)) {
+            PaymentCheckoutActivity.RESULT_SUCCESS -> {
                 if (invId.isNotBlank()) watchInvoice(invId)
                 else notify("Оплата принята, проверяем начисление…")
             }
-            RobokassaCheckoutActivity.RESULT_FAILED -> notify("Оплата не прошла. Можно попробовать ещё раз.")
+            PaymentCheckoutActivity.RESULT_FAILED -> notify("Оплата не прошла. Можно попробовать ещё раз.")
+            PaymentCheckoutActivity.RESULT_OPEN_ERROR -> notify("Не удалось открыть страницу оплаты. Проверьте браузер и попробуйте ещё раз.")
             else -> if (invId.isNotBlank()) watchInvoice(invId)
         }
     }
 
-    fun openRobokassa(form: ru.tomilo.lib.mobile.data.api.RobokassaPaymentFormDto) {
-        val fieldsJson = NetworkModule.json.encodeToString(form.fields)
+    fun openPayment(form: ru.tomilo.lib.mobile.data.api.TbankPaymentFormDto) {
         checkoutLauncher.launch(
-            RobokassaCheckoutActivity.intent(
+            PaymentCheckoutActivity.intent(
                 context = context,
                 paymentUrl = form.paymentUrl,
                 invId = form.invId,
-                fieldsJson = fieldsJson,
             ),
         )
     }
 
-    fun startRobokassa(adminTest: Boolean = false) {
+    fun startPayment() {
         if (currentUser == null) {
             onLogin()
             return
@@ -221,14 +215,10 @@ fun PremiumScreen(
         if (paying) return
         paying = true
         scope.launch {
-            val result = if (adminTest) {
-                paymentsRepository.createAdminTestPayment()
-            } else {
-                paymentsRepository.createTbankPayment(selectedPlan.id)
-            }
+            val result = paymentsRepository.createTbankPayment(selectedPlan.id)
             paying = false
             result.fold(
-                onSuccess = { openRobokassa(it) },
+                onSuccess = { openPayment(it) },
                 onFailure = { notify(PaymentsRepository.userMessage(it)) },
             )
         }
@@ -323,11 +313,11 @@ fun PremiumScreen(
             Spacer(Modifier.height(22.dp))
             PaymentMethodCard(
                 index = "1",
-                title = "Оплата через Robokassa",
-                subtitle = "СБП и карта во встроенном защищённом окне. Начисление сразу.",
+                title = "Оплата через Т‑Банк",
+                subtitle = "СБП и карта на защищённой странице Т‑Банка. Начисление после подтверждения платежа.",
             ) {
                 Text(
-                    "Данные карты обрабатывает Robokassa. Tomilo не получает и не хранит данные карты.",
+                    "Данные карты обрабатывает Т‑Банк. Tomilo не получает и не хранит данные карты.",
                     color = TomiloMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -338,7 +328,7 @@ fun PremiumScreen(
                     }
                 } else {
                     Button(
-                        onClick = { startRobokassa() },
+                        onClick = { startPayment() },
                         enabled = !paying,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -367,16 +357,6 @@ fun PremiumScreen(
                         )
                     }
                 }
-                if (currentUser?.isAdmin() == true) {
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { startRobokassa(adminTest = true) },
-                        enabled = !paying,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text("Админ: тестовый счёт 1 ₽")
-                    }
-                }
                 Text(
                     "Разовая оплата, без автопродления. Срок добавится к текущей подписке.",
                     color = TomiloMuted,
@@ -396,44 +376,6 @@ fun PremiumScreen(
             Spacer(Modifier.height(12.dp))
             PaymentMethodCard(
                 index = "2",
-                title = "Премиум за монеты",
-                subtitle = "30 000 монет = 30 дней. Начисляется сразу.",
-            ) {
-                val balance = currentUser?.balance ?: 0
-                Text(
-                    if (currentUser == null) {
-                        "Войдите, чтобы обменять монеты на 30 дней премиума."
-                    } else {
-                        "Баланс: ${"%,d".format(Locale.forLanguageTag("ru"), balance)} монет. Нужно $PREMIUM_COIN_PRICE."
-                    },
-                    color = TomiloMuted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Spacer(Modifier.height(12.dp))
-                if (currentUser == null) {
-                    OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) {
-                        Text("Войти")
-                    }
-                } else {
-                    Button(
-                        onClick = { confirmCoins = true },
-                        enabled = !paying && balance >= PREMIUM_COIN_PRICE,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                    ) {
-                        Text(
-                            if (balance >= PREMIUM_COIN_PRICE) {
-                                "Обменять $PREMIUM_COIN_PRICE монет"
-                            } else {
-                                "Недостаточно монет"
-                            },
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-            PaymentMethodCard(
-                index = "3",
                 title = "Перевод на карту Т‑Банк",
                 subtitle = "В сообщении получателю — только ник и уровень. ID и почта не нужны.",
             ) {
@@ -473,7 +415,7 @@ fun PremiumScreen(
 
             Spacer(Modifier.height(12.dp))
             PaymentMethodCard(
-                index = "4",
+                index = "3",
                 title = "Boosty",
                 subtitle = "В комментарии к донату нужны ID, ник и почта.",
             ) {
@@ -557,41 +499,6 @@ fun PremiumScreen(
         }
     }
 
-    if (confirmCoins) {
-        AlertDialog(
-            onDismissRequest = { if (!paying) confirmCoins = false },
-            title = { Text("Обменять монеты?") },
-            text = {
-                Text("Спишется $PREMIUM_COIN_PRICE монет, к подписке добавятся 30 дней.")
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !paying,
-                    onClick = {
-                        paying = true
-                        scope.launch {
-                            val result = paymentsRepository.buyPremiumWithCoins()
-                            paying = false
-                            confirmCoins = false
-                            result.fold(
-                                onSuccess = {
-                                    authRepository.refreshProfile()
-                                    reloadHistory()
-                                    notify("Премиум на 30 дней активирован")
-                                },
-                                onFailure = { notify(PaymentsRepository.userMessage(it)) },
-                            )
-                        }
-                    },
-                ) { Text("Подтвердить") }
-            },
-            dismissButton = {
-                TextButton(enabled = !paying, onClick = { confirmCoins = false }) {
-                    Text("Отмена")
-                }
-            },
-        )
-    }
 }
 
 @Composable

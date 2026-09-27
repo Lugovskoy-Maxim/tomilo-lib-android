@@ -119,9 +119,7 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -209,9 +207,7 @@ fun ReaderScreen(
     var needsLogin by remember { mutableStateOf(false) }
     var needsOfflineAd by remember { mutableStateOf(false) }
     var adBusy by remember { mutableStateOf(false) }
-    var adCountdown by remember { mutableIntStateOf(0) }
-    var adCountdownTarget by remember { mutableStateOf<String?>(null) }
-    var adCountdownJob by remember { mutableStateOf<Job?>(null) }
+    var chapterTransitionPending by remember { mutableStateOf(false) }
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var pageDimensions by remember { mutableStateOf<List<PageDimensions>>(emptyList()) }
     val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
@@ -557,37 +553,20 @@ fun ReaderScreen(
     }
 
     fun goChapter(nextId: String, restorePosition: Boolean = false) {
-        if (nextId.isBlank() || nextId == currentChapterId || loading) return
+        if (nextId.isBlank() || nextId == currentChapterId || loading || chapterTransitionPending) return
         if (offline) {
-            adCountdownJob?.cancel()
-            adCountdown = 0
             loadChapter(nextId, restorePosition = restorePosition)
             return
         }
-        if (adCountdownJob?.isActive == true && adCountdownTarget == nextId) return
-        adCountdownTarget = nextId
-        adCountdownJob?.cancel()
-        adCountdownJob = scope.launch {
-            try {
-                val prompt = chapterTransitionAds.shouldPrompt(user)
-                if (prompt) {
-                    autoScroll = false
-                    for (n in ChapterTransitionAds.countdownTicks()) {
-                        adCountdown = n
-                        delay(1_000)
-                    }
-                }
-                ensureActive()
-                adCountdown = 0
-                chapterTransitionAds.maybeShowThen(
-                    activity = activity,
-                    user = user,
-                    proceed = { loadChapter(nextId, restorePosition = restorePosition) },
-                )
-            } finally {
-                adCountdown = 0
-            }
-        }
+        chapterTransitionPending = true
+        chapterTransitionAds.maybeShowThen(
+            activity = activity,
+            user = user,
+            proceed = {
+                chapterTransitionPending = false
+                loadChapter(nextId, restorePosition = restorePosition)
+            },
+        )
     }
 
     fun goPrev() {
@@ -777,10 +756,7 @@ fun ReaderScreen(
     }
 
     BackHandler {
-        if (adCountdown > 0) {
-            adCountdownJob?.cancel()
-            adCountdown = 0
-        } else if (showChapters) showChapters = false
+        if (showChapters) showChapters = false
         else if (!chromeVisible) chromeVisible = true
         else openParentTitle()
     }
@@ -1161,9 +1137,6 @@ fun ReaderScreen(
             }
         }
 
-        if (adCountdown > 0) {
-            AdCountdownOverlay(secondsLeft = adCountdown)
-        }
     }
 
     if (showComments) {
@@ -1565,41 +1538,6 @@ private fun ReaderError(message: String, onRetry: () -> Unit) {
                     Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(7.dp))
                     Text("Попробовать снова")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AdCountdownOverlay(secondsLeft: Int) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .padding(top = 92.dp, end = 14.dp),
-        contentAlignment = Alignment.TopEnd,
-    ) {
-        Surface(
-            color = Color(0xEE1B1B21),
-            shape = RoundedCornerShape(18.dp),
-            border = BorderStroke(1.dp, TomiloPrimary.copy(alpha = 0.38f)),
-            shadowElevation = 12.dp,
-        ) {
-            Row(
-                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    progress = { secondsLeft / ChapterTransitionAds.COUNTDOWN_SECONDS.toFloat() },
-                    color = TomiloPrimary,
-                    trackColor = Color.White.copy(alpha = 0.10f),
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.size(24.dp),
-                )
-                Spacer(Modifier.size(8.dp))
-                Column {
-                    Text("Реклама через", color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
-                    Text("$secondsLeft сек.", color = Color.White, style = MaterialTheme.typography.labelLarge)
                 }
             }
         }

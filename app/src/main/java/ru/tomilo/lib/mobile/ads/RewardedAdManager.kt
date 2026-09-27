@@ -31,6 +31,7 @@ class RewardedAdManager(
     private var loader: RewardedAdLoader? = null
     private var loadedAd: RewardedAd? = null
     private val sdkReady = AtomicBoolean(false)
+    private val initializationStarted = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(true)
 
@@ -43,10 +44,16 @@ class RewardedAdManager(
             onReady?.invoke()
             return
         }
+        if (sdkReady.get()) {
+            onReady?.invoke()
+            return
+        }
+        if (!initializationStarted.compareAndSet(false, true)) return
         mainHandler.post {
             YandexAds.initialize(
                 appContext,
                 InitializationListener {
+                    initializationStarted.set(false)
                     if (!adsAllowed.get()) {
                         onReady?.invoke()
                         return@InitializationListener
@@ -102,7 +109,7 @@ class RewardedAdManager(
         val changed = adsAllowed.getAndSet(allowed) != allowed
         if (!allowed) {
             destroy()
-        } else if (changed) {
+        } else if (changed || !sdkReady.get()) {
             if (sdkReady.get()) preload() else initialize()
         }
     }

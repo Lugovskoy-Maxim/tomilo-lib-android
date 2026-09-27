@@ -62,7 +62,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS, MATCH_THREE }
+private enum class GamesPage { HUB, CARDS, ALCHEMY }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +71,7 @@ fun GamesScreen(
     gamesRepository: GamesRepository,
     onBack: () -> Unit,
     onLogin: () -> Unit,
+    onOpenMatch: () -> Unit,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenWebTab: (String) -> Unit,
@@ -90,14 +91,14 @@ fun GamesScreen(
                             when (page) {
                                 GamesPage.HUB -> "Игры и награды"
                                 GamesPage.CARDS -> "Карточки"
-                                GamesPage.MATCH_THREE -> "Сад созвездий"
+                                GamesPage.ALCHEMY -> "Рецепт бодрости"
                             },
                         )
                         Text(
                             when (page) {
                                 GamesPage.HUB -> "Колесо и коллекция"
                                 GamesPage.CARDS -> "Декоративная коллекция"
-                                GamesPage.MATCH_THREE -> "Самоцветы, главы и бустеры"
+                                GamesPage.ALCHEMY -> "Собирайте коралловые пилюли"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -118,14 +119,15 @@ fun GamesScreen(
                 modifier = Modifier.padding(padding),
                 onLogin = onLogin,
                 onExploreCards = { page = GamesPage.CARDS },
-                onExploreMatch = { page = GamesPage.MATCH_THREE },
+                onExploreMatch = onOpenMatch,
             )
             page == GamesPage.HUB -> GamesContent(
                 balance = user?.balance ?: 0,
                 onOpenQuests = onOpenQuests,
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
-                onOpenMatch = { page = GamesPage.MATCH_THREE },
+                onOpenAlchemy = { page = GamesPage.ALCHEMY },
+                onOpenMatch = onOpenMatch,
                 modifier = Modifier.padding(padding),
             )
             page == GamesPage.CARDS -> CardsScreen(
@@ -137,7 +139,7 @@ fun GamesScreen(
                 onOpenSubmit = { onOpenWebTab("cards/submit") },
                 onOpenWebTab = onOpenWebTab,
             )
-            else -> MatchThreeScreen(user, gamesRepository, Modifier.padding(padding))
+            page == GamesPage.ALCHEMY -> AlchemyScreen(gamesRepository, Modifier.padding(padding))
         }
     }
 }
@@ -183,6 +185,7 @@ private fun GamesContent(
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
+    onOpenAlchemy: () -> Unit,
     onOpenMatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -242,6 +245,12 @@ private fun GamesContent(
                     title = "Альбом карт",
                     subtitle = "Коллекция, магазин, обмен и улучшение карт",
                     onClick = onOpenCards,
+                )
+                GameModeRow(
+                    icon = Icons.Default.AutoAwesome,
+                    title = "Рецепт бодрости",
+                    subtitle = "Соберите коралловые пилюли и получите XP",
+                    onClick = onOpenAlchemy,
                 )
                 GameModeRow(
                     icon = Icons.Default.TaskAlt,

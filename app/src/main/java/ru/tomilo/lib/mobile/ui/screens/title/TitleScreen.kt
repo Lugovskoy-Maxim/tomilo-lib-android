@@ -1058,7 +1058,7 @@ fun TitleScreen(
                         )
                         customBookmarkGroups.forEach { group ->
                             FilterChip(
-                                selected = bookmarkCategory == group.id,
+                            selected = bookmarkCategory == group.id,
                                 onClick = {
                                     val tid = title?.stableId().orEmpty()
                                     scope.launch {

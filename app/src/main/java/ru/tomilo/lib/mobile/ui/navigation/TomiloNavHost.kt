@@ -44,7 +44,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
 import ru.tomilo.lib.mobile.AppContainer
+import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.ui.components.AgeGateDialog
 import ru.tomilo.lib.mobile.ui.components.RewardNotificationHost
@@ -61,6 +63,7 @@ import ru.tomilo.lib.mobile.ui.screens.hub.TomiloHubScreen
 import ru.tomilo.lib.mobile.ui.screens.friends.FriendsScreen
 import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
 import ru.tomilo.lib.mobile.ui.screens.games.GamesScreen
+import ru.tomilo.lib.mobile.ui.screens.games.MatchThreeScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
@@ -104,6 +107,7 @@ object Routes {
     const val Wheel = "wheel"
     const val Shop = "shop"
     const val Games = "games"
+    const val MatchThree = "games/match-three"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
     /** title в path — надёжнее, чем query, для кириллицы */
@@ -130,6 +134,11 @@ fun TomiloNavHost(container: AppContainer) {
     val currentRaw = backStack?.destination?.route.orEmpty()
     val current = if (currentRaw.startsWith(Routes.Catalog)) Routes.Catalog else currentRaw
     val contentSettings by container.contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
+    val adEligibilityFlow = remember(container.authStore.userFlow) {
+        container.authStore.userFlow.map { user -> !Premium.isActive(user?.subscriptionExpiresAt) }
+    }
+    val adEligibility by adEligibilityFlow.collectAsState(initial = false)
+    val adsEnabled = adEligibility
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var onboardingDestination by remember { mutableStateOf<String?>(null) }
@@ -397,6 +406,7 @@ fun TomiloNavHost(container: AppContainer) {
                 CatalogScreen(
                     catalogRepository = container.catalogRepository,
                     contentPrefs = container.contentPrefs,
+                    adsEnabled = adsEnabled,
                     initialGenre = genre,
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
@@ -509,12 +519,23 @@ fun TomiloNavHost(container: AppContainer) {
                     gamesRepository = container.gamesRepository,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
+                    onOpenMatch = { navController.navigate(Routes.MatchThree) },
                     onOpenQuests = { navController.navigate(Routes.Quests) },
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
                     onOpenWebTab = { tab ->
                         val url = "${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/games?tab=${Routes.enc(tab)}"
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                     },
+                )
+            }
+            composable(Routes.MatchThree) {
+                val user by container.authRepository.userFlow.collectAsState(initial = null)
+                MatchThreeScreen(
+                    user = user,
+                    gamesRepository = container.gamesRepository,
+                    onBack = { navController.popBackStack() },
+                    onLogin = { goLogin() },
+                    onOpenPremium = { navController.navigate(Routes.Premium) },
                 )
             }
             composable(Routes.Shop) {

@@ -9,18 +9,15 @@ import kotlinx.coroutines.withContext
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.UserDto
 import ru.tomilo.lib.mobile.data.local.AdFrequencyStore
-import ru.tomilo.lib.mobile.data.local.AdRewardStore
 
 /**
  * Реклама при переходе между главами: не чаще 1 раза в 10 минут.
- * Premium — без рекламы. Приоритет: interstitial → fallback rewarded
- * (1 кредит + пропуск офлайн-чтения, с дневным лимитом).
+ * Premium — без рекламы. Rewarded показывается отдельно, только по явному
+ * действию пользователя в сценариях офлайн-доступа.
  */
 class ChapterTransitionAds(
     private val frequencyStore: AdFrequencyStore,
     private val interstitialAdManager: InterstitialAdManager,
-    private val rewardedAdManager: RewardedAdManager,
-    private val adRewardStore: AdRewardStore,
     private val scope: CoroutineScope,
 ) {
     /**
@@ -45,40 +42,18 @@ class ChapterTransitionAds(
                 withContext(Dispatchers.Main) { proceed() }
                 return@launch
             }
-            val canReward = adRewardStore.canGrantRewarded()
-
             withContext(Dispatchers.Main) {
                 when {
                     interstitialAdManager.isReady -> {
                         Log.i(TAG, "Show ready interstitial between chapters")
-                        interstitialAdManager.show(activity) {
-                            scope.launch { frequencyStore.markInterChapterShown() }
+                        interstitialAdManager.show(activity) { shown ->
+                            if (shown) scope.launch { frequencyStore.markInterChapterShown() }
                             proceed()
                         }
-                    }
-                    // Fallback: rewarded, если interstitial unit ещё не создан
-                    rewardedAdManager.isReady && canReward -> {
-                        Log.i(TAG, "Show rewarded fallback between chapters")
-                        var finished = false
-                        fun done() {
-                            if (finished) return
-                            finished = true
-                            scope.launch { frequencyStore.markInterChapterShown() }
-                            proceed()
-                        }
-                        rewardedAdManager.show(
-                            activity = activity,
-                            onRewarded = { _, _ ->
-                                scope.launch { adRewardStore.grantRewarded() }
-                            },
-                            onFailed = { done() },
-                            onDismissed = { done() },
-                        )
                     }
                     else -> {
-                        // реклама не готова / дневной лимит — не блокируем чтение
+                        // Объявление не готово — не блокируем чтение и подготавливаем следующее.
                         interstitialAdManager.preload()
-                        rewardedAdManager.preload()
                         proceed()
                     }
                 }
@@ -86,20 +61,14 @@ class ChapterTransitionAds(
         }
     }
 
-    /**
-     * Будет ли попытка показать рекламу. Таймер 5–1 только в этом случае.
-     */
+    /** Показываем только готовый interstitial, не задерживая переход к главе. */
     suspend fun shouldPrompt(user: UserDto?, alreadyCheckedPremium: Boolean = false): Boolean {
         if (!alreadyCheckedPremium && Premium.isActive(user?.subscriptionExpiresAt)) return false
         if (!frequencyStore.canShowInterChapter()) return false
-        if (interstitialAdManager.isReady) return true
-        return rewardedAdManager.isReady && adRewardStore.canGrantRewarded()
+        return interstitialAdManager.isReady
     }
 
     companion object {
         private const val TAG = "ChapterTransitionAds"
-        const val COUNTDOWN_SECONDS = 5
-
-        fun countdownTicks(): IntProgression = COUNTDOWN_SECONDS downTo 1
     }
 }

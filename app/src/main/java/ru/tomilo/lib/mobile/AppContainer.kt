@@ -46,8 +46,6 @@ class AppContainer(context: Context) {
     val chapterTransitionAds = ChapterTransitionAds(
         frequencyStore = adFrequencyStore,
         interstitialAdManager = interstitialAdManager,
-        rewardedAdManager = rewardedAdManager,
-        adRewardStore = adRewardStore,
         scope = appScope,
     )
     private val tokenHolder = TokenHolder()

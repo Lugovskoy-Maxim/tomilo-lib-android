@@ -32,6 +32,7 @@ class InterstitialAdManager(
     private var retryAttempt = 0
     private var retryRunnable: Runnable? = null
     private val sdkReady = AtomicBoolean(false)
+    private val initializationStarted = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(true)
 
@@ -47,10 +48,16 @@ class InterstitialAdManager(
             onReady?.invoke()
             return
         }
+        if (sdkReady.get()) {
+            onReady?.invoke()
+            return
+        }
+        if (!initializationStarted.compareAndSet(false, true)) return
         mainHandler.post {
             YandexAds.initialize(
                 appContext,
                 InitializationListener {
+                    initializationStarted.set(false)
                     if (!adsAllowed.get()) {
                         onReady?.invoke()
                         return@InitializationListener
@@ -108,7 +115,7 @@ class InterstitialAdManager(
         val changed = adsAllowed.getAndSet(allowed) != allowed
         if (!allowed) {
             destroy()
-        } else if (changed) {
+        } else if (changed || !sdkReady.get()) {
             if (sdkReady.get()) preload() else initialize()
         }
     }
@@ -135,7 +142,7 @@ class InterstitialAdManager(
                     return
                 }
                 if (loadedAd != null) {
-                    show(activity) { onFinished(true) }
+                    show(activity, onFinished)
                     return
                 }
                 preload()
@@ -165,32 +172,35 @@ class InterstitialAdManager(
      */
     fun show(
         activity: Activity,
-        onFinished: () -> Unit,
+        onFinished: (shown: Boolean) -> Unit,
     ) {
         mainHandler.post {
             if (!enabled || activity.isFinishing) {
-                onFinished()
+                onFinished(false)
                 return@post
             }
             val ad = loadedAd
             if (ad == null) {
                 preload()
-                onFinished()
+                onFinished(false)
                 return@post
             }
             loadedAd = null
             isReady = false
 
             var finished = false
+            var shown = false
             fun done() {
                 if (finished) return
                 finished = true
-                onFinished()
+                onFinished(shown)
             }
 
             ad.setAdEventListener(
                 object : InterstitialAdEventListener {
-                    override fun onAdShown() = Unit
+                    override fun onAdShown() {
+                        shown = true
+                    }
 
                     override fun onAdFailedToShow(adError: AdError) {
                         ad.setAdEventListener(null)

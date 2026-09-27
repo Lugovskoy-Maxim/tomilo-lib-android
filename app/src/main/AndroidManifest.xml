@@ -38,7 +38,7 @@
       android:theme="@style/Theme.Tomilo"
       android:windowSoftInputMode="adjustResize" />
     <activity
-      android:name=".ui.screens.premium.RobokassaCheckoutActivity"
+      android:name=".ui.screens.premium.PaymentCheckoutActivity"
       android:exported="false"
       android:theme="@style/Theme.Tomilo"
       android:windowSoftInputMode="adjustResize" />

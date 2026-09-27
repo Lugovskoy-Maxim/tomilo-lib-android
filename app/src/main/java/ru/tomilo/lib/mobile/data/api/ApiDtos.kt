@@ -1097,7 +1097,7 @@ data class CreateTbankPaymentRequest(
 )
 
 @Serializable
-data class RobokassaPaymentFormDto(
+data class TbankPaymentFormDto(
     val paymentId: String = "",
     val invId: String = "",
     val planId: String = "",
@@ -1105,11 +1105,10 @@ data class RobokassaPaymentFormDto(
     val isTestPayment: Boolean = false,
     val gatewayTestMode: Boolean = false,
     val paymentUrl: String = "",
-    val fields: Map<String, String> = emptyMap(),
 )
 
 @Serializable
-data class RobokassaPaymentStatusDto(
+data class PaymentStatusDto(
     val invId: String = "",
     val planId: String = "",
     val amount: Double = 0.0,
@@ -1131,7 +1130,7 @@ data class PremiumPaymentReceiptDto(
 @Serializable
 data class PremiumPaymentHistoryItemDto(
     val id: String = "",
-    val type: String = "robokassa",
+    val type: String = "tbank",
     val status: String = "pending",
     val amount: Double = 0.0,
     val currency: String = "RUB",
@@ -1144,15 +1143,4 @@ data class PremiumPaymentHistoryItemDto(
     val isTestPayment: Boolean = false,
     val gatewayTestMode: Boolean = false,
     val receipt: PremiumPaymentReceiptDto? = null,
-)
-
-@Serializable
-data class CoinPremiumPurchaseRequest(val purchaseId: String)
-
-@Serializable
-data class CoinPremiumPurchaseResultDto(
-    val balance: Int = 0,
-    val subscriptionExpiresAt: String? = null,
-    val durationDays: Int = 30,
-    val priceCoins: Int = 30_000,
 )

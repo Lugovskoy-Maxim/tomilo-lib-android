@@ -55,9 +55,4 @@ class OfflineAdLimitsTest {
         assertFalse(OfflineAdLimits.requiresAdForOfflineRead(isPremium = false, online = true, hasReadPass = true))
         assertFalse(OfflineAdLimits.requiresAdForOfflineRead(isPremium = true, online = true, hasReadPass = false))
     }
-
-    @Test
-    fun interChapterCountdownIsFiveToOne() {
-        assertEquals(listOf(5, 4, 3, 2, 1), ChapterTransitionAds.countdownTicks().toList())
-    }
 }
