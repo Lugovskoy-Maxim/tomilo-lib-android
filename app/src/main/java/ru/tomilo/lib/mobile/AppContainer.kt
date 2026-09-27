@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.ads.InterstitialAdManager
 import ru.tomilo.lib.mobile.ads.RewardedAdManager
+import ru.tomilo.lib.mobile.data.local.AdsConsentStore
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.download.DownloadManager
 import ru.tomilo.lib.mobile.data.local.AdFrequencyStore
@@ -43,6 +44,7 @@ class AppContainer(context: Context) {
     val adFrequencyStore = AdFrequencyStore(appContext)
     val rewardedAdManager = RewardedAdManager(appContext)
     val interstitialAdManager = InterstitialAdManager(appContext)
+    val adsConsentStore = AdsConsentStore(appContext)
     val chapterTransitionAds = ChapterTransitionAds(
         frequencyStore = adFrequencyStore,
         interstitialAdManager = interstitialAdManager,

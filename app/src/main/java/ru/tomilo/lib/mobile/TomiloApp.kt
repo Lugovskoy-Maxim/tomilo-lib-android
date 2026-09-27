@@ -30,6 +30,7 @@ import ru.tomilo.lib.mobile.push.PushTokenSync
 import ru.tomilo.lib.mobile.core.isNetworkAvailable
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.data.local.AdsConsent
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 
@@ -78,7 +79,12 @@ class TomiloApp : Application(), ImageLoaderFactory {
             container.authStore.user()
         }
         // У Premium реклама отключена полностью: SDK не запрашивает и не кеширует объявления.
-        val adsAllowedInitially = !Premium.isActive(initialUser?.subscriptionExpiresAt)
+        // UNKNOWN/DENIED — рекламный SDK не инициализируется; CONTEXTUAL — только
+        // неперсонализированная реклама; GRANTED — персонализированная.
+        val initialConsent = container.adsConsentStore.consent.value
+        val adsAllowedInitially = initialConsent.allowsAds && !Premium.isActive(initialUser?.subscriptionExpiresAt)
+        container.rewardedAdManager.setPersonalized(initialConsent.personalized)
+        container.interstitialAdManager.setPersonalized(initialConsent.personalized)
         container.rewardedAdManager.setAdsAllowed(adsAllowedInitially)
         container.interstitialAdManager.setAdsAllowed(adsAllowedInitially)
         NotificationHelper.ensureChannel(this)
@@ -97,10 +103,15 @@ class TomiloApp : Application(), ImageLoaderFactory {
             container.authStore.userFlow
                 .map { !Premium.isActive(it?.subscriptionExpiresAt) }
                 .distinctUntilChanged()
-                .collect { adsAllowed ->
-                    container.rewardedAdManager.setAdsAllowed(adsAllowed)
-                    container.interstitialAdManager.setAdsAllowed(adsAllowed)
+                .collect { nonPremium ->
+                    applyAdsConsent(container.adsConsentStore.consent.value, nonPremium)
                 }
+        }
+        appScope.launch {
+            container.adsConsentStore.consent.collect { consent ->
+                val nonPremium = !Premium.isActive(container.authStore.user()?.subscriptionExpiresAt)
+                applyAdsConsent(consent, nonPremium)
+            }
         }
         appScope.launch {
             container.authStore.tokenFlow.distinctUntilChanged().collectLatest { token ->
@@ -131,6 +142,18 @@ class TomiloApp : Application(), ImageLoaderFactory {
         appScope.launch {
             runCatching { container.offlineRepository.refreshStaleTitles() }
         }
+    }
+
+    /**
+     * Единая точка применения согласия: персонализация передаётся в SDK,
+     * показ разрешён только при CONTEXTUAL/GRANTED и без активного Premium.
+     */
+    private fun applyAdsConsent(consent: AdsConsent, nonPremium: Boolean) {
+        container.rewardedAdManager.setPersonalized(consent.personalized)
+        container.interstitialAdManager.setPersonalized(consent.personalized)
+        val allowed = consent.allowsAds && nonPremium
+        container.rewardedAdManager.setAdsAllowed(allowed)
+        container.interstitialAdManager.setAdsAllowed(allowed)
     }
 
     override fun newImageLoader(): ImageLoader {

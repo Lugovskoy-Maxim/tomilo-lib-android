@@ -34,10 +34,23 @@ class RewardedAdManager(
     private val initializationStarted = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(true)
+    private val personalized = AtomicBoolean(true)
 
     @Volatile
     var isReady: Boolean = false
         private set
+
+    /**
+     * Передаёт персонализацию в рекламный SDK: true — персонализированные
+     * объявления, false — только контекстные. Вызывать до [initialize];
+     * при живом SDK обновляет согласие для следующих запросов.
+     */
+    fun setPersonalized(personalizedAds: Boolean) {
+        personalized.set(personalizedAds)
+        if (sdkReady.get()) {
+            mainHandler.post { YandexAds.setUserConsent(personalizedAds) }
+        }
+    }
 
     fun initialize(onReady: (() -> Unit)? = null) {
         if (!adsAllowed.get() || adUnitId.isBlank()) {
@@ -50,6 +63,7 @@ class RewardedAdManager(
         }
         if (!initializationStarted.compareAndSet(false, true)) return
         mainHandler.post {
+            YandexAds.setUserConsent(personalized.get())
             YandexAds.initialize(
                 appContext,
                 InitializationListener {

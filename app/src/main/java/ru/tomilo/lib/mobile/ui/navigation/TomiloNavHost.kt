@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.map
 import ru.tomilo.lib.mobile.AppContainer
 import ru.tomilo.lib.mobile.core.Premium
+import ru.tomilo.lib.mobile.data.local.AdsConsent
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.ui.components.AgeGateDialog
 import ru.tomilo.lib.mobile.ui.components.RewardNotificationHost
@@ -138,7 +139,8 @@ fun TomiloNavHost(container: AppContainer) {
         container.authStore.userFlow.map { user -> !Premium.isActive(user?.subscriptionExpiresAt) }
     }
     val adEligibility by adEligibilityFlow.collectAsState(initial = false)
-    val adsEnabled = adEligibility
+    val adsConsent by container.adsConsentStore.consent.collectAsState()
+    val adsEnabled = adEligibility && adsConsent.allowsAds
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var onboardingDestination by remember { mutableStateOf<String?>(null) }
@@ -473,6 +475,8 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenShop = { navController.navigate(Routes.Shop) },
                     onOpenGames = { navController.navigate(Routes.Games) },
                     onOpenMyPublicProfile = { id -> navController.navigate(Routes.user(id)) },
+                    adsConsent = adsConsent,
+                    onOpenAdSettings = { container.adsConsentStore.set(AdsConsent.UNKNOWN) },
                 )
             }
             composable(Routes.Updates) {

@@ -559,12 +559,15 @@ fun ReaderScreen(
             return
         }
         chapterTransitionPending = true
+        // Глава загружается сразу: межглавная реклама показывается поверх прежнего
+        // экрана в момент перехода, а не откладывает открытие новой главы. При сбое
+        // рекламы proceed всё равно вызывается, чтение не блокируется.
+        loadChapter(nextId, restorePosition = restorePosition)
         chapterTransitionAds.maybeShowThen(
             activity = activity,
             user = user,
             proceed = {
                 chapterTransitionPending = false
-                loadChapter(nextId, restorePosition = restorePosition)
             },
         )
     }
