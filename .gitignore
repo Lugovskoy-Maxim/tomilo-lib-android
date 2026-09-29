@@ -23,3 +23,6 @@ mapping.txt
 /dist/
 !keystore.properties.example
 /app/google-services.json
+
+# Дизайн-ревью: тяжёлые артефакты (fig-файлы, рендеры, node_modules)
+ANDROID/.design-review/
