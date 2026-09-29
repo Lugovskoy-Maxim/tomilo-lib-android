@@ -79,8 +79,12 @@ class TomiloApp : Application(), ImageLoaderFactory {
             container.authStore.user()
         }
         // У Premium реклама отключена полностью: SDK не запрашивает и не кеширует объявления.
-        // UNKNOWN/DENIED — рекламный SDK не инициализируется; CONTEXTUAL — только
-        // неперсонализированная реклама; GRANTED — персонализированная.
+        // Выбор согласия убран из приложения: без Premium реклама показывается
+        // всегда, поэтому на старте принудительно ставим GRANTED (старое значение
+        // DENIED/UNKNOWN/CONTEXTUAL перезаписывается).
+        if (container.adsConsentStore.consent.value != AdsConsent.GRANTED) {
+            container.adsConsentStore.set(AdsConsent.GRANTED)
+        }
         val initialConsent = container.adsConsentStore.consent.value
         val adsAllowedInitially = initialConsent.allowsAds && !Premium.isActive(initialUser?.subscriptionExpiresAt)
         container.rewardedAdManager.setPersonalized(initialConsent.personalized)

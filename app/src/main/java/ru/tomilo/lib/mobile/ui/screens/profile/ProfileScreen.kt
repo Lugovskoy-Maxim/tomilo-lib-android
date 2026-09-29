@@ -63,7 +63,6 @@ import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Schedule
@@ -126,7 +125,6 @@ import kotlin.math.pow
 import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
-import ru.tomilo.lib.mobile.data.local.AdsConsent
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.UserDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
@@ -183,8 +181,6 @@ fun ProfileScreen(
     onOpenShop: () -> Unit,
     onOpenGames: () -> Unit,
     onOpenMyPublicProfile: (userId: String) -> Unit,
-    adsConsent: AdsConsent,
-    onOpenAdSettings: () -> Unit,
 ) {
     var profileReload by rememberSaveable { mutableIntStateOf(0) }
     val profileUserFlow = remember(authRepository, profileReload) {
@@ -337,8 +333,6 @@ fun ProfileScreen(
                                     },
                                     onOpenAdmin = onOpenAdmin,
                                     onLogout = { confirmLogout = true },
-                                    adsConsent = adsConsent,
-                                    onOpenAdSettings = onOpenAdSettings,
                                 )
                             }
                         }
@@ -1303,8 +1297,6 @@ private fun ProfileSettingsTab(
     onClearCache: () -> Unit,
     onOpenAdmin: () -> Unit,
     onLogout: () -> Unit,
-    adsConsent: AdsConsent,
-    onOpenAdSettings: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // 1. Reader Settings
@@ -1458,20 +1450,6 @@ private fun ProfileSettingsTab(
                 },
             )
         }
-
-        // 4. Advertising
-        ProfileSectionHeader("Реклама", "Согласие на показ объявлений")
-        ActionRow(
-            icon = Icons.Outlined.Campaign,
-            title = "Настройки рекламы",
-            subtitle = when (adsConsent) {
-                AdsConsent.GRANTED -> "Персонализированная реклама разрешена"
-                AdsConsent.CONTEXTUAL -> "Показывается только контекстная реклама"
-                AdsConsent.DENIED -> "Реклама отключена"
-                AdsConsent.UNKNOWN -> "Выбор ещё не сделан"
-            },
-            onClick = onOpenAdSettings,
-        )
 
         // 4. Memory & Cache
         ProfileSectionHeader("Память и данные", "Очистка кеша и офлайн-главы")

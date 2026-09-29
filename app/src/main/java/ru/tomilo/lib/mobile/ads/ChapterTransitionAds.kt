@@ -12,14 +12,21 @@ import ru.tomilo.lib.mobile.data.local.AdFrequencyStore
 
 /**
  * Реклама при переходе между главами: не чаще 1 раза в 10 минут.
- * Premium — без рекламы. Rewarded показывается отдельно, только по явному
- * действию пользователя в сценариях офлайн-доступа.
+ * Premium — без рекламы. Если блок включён, ждём загрузку interstitial
+ * (отсчёт в читалке + [InterstitialAdManager.showWhenReady]), а не
+ * пропускаем показ, когда объявление ещё не готово.
+ * Rewarded показывается отдельно, только по явному действию в офлайне.
  */
 class ChapterTransitionAds(
     private val frequencyStore: AdFrequencyStore,
     private val interstitialAdManager: InterstitialAdManager,
     private val scope: CoroutineScope,
 ) {
+    /** Начать загрузку заранее, чтобы отсчёт 5 с не пропал впустую. */
+    fun prepare() {
+        interstitialAdManager.preload()
+    }
+
     /**
      * [proceed] — открыть целевую главу (всегда вызывается).
      */
@@ -38,37 +45,41 @@ class ChapterTransitionAds(
         }
 
         scope.launch {
-            if (!shouldPrompt(user, alreadyCheckedPremium = true)) {
+            if (!shouldPrompt(user)) {
                 withContext(Dispatchers.Main) { proceed() }
                 return@launch
             }
             withContext(Dispatchers.Main) {
-                when {
-                    interstitialAdManager.isReady -> {
-                        Log.i(TAG, "Show ready interstitial between chapters")
-                        interstitialAdManager.show(activity) { shown ->
-                            if (shown) scope.launch { frequencyStore.markInterChapterShown() }
-                            proceed()
-                        }
-                    }
-                    else -> {
-                        // Объявление не готово — не блокируем чтение и подготавливаем следующее.
-                        interstitialAdManager.preload()
+                if (interstitialAdManager.enabled) {
+                    Log.i(TAG, "Wait for interstitial between chapters")
+                    interstitialAdManager.showWhenReady(activity) { shown ->
+                        if (shown) scope.launch { frequencyStore.markInterChapterShown() }
                         proceed()
                     }
+                } else {
+                    interstitialAdManager.preload()
+                    proceed()
                 }
             }
         }
     }
 
-    /** Показываем только готовый interstitial, не задерживая переход к главе. */
-    suspend fun shouldPrompt(user: UserDto?, alreadyCheckedPremium: Boolean = false): Boolean {
-        if (!alreadyCheckedPremium && Premium.isActive(user?.subscriptionExpiresAt)) return false
-        if (!frequencyStore.canShowInterChapter()) return false
-        return interstitialAdManager.isReady
+    /**
+     * Будет ли попытка показать рекламу. Таймер 5–1 только в этом случае.
+     * Готовность креатива здесь не требуется: её дожидается [maybeShowThen].
+     */
+    suspend fun shouldPrompt(user: UserDto?): Boolean {
+        return ChapterAdPolicy.shouldAttempt(
+            premium = Premium.isActive(user?.subscriptionExpiresAt),
+            cooldownElapsed = frequencyStore.canShowInterChapter(),
+            interstitialEnabled = interstitialAdManager.enabled,
+        )
     }
 
     companion object {
         private const val TAG = "ChapterTransitionAds"
+        const val COUNTDOWN_SECONDS = ChapterAdPolicy.COUNTDOWN_SECONDS
+
+        fun countdownTicks(): IntProgression = ChapterAdPolicy.countdownTicks()
     }
 }

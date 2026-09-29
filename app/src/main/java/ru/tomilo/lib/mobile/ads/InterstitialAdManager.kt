@@ -32,7 +32,7 @@ class InterstitialAdManager(
     private var retryRunnable: Runnable? = null
     private val sdkReady = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
-    private val adsAllowed = AtomicBoolean(true)
+    private val adsAllowed = AtomicBoolean(false)
     private val personalized = AtomicBoolean(true)
 
     val enabled: Boolean get() = adUnitId.isNotBlank() && adsAllowed.get()

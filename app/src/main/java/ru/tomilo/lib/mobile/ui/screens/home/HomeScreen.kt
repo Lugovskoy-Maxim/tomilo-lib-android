@@ -169,7 +169,6 @@ fun HomeScreen(
     onOpenLeaders: () -> Unit = {},
     onOpenPremium: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
-    onOpenLucky: () -> Unit = {},
     onContinueReading: (titleId: String, chapterId: String) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
@@ -306,8 +305,8 @@ fun HomeScreen(
                             coins = user?.balance ?: 0,
                             decorations = user?.decorations(),
                             onOpen = { item -> onOpenTitle(item.stableId(), item.slug) },
-                            // «Мне повезёт» открывает подборку с бесконечной лентой случайных тайтлов.
-                            onLuckyRandom = onOpenLucky,
+                            // «Мне повезёт» открывает те же подборки, что и шорткат «Подборки».
+                            onLuckyRandom = { if (featured.isNotEmpty()) showCarousel = true },
                             onOpenProfile = onOpenProfile,
                         )
                     }
@@ -1305,15 +1304,41 @@ private fun HomeTitleCarouselPage(
             }
 
             if (description.isNotBlank()) {
+                var descriptionExpanded by remember(description) { mutableStateOf(false) }
+                var descriptionOverflows by remember(description) { mutableStateOf(false) }
                 Spacer(Modifier.height(10.dp))
                 Text(
                     description,
                     color = Color.White.copy(alpha = 0.88f),
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    maxLines = 7,
+                    maxLines = if (descriptionExpanded) Int.MAX_VALUE else 4,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { result ->
+                        if (!descriptionExpanded && result.hasVisualOverflow) descriptionOverflows = true
+                    },
+                    // В развёрнутом виде описание прокручивается в ограниченной
+                    // области — длинный текст не вытесняет кнопки за экран.
+                    modifier = if (descriptionExpanded) {
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .verticalScroll(rememberScrollState())
+                    } else {
+                        Modifier
+                    },
                 )
+                if (descriptionOverflows || descriptionExpanded) {
+                    Text(
+                        if (descriptionExpanded) "Свернуть" else "Развернуть",
+                        color = TomiloPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clickable { descriptionExpanded = !descriptionExpanded }
+                            .padding(vertical = 6.dp),
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
         }

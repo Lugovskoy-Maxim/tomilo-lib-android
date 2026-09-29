@@ -89,6 +89,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -119,10 +120,13 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonPrimitive
 import ru.tomilo.lib.mobile.ads.ChapterTransitionAds
 import ru.tomilo.lib.mobile.ads.OfflineAdLimits
 import ru.tomilo.lib.mobile.ads.OfflineAdStatus
@@ -145,6 +149,7 @@ import ru.tomilo.lib.mobile.core.WebtoonTiles
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.local.AdRewardStore
+import ru.tomilo.lib.mobile.data.local.OfflineChapterEntity
 import ru.tomilo.lib.mobile.data.local.ReadingPosition
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.local.ReadingSettings
@@ -208,6 +213,10 @@ fun ReaderScreen(
     var needsOfflineAd by remember { mutableStateOf(false) }
     var adBusy by remember { mutableStateOf(false) }
     var chapterTransitionPending by remember { mutableStateOf(false) }
+    var adCountdown by remember { mutableIntStateOf(0) }
+    var adCountdownTarget by remember { mutableStateOf<String?>(null) }
+    var adCountdownJob by remember { mutableStateOf<Job?>(null) }
+    val latestCountdownJob = rememberUpdatedState(adCountdownJob)
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var pageDimensions by remember { mutableStateOf<List<PageDimensions>>(emptyList()) }
     val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
@@ -228,6 +237,7 @@ fun ReaderScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showRating by remember { mutableStateOf(false) }
     var chapters by remember { mutableStateOf<List<ChapterDto>>(emptyList()) }
+    var chaptersResolved by remember { mutableStateOf(false) }
     var failedPages by remember { mutableStateOf(setOf<Int>()) }
     var loadedPages by remember { mutableStateOf(setOf<Int>()) }
     var restoredChapterId by remember { mutableStateOf<String?>(null) }
@@ -262,7 +272,11 @@ fun ReaderScreen(
         direction = readingPrefs.directionFor(tid, titleType)
     }
 
-    LaunchedEffect(currentChapterId, user?.stableId()) {
+    LaunchedEffect(currentChapterId, user?.stableId(), preferOffline, offline) {
+        if (preferOffline || offline) {
+            myChapterRating = 0
+            return@LaunchedEffect
+        }
         myChapterRating = if (currentChapterId.isNotBlank() && user != null) {
             historyRepository.myChapterRating(currentChapterId).getOrNull() ?: 0
         } else 0
@@ -281,6 +295,15 @@ fun ReaderScreen(
     }
     val hasPrev = prevChapterId != null
     val hasNext = nextChapterId != null
+    // Пустой список до ответа сети — не повод звать chapterNext/Prev.
+    // Офлайн и скачанная глава этот запрос не делают.
+    val probeNetworkNeighbor =
+        chapters.isEmpty() &&
+            chaptersResolved &&
+            !preferOffline &&
+            online &&
+            !offline &&
+            !loading
     val atTitleEnd = !hasNext && chapters.isNotEmpty()
     val visibleChapters = remember(chapters, chapterQuery) {
         val needle = chapterQuery.trim()
@@ -375,6 +398,7 @@ fun ReaderScreen(
                     val entity = offlineRepository.getEntity(id)
                     effectiveTitleId = titleId ?: entity?.titleId
                     title = entity?.let { "Глава ${it.chapterNumber}" } ?: "Глава (офлайн)"
+                    currentChapterNumber = entity?.chapterNumber?.toDoubleOrNull()
                     // userFlow при холодном старте сначала отдаёт null. Для
                     // офлайн-доступа читаем Premium прямо из сохранённой сессии,
                     // чтобы не показывать Premium-пользователю рекламный gate.
@@ -391,15 +415,17 @@ fun ReaderScreen(
                         return@launch
                     }
                     val localSources = local.map { File(it).toURI().toString() }
-                    pageDimensions = WebtoonTiles.measureLocalSources(localSources)
                     pages = localSources
                     offline = true
                     loading = false
+                    pageDimensions = WebtoonTiles.measureLocalSources(localSources)
                     val tid = effectiveTitleId
                     if (!tid.isNullOrBlank()) {
                         val loggedIn = authRepository.isLoggedIn()
                         readingPrefs.markLocalRead(tid, id, queueSync = loggedIn)
-                        if (loggedIn) {
+                        // Страницы уже на диске. История уходит в сеть только онлайн
+                        // и не из офлайн-читалки, чтобы не дёргать API ради открытой главы.
+                        if (loggedIn && !preferOffline && context.isNetworkAvailable()) {
                             historyRepository.markRead(tid, id)
                                 .onSuccess { reward ->
                                     readingPrefs.markHistorySynced(tid, id)
@@ -417,6 +443,13 @@ fun ReaderScreen(
                     }
                     return@launch
                 }
+            }
+
+            if (preferOffline || !context.isNetworkAvailable()) {
+                offline = true
+                error = "Эта глава не скачана на устройство"
+                loading = false
+                return@launch
             }
 
             var subExpires = user?.subscriptionExpiresAt
@@ -554,28 +587,55 @@ fun ReaderScreen(
 
     fun goChapter(nextId: String, restorePosition: Boolean = false) {
         if (nextId.isBlank() || nextId == currentChapterId || loading || chapterTransitionPending) return
-        if (offline) {
+        if (offline || preferOffline || isPremium) {
+            adCountdownJob?.cancel()
+            adCountdown = 0
             loadChapter(nextId, restorePosition = restorePosition)
             return
         }
-        chapterTransitionPending = true
-        // Глава загружается сразу: межглавная реклама показывается поверх прежнего
-        // экрана в момент перехода, а не откладывает открытие новой главы. При сбое
-        // рекламы proceed всё равно вызывается, чтение не блокируется.
-        loadChapter(nextId, restorePosition = restorePosition)
-        chapterTransitionAds.maybeShowThen(
-            activity = activity,
-            user = user,
-            proceed = {
-                chapterTransitionPending = false
-            },
-        )
+        if (adCountdownJob?.isActive == true && adCountdownTarget == nextId) return
+        adCountdownTarget = nextId
+        adCountdownJob?.cancel()
+        adCountdownJob = scope.launch {
+            try {
+                if (authRepository.isPremium()) {
+                    loadChapter(nextId, restorePosition = restorePosition)
+                    return@launch
+                }
+                val prompt = chapterTransitionAds.shouldPrompt(user)
+                if (prompt) {
+                    autoScroll = false
+                    chapterTransitionAds.prepare()
+                    for (n in ChapterTransitionAds.countdownTicks()) {
+                        adCountdown = n
+                        delay(1_000)
+                    }
+                }
+                ensureActive()
+                adCountdown = 0
+                chapterTransitionPending = true
+                chapterTransitionAds.maybeShowThen(
+                    activity = activity,
+                    user = user,
+                    proceed = {
+                        chapterTransitionPending = false
+                        loadChapter(nextId, restorePosition = restorePosition)
+                    },
+                )
+            } finally {
+                adCountdown = 0
+            }
+        }
     }
 
     fun goPrev() {
         val id = prevChapterId
         if (id != null) {
             goChapter(id)
+            return
+        }
+        if (preferOffline || offline || !online) {
+            chapterNavMessage = "Предыдущей скачанной главы нет"
             return
         }
         scope.launch {
@@ -589,6 +649,10 @@ fun ReaderScreen(
         val id = nextChapterId
         if (id != null) {
             goChapter(id)
+            return
+        }
+        if (preferOffline || offline || !online) {
+            chapterNavMessage = "Следующей скачанной главы нет"
             return
         }
         scope.launch {
@@ -634,7 +698,10 @@ fun ReaderScreen(
     }
 
     LaunchedEffect(Unit) {
-        rewardedAdManager.preload()
+        if (!authRepository.isPremium()) {
+            rewardedAdManager.preload()
+            chapterTransitionAds.prepare()
+        }
     }
 
     LaunchedEffect(chapterId) {
@@ -655,13 +722,22 @@ fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(titleId, effectiveTitleId) {
+    LaunchedEffect(titleId, effectiveTitleId, preferOffline, online) {
         val tid = titleId ?: effectiveTitleId
-        if (!tid.isNullOrBlank()) {
+        if (tid.isNullOrBlank()) return@LaunchedEffect
+        chaptersResolved = false
+        // Скачанная глава, офлайн-читалка и отсутствие сети не ходят в каталог:
+        // следующий/предыдущий берутся только из файлов на диске.
+        val forceLocal = preferOffline || !online || offlineRepository.isDownloaded(currentChapterId)
+        if (forceLocal) {
+            offlineRepository.getTitleMeta(tid)?.type?.let { titleType = it }
+            chapters = offlineRepository.downloadedChapters(tid).toReaderChapters()
+        } else {
             catalogRepository.title(tid).onSuccess { detail ->
                 titleType = detail.type
                 effectiveTitleId = detail.stableId().ifBlank { tid }
             }
+            ensureActive()
             catalogRepository.chaptersAll(tid)
                 .onSuccess { list ->
                     chapters = list.sortedWith(
@@ -671,27 +747,9 @@ fun ReaderScreen(
                         ),
                     )
                 }
+            ensureActive()
         }
-    }
-
-    LaunchedEffect(effectiveTitleId, offline) {
-        val tid = effectiveTitleId
-        if (offline && !tid.isNullOrBlank()) {
-            val local = offlineRepository.downloadedChapters(tid)
-            if (local.isNotEmpty()) {
-                chapters = local.map { entity ->
-                    val numberJson = entity.chapterNumber.toDoubleOrNull()?.let {
-                        kotlinx.serialization.json.JsonPrimitive(it)
-                    } ?: kotlinx.serialization.json.JsonPrimitive(entity.chapterNumber)
-                    ChapterDto(
-                        id = entity.chapterId,
-                        name = entity.chapterName ?: "Глава ${entity.chapterNumber}",
-                        chapterNumber = numberJson,
-                        pagesCount = entity.pageCount,
-                    )
-                }.sortedBy { it.chapterNumberAsDouble() ?: Double.MAX_VALUE }
-            }
-        }
+        chaptersResolved = true
     }
 
     LaunchedEffect(showChapters, chapters, currentChapterId) {
@@ -758,8 +816,15 @@ fun ReaderScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose { latestCountdownJob.value?.cancel() }
+    }
+
     BackHandler {
-        if (showChapters) showChapters = false
+        if (adCountdown > 0) {
+            adCountdownJob?.cancel()
+            adCountdown = 0
+        } else if (showChapters) showChapters = false
         else if (!chromeVisible) chromeVisible = true
         else openParentTitle()
     }
@@ -859,7 +924,7 @@ fun ReaderScreen(
                 failedPages = failedPages,
                 loadedPages = loadedPages,
                 pageRetryNonce = pageRetryNonce,
-                hasNext = hasNext || chapters.isEmpty(),
+                hasNext = hasNext || probeNetworkNeighbor,
                 showTitleButton = atTitleEnd && canOpenTitle,
                 onOpenTitle = { openParentTitle() },
                 myRating = myChapterRating,
@@ -1077,7 +1142,7 @@ fun ReaderScreen(
                             ReaderDockAction(
                                 icon = Icons.AutoMirrored.Filled.NavigateBefore,
                                 label = "Пред.",
-                                enabled = hasPrev || chapters.isEmpty(),
+                                enabled = hasPrev || probeNetworkNeighbor,
                                 modifier = Modifier.weight(1f),
                                 onClick = { goPrev() },
                             )
@@ -1116,7 +1181,7 @@ fun ReaderScreen(
                             ReaderDockAction(
                                 icon = Icons.AutoMirrored.Filled.NavigateNext,
                                 label = "След.",
-                                enabled = hasNext || chapters.isEmpty(),
+                                enabled = hasNext || probeNetworkNeighbor,
                                 modifier = Modifier.weight(1f),
                                 onClick = { goNext() },
                             )
@@ -1140,6 +1205,19 @@ fun ReaderScreen(
             }
         }
 
+        if (adCountdown > 0) {
+            AdCountdownOverlay(secondsLeft = adCountdown)
+        } else if (chapterTransitionPending) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) awaitPointerEvent()
+                        }
+                    },
+            )
+        }
     }
 
     if (showComments) {
@@ -1365,7 +1443,15 @@ fun ReaderScreen(
                 }
             }
             if (chapters.isEmpty()) {
-                Text("Список загружается…", color = TomiloMuted, modifier = Modifier.padding(20.dp))
+                Text(
+                    when {
+                        !chaptersResolved -> "Список загружается…"
+                        preferOffline || !online || offline -> "Скачанных глав нет"
+                        else -> "Список глав недоступен"
+                    },
+                    color = TomiloMuted,
+                    modifier = Modifier.padding(20.dp),
+                )
             } else {
                 OutlinedTextField(
                     value = chapterQuery,
@@ -1430,6 +1516,23 @@ fun ReaderScreen(
         }
     }
 }
+
+private fun List<OfflineChapterEntity>.toReaderChapters(): List<ChapterDto> =
+    map { entity ->
+        val number = entity.chapterNumber.toDoubleOrNull()
+        ChapterDto(
+            id = entity.chapterId,
+            chapterNumber = if (number != null) JsonPrimitive(number) else JsonPrimitive(entity.chapterNumber),
+            name = entity.chapterName,
+            pagesCount = entity.pageCount,
+            titleId = JsonPrimitive(entity.titleId),
+        )
+    }.sortedWith(
+        compareBy(
+            { it.chapterNumberAsDouble() ?: Double.MAX_VALUE },
+            { it.chapterNumber?.toString().orEmpty() },
+        ),
+    )
 
 @Composable
 private fun ReaderDockAction(
@@ -1512,6 +1615,46 @@ private fun ReaderLoading() {
             Spacer(Modifier.height(15.dp))
             Text("Открываем главу", color = Color.White, style = MaterialTheme.typography.titleMedium)
             Text("Подготавливаем страницы и позицию чтения", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun AdCountdownOverlay(secondsLeft: Int) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(secondsLeft) {
+                awaitPointerEventScope {
+                    while (true) awaitPointerEvent()
+                }
+            }
+            .padding(top = 92.dp, end = 14.dp),
+        contentAlignment = Alignment.TopEnd,
+    ) {
+        Surface(
+            color = Color(0xEE1B1B21),
+            shape = RoundedCornerShape(18.dp),
+            border = BorderStroke(1.dp, TomiloPrimary.copy(alpha = 0.38f)),
+            shadowElevation = 12.dp,
+        ) {
+            Row(
+                Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    progress = { secondsLeft / ChapterTransitionAds.COUNTDOWN_SECONDS.toFloat() },
+                    color = TomiloPrimary,
+                    trackColor = Color.White.copy(alpha = 0.10f),
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(24.dp),
+                )
+                Spacer(Modifier.size(8.dp))
+                Column {
+                    Text("Реклама через", color = TomiloMuted, style = MaterialTheme.typography.labelSmall)
+                    Text("$secondsLeft сек.", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
 }

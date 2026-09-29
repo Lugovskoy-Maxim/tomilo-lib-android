@@ -166,7 +166,8 @@ class OfflineRepository(
             ?.filter { ImageIntegrity.isValidFile(it) }
             ?.map { it.absolutePath }
             .orEmpty()
-        if (pages.size != entity.pageCount || pages.isEmpty()) return@withContext null
+        // Несовпадение с pageCount не повод качать главу заново: читаем то, что уже на диске.
+        if (pages.isEmpty()) return@withContext null
         pages
     }
 

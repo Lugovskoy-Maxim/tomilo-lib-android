@@ -21,6 +21,7 @@ object PageImages {
     fun request(context: Context, data: Any, attempt: Int = 0): ImageRequest {
         val bypassCache = attempt > 0
         val source = retrySource(data, attempt)
+        val local = source is String && isLocal(source)
         return ImageRequest.Builder(context)
             .data(source)
             .size(MAX_DECODE_WIDTH_PX, MAX_DECODE_HEIGHT_PX)
@@ -31,11 +32,14 @@ object PageImages {
             // огромных bitmap. Исходный WebP остаётся в дисковом HTTP/Coil-кеше.
             .crossfade(false)
             .memoryCachePolicy(CachePolicy.DISABLED)
-            .diskCachePolicy(if (bypassCache) CachePolicy.DISABLED else CachePolicy.ENABLED)
-            // DISABLED здесь запрещает сам сетевой запрос, а не только кеш.
-            .networkCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(if (bypassCache || local) CachePolicy.DISABLED else CachePolicy.ENABLED)
+            // DISABLED запрещает сетевой запрос. Для файла на диске сеть не нужна.
+            .networkCachePolicy(if (local) CachePolicy.DISABLED else CachePolicy.ENABLED)
             .build()
     }
+
+    private fun isLocal(source: String): Boolean =
+        source.startsWith("file:") || source.startsWith("content:") || source.startsWith("/")
 
     @OptIn(ExperimentalCoilApi::class)
     fun evict(context: Context, data: Any) {

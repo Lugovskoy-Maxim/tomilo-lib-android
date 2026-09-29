@@ -31,8 +31,10 @@ class RewardedAdManager(
     private var loadedAd: RewardedAd? = null
     private val sdkReady = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
-    private val adsAllowed = AtomicBoolean(true)
+    private val adsAllowed = AtomicBoolean(false)
     private val personalized = AtomicBoolean(true)
+    private var retryAttempt = 0
+    private var retryRunnable: Runnable? = null
 
     @Volatile
     var isReady: Boolean = false
@@ -96,6 +98,9 @@ class RewardedAdManager(
                         loadedAd = ad
                         loading.set(false)
                         isReady = true
+                        retryAttempt = 0
+                        retryRunnable?.let(mainHandler::removeCallbacks)
+                        retryRunnable = null
                         Log.i(TAG, "Rewarded loaded")
                     }
 
@@ -104,6 +109,7 @@ class RewardedAdManager(
                         isReady = false
                         loadedAd = null
                         Log.w(TAG, "Rewarded failed: ${error.code} ${error.description}")
+                        scheduleRetry()
                     }
                 },
             )
@@ -185,6 +191,8 @@ class RewardedAdManager(
     }
 
     fun destroy() {
+        retryRunnable?.let(mainHandler::removeCallbacks)
+        retryRunnable = null
         mainHandler.post {
             loadedAd?.setAdEventListener(null)
             loadedAd = null
@@ -195,7 +203,19 @@ class RewardedAdManager(
         }
     }
 
+    private fun scheduleRetry() {
+        if (!adsAllowed.get() || adUnitId.isBlank() || retryRunnable != null) return
+        val delay = (RETRY_BASE_MS * (1L shl retryAttempt.coerceAtMost(4))).coerceAtMost(RETRY_MAX_MS)
+        retryAttempt = (retryAttempt + 1).coerceAtMost(5)
+        retryRunnable = Runnable {
+            retryRunnable = null
+            preload()
+        }.also { mainHandler.postDelayed(it, delay) }
+    }
+
     companion object {
         private const val TAG = "TomiloRewarded"
+        private const val RETRY_BASE_MS = 5_000L
+        private const val RETRY_MAX_MS = 60_000L
     }
 }

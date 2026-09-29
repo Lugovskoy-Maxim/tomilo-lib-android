@@ -270,91 +270,100 @@ fun TitleScreen(
      * не хватает → диалог «смотреть рекламу» (1 Reward = 1 глава).
      */
     fun requestDownload(chaptersToDl: List<ChapterDto>) {
-        if (user == null) {
-            onLogin()
-            return
-        }
-        if (chaptersToDl.isEmpty()) {
-            scope.launch { snackbar.showSnackbar("Нечего скачивать") }
-            return
-        }
-        if (isPremium) {
-            startDownload(chaptersToDl)
-            return
-        }
-        if (offlineCredits >= chaptersToDl.size) {
-            startDownload(chaptersToDl)
-            return
-        }
-        if (offlineCredits == 0 && adStatus.dailyRemaining <= 0) {
-            scope.launch { snackbar.showSnackbar(OfflineAdLimits.DAILY_CAP_MESSAGE) }
-            return
-        }
-        // Одна глава без кредитов — предложить рекламу; несколько — скачать сколько есть или ad+1
-        if (chaptersToDl.size == 1 && offlineCredits == 0) {
-            pendingAdChapters = chaptersToDl
-            return
-        }
-        if (offlineCredits > 0) {
-            startDownload(chaptersToDl.take(offlineCredits))
-            scope.launch {
+        scope.launch {
+            if (!authRepository.isLoggedIn()) {
+                onLogin()
+                return@launch
+            }
+            if (chaptersToDl.isEmpty()) {
+                snackbar.showSnackbar("Нечего скачивать")
+                return@launch
+            }
+            // userFlow на первом кадре ещё null — Premium читаем из сессии,
+            // иначе диалог «смотреть рекламу» вспыхивает у подписчика.
+            if (authRepository.isPremium() || isPremium) {
+                startDownload(chaptersToDl)
+                return@launch
+            }
+            if (offlineCredits >= chaptersToDl.size) {
+                startDownload(chaptersToDl)
+                return@launch
+            }
+            if (offlineCredits == 0 && adStatus.dailyRemaining <= 0) {
+                snackbar.showSnackbar(OfflineAdLimits.DAILY_CAP_MESSAGE)
+                return@launch
+            }
+            // Одна глава без кредитов — предложить рекламу; несколько — скачать сколько есть или ad+1
+            if (chaptersToDl.size == 1 && offlineCredits == 0) {
+                pendingAdChapters = chaptersToDl
+                return@launch
+            }
+            if (offlineCredits > 0) {
+                startDownload(chaptersToDl.take(offlineCredits))
                 snackbar.showSnackbar(
                     "Без Premium: скачано ${minOf(offlineCredits, chaptersToDl.size)} из ${chaptersToDl.size} " +
                         "(кредиты за рекламу). Остальное — Premium или ещё реклама.",
                 )
+                return@launch
             }
-            return
+            pendingAdChapters = chaptersToDl.take(1)
         }
-        pendingAdChapters = chaptersToDl.take(1)
     }
 
     fun showRewardedForPending() {
         val pending = pendingAdChapters ?: return
-        val act = activity
-        if (act == null) {
-            scope.launch { snackbar.showSnackbar("Не удалось открыть рекламу") }
-            pendingAdChapters = null
-            return
-        }
-        if (adStatus.dailyRemaining <= 0) {
-            scope.launch { snackbar.showSnackbar(OfflineAdLimits.DAILY_CAP_MESSAGE) }
-            pendingAdChapters = null
-            return
-        }
-        adBusy = true
-        rewardedAdManager.show(
-            activity = act,
-            onRewarded = { _, _ ->
-                scope.launch {
-                    val grant = adRewardStore.grantRewarded()
-                    if (!grant.ok) {
-                        snackbar.showSnackbar(grant.reason ?: OfflineAdLimits.DAILY_CAP_MESSAGE)
+        scope.launch {
+            if (authRepository.isPremium() || isPremium) {
+                pendingAdChapters = null
+                startDownload(pending)
+                return@launch
+            }
+            val act = activity
+            if (act == null) {
+                snackbar.showSnackbar("Не удалось открыть рекламу")
+                pendingAdChapters = null
+                return@launch
+            }
+            if (adStatus.dailyRemaining <= 0) {
+                snackbar.showSnackbar(OfflineAdLimits.DAILY_CAP_MESSAGE)
+                pendingAdChapters = null
+                return@launch
+            }
+            adBusy = true
+            rewardedAdManager.show(
+                activity = act,
+                onRewarded = { _, _ ->
+                    scope.launch {
+                        val grant = adRewardStore.grantRewarded()
+                        if (!grant.ok) {
+                            snackbar.showSnackbar(grant.reason ?: OfflineAdLimits.DAILY_CAP_MESSAGE)
+                            adBusy = false
+                            return@launch
+                        }
+                        snackbar.showSnackbar(
+                            "Награда: +${grant.creditsAdded} глава, чтение ${OfflineAdLimits.READ_PASS_MINUTES} мин",
+                        )
+                        // кредит начислен — OfflineRepository спишет при скачивании
+                        startDownload(pending.take(1))
+                        pendingAdChapters = null
                         adBusy = false
-                        return@launch
                     }
-                    snackbar.showSnackbar(
-                        "Награда: +${grant.creditsAdded} глава, чтение ${OfflineAdLimits.READ_PASS_MINUTES} мин",
-                    )
-                    // кредит начислен — OfflineRepository спишет при скачивании
-                    startDownload(pending.take(1))
-                    pendingAdChapters = null
+                },
+                onFailed = { msg ->
+                    scope.launch {
+                        snackbar.showSnackbar(msg)
+                        adBusy = false
+                    }
+                },
+                onDismissed = {
                     adBusy = false
-                }
-            },
-            onFailed = { msg ->
-                scope.launch {
-                    snackbar.showSnackbar(msg)
-                    adBusy = false
-                }
-            },
-            onDismissed = {
-                adBusy = false
-            },
-        )
+                },
+            )
+        }
     }
 
     LaunchedEffect(Unit) {
-        rewardedAdManager.preload()
+        if (!authRepository.isPremium()) rewardedAdManager.preload()
     }
 
     LaunchedEffect(titleKey, reload) {

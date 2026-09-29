@@ -70,7 +70,6 @@ import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
 import ru.tomilo.lib.mobile.ui.screens.games.GamesScreen
 import ru.tomilo.lib.mobile.ui.screens.games.MatchThreeScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
-import ru.tomilo.lib.mobile.ui.screens.lucky.LuckyScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
 import ru.tomilo.lib.mobile.ui.screens.onboarding.OnboardingScreen
@@ -111,7 +110,6 @@ object Routes {
     const val Quests = "quests"
     const val Hub = "hub"
     const val Wheel = "wheel"
-    const val Lucky = "lucky"
     const val Shop = "shop"
     const val Games = "games"
     const val MatchThree = "games/match-three"
@@ -379,7 +377,6 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenGames = { navController.navigate(Routes.Games) },
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
-                    onOpenLucky = { navController.navigate(Routes.Lucky) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
                     onOpenPremium = { navController.navigate(Routes.Premium) },
                     onOpenProfile = { navigateTab(Routes.Profile) },
@@ -483,8 +480,6 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenShop = { navController.navigate(Routes.Shop) },
                     onOpenGames = { navController.navigate(Routes.Games) },
                     onOpenMyPublicProfile = { id -> navController.navigate(Routes.user(id)) },
-                    adsConsent = adsConsent,
-                    onOpenAdSettings = { container.adsConsentStore.set(AdsConsent.UNKNOWN) },
                 )
             }
             composable(Routes.Updates) {
@@ -516,16 +511,6 @@ fun TomiloNavHost(container: AppContainer) {
                     authRepository = container.authRepository,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
-                )
-            }
-            composable(Routes.Lucky) {
-                LuckyScreen(
-                    catalogRepository = container.catalogRepository,
-                    includeAdult = contentSettings.showAdultContent,
-                    onBack = { navController.popBackStack() },
-                    onOpenTitle = { id, slug ->
-                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
-                    },
                 )
             }
             composable(Routes.Hub) {

@@ -166,6 +166,7 @@ object WebtoonTiles {
 
     private suspend fun sourceFile(context: Context, source: String, retry: Int): File {
         localFile(source)?.takeIf { it.isFile }?.let { return it }
+        if (isLocalSource(source)) error("Локальная страница не найдена")
         val cacheDir = File(context.cacheDir, "webtoon_sources").apply { mkdirs() }
         val key = sha256(source)
         val destination = File(cacheDir, "$key.source")
@@ -214,6 +215,9 @@ object WebtoonTiles {
     private fun client(context: Context): OkHttpClient = mediaClient ?: synchronized(this) {
         mediaClient ?: NetworkModule.createMediaClient(context).also { mediaClient = it }
     }
+
+    private fun isLocalSource(source: String): Boolean =
+        source.startsWith("file:") || source.startsWith("content:") || source.startsWith("/")
 
     private fun localFile(source: String): File? = runCatching {
         when {

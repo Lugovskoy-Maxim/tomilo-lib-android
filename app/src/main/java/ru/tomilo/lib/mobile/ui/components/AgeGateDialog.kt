@@ -24,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,6 +34,9 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimaryDim
+import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 /** Обязательное подтверждение 18+ при первом запуске. */
@@ -56,7 +58,8 @@ fun AgeGateDialog(
                 .padding(horizontal = 12.dp)
                 .fillMaxWidth()
                 .background(
-                    brush = Brush.verticalGradient(listOf(Color(0xFF1C1010), TomiloBg)),
+                    // Токены темы: в светлой теме без тёмно-бордовых литералов.
+                    brush = Brush.verticalGradient(listOf(TomiloSurface, TomiloBg)),
                     shape = RoundedCornerShape(24.dp),
                 )
                 .border(
@@ -99,13 +102,13 @@ fun AgeGateDialog(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF121111), RoundedCornerShape(24.dp))
+                    .background(TomiloSurface2, RoundedCornerShape(24.dp))
                     .padding(horizontal = 14.dp, vertical = 11.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     "Подтверждение сохраняется только на этом устройстве. Если вам нет 18 лет, выберите выход с сайта.",
-                    color = TomiloText,
+                    color = TomiloMuted,
                     fontSize = 14.sp,
                     lineHeight = 17.sp,
                     textAlign = TextAlign.Center,
