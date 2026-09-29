@@ -70,7 +70,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
@@ -126,7 +128,7 @@ fun TomiloBottomBar(
                 )
                 .border(
                     width = 1.dp,
-                    color = Color(0xFF1E1E1E),
+                    color = TomiloBorder,
                     shape = BarShape,
                 )
                 .padding(horizontal = 5.dp, vertical = 3.dp),
@@ -205,8 +207,7 @@ private fun NavTabItem(
     val labelLineHeight = if (fontScale >= 1.2f) 12.sp else 14.sp
     val motionEnabled = ValueAnimator.areAnimatorsEnabled()
     val contentColor by animateColorAsState(
-        // Дизайн: активная вкладка — белая иконка, неактивная — Muted.
-        targetValue = if (selected) Color.White else TomiloMuted,
+        targetValue = if (selected) TomiloText else TomiloMuted,
         animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabColor",
     )
@@ -262,7 +263,7 @@ private fun NavTabItem(
                     ) {
                         Text(
                             text = if (badgeCount > 99) "99+" else badgeCount.toString(),
-                            color = Color.White,
+                            color = TomiloOnPrimary,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                         )
@@ -280,8 +281,7 @@ private fun NavTabItem(
             Text(
                 text = label,
                 modifier = Modifier.offset(y = (-5).dp),
-                // Дизайн: активная вкладка — белый текст, неактивная — Muted.
-                color = if (selected) Color.White else TomiloMuted,
+                color = if (selected) TomiloText else TomiloMuted,
                 fontSize = labelFontSize,
                 lineHeight = labelLineHeight,
                 fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
@@ -304,7 +304,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
             .clip(MoreShape)
             // В стиле основной панели: Surface @ 80 %, тонкая тёмная граница.
             .background(TomiloSurface.copy(alpha = 0.80f))
-            .border(1.dp, Color(0xFF1E1E1E), MoreShape)
+            .border(1.dp, TomiloBorder, MoreShape)
             .clickable(
                 role = Role.Tab,
                 onClick = {

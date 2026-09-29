@@ -114,8 +114,10 @@ import ru.tomilo.lib.mobile.ui.components.rememberNativeCatalogAd
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private const val CATALOG_AD_AFTER_TITLES = 8
@@ -462,7 +464,7 @@ fun CatalogScreen(
                                 Icon(
                                     imageVector = icon,
                                     contentDescription = label,
-                                    tint = if (isSelected) Color.White else TomiloMuted,
+                                    tint = if (isSelected) TomiloOnPrimary else TomiloMuted,
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -491,7 +493,7 @@ fun CatalogScreen(
                             ) {
                                 Text(
                                     text = "$activeFilters",
-                                    color = Color.White,
+                                    color = TomiloOnPrimary,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                 )
@@ -1047,15 +1049,15 @@ private fun WrapChips(
             val isSelected = opt in selected
             Text(
                 label(opt),
-                color = if (isSelected) Color.White else TomiloText,
+                color = if (isSelected) TomiloOnPrimary else TomiloText,
                 fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(if (isSelected) TomiloPrimary else Color(0xFF1A1C20))
+                    .background(if (isSelected) TomiloPrimary else TomiloSurface3)
                     .border(
                         1.dp,
-                        if (isSelected) TomiloPrimary else Color.White.copy(alpha = 0.10f),
+                        if (isSelected) TomiloPrimary else TomiloBorder,
                         RoundedCornerShape(999.dp),
                     )
                     .clickable { onToggle(opt) }
@@ -1073,15 +1075,15 @@ private fun CatalogTypePill(
 ) {
     Text(
         label,
-        color = Color.White,
+        color = if (selected) TomiloOnPrimary else TomiloText,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
         fontSize = 13.sp,
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(if (selected) TomiloPrimary else Color(0xFF1A1C20))
+            .background(if (selected) TomiloPrimary else TomiloSurface3)
             .border(
                 1.dp,
-                if (selected) TomiloPrimary else Color.White.copy(alpha = 0.10f),
+                if (selected) TomiloPrimary else TomiloBorder,
                 RoundedCornerShape(999.dp),
             )
             .clickable(onClick = onClick)
@@ -1099,10 +1101,10 @@ private fun CatalogSortPill(
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
-            .background(Color(0xFF15171A))
+            .background(if (selected) TomiloPrimary.copy(alpha = 0.16f) else TomiloSurface3)
             .border(
                 1.dp,
-                if (selected) Color.White.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.10f),
+                if (selected) TomiloPrimary else TomiloBorder,
                 RoundedCornerShape(999.dp),
             )
             .clickable(onClick = onClick)
@@ -1114,13 +1116,13 @@ private fun CatalogSortPill(
                 icon,
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
-                tint = if (selected) Color.White else TomiloMuted,
+                tint = if (selected) TomiloPrimary else TomiloMuted,
             )
             Spacer(Modifier.width(6.dp))
         }
         Text(
             label,
-            color = if (selected) Color.White else TomiloMuted,
+            color = if (selected) TomiloText else TomiloMuted,
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
         )

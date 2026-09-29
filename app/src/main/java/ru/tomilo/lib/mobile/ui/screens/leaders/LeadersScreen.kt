@@ -226,7 +226,7 @@ private fun PeriodSelector(selectedIndex: Int, onSelected: (Int) -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(TomiloSurface)
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+            .border(1.dp, TomiloBorder, RoundedCornerShape(20.dp))
             .padding(5.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -388,7 +388,7 @@ private fun Podium(
             .padding(horizontal = 14.dp, vertical = 6.dp),
         color = TomiloSurface.copy(alpha = 0.65f),
         shape = RoundedCornerShape(26.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
     ) {
         Column(
             modifier = Modifier
@@ -398,7 +398,7 @@ private fun Podium(
                         listOf(
                             Gold.copy(alpha = 0.12f),
                             Color.Transparent,
-                            Color.Black.copy(alpha = 0.35f),
+                            TomiloBg.copy(alpha = 0.12f),
                         ),
                     ),
                 )
@@ -597,7 +597,7 @@ private fun LeaderRow(
         shape = RoundedCornerShape(20.dp),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (isTopTen) TomiloPrimary.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.055f),
+            if (isTopTen) TomiloPrimary.copy(alpha = 0.18f) else TomiloBorder,
         ),
     ) {
         Row(

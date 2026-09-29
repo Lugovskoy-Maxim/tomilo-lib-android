@@ -62,6 +62,7 @@ import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
@@ -230,14 +231,14 @@ fun ChatThreadScreen(
                                     Column {
                                         Text(
                                             bodyText,
-                                            color = if (mine) Color.White else TomiloText,
+                                            color = if (mine) TomiloOnPrimary else TomiloText,
                                             style = MaterialTheme.typography.bodyMedium,
                                         )
                                         msg.createdAtLabel()?.let { label ->
                                             Text(
                                                 label,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = if (mine) Color.White.copy(alpha = 0.68f) else TomiloMuted,
+                                                color = if (mine) TomiloOnPrimary.copy(alpha = 0.72f) else TomiloMuted,
                                             )
                                         }
                                     }
@@ -316,7 +317,7 @@ fun ChatThreadScreen(
                             if (draft.isNotBlank()) TomiloPrimary else TomiloSurface2,
                         ),
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = if (draft.isNotBlank()) Color.White else TomiloMuted) }
+                    ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Отправить", tint = if (draft.isNotBlank()) TomiloOnPrimary else TomiloMuted) }
                 }
             }
             if (sending) {

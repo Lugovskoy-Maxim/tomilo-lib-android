@@ -82,7 +82,8 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private val fallbackCommentReactions = listOf("👍", "👎", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏")
 private val HeartActive = Color(0xFFEF4444)
-private val CommentDivider = Color.White.copy(alpha = 0.065f)
+private val CommentDivider: Color
+    @Composable get() = TomiloBorder.copy(alpha = 0.7f)
 private val ReplyConnector: Color @Composable get() = TomiloPrimary.copy(alpha = 0.34f)
 private val ReplySurface: Color @Composable get() = TomiloPrimary.copy(alpha = 0.055f)
 private val commentBody: TextStyle

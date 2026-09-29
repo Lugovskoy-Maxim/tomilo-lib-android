@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextAlign
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 
 private val LocalShimmerShift = compositionLocalOf<Float?> { null }
 
@@ -93,7 +94,7 @@ fun rememberShimmerBrush(): Brush {
         colors = listOf(
             TomiloSurface2.copy(alpha = 0.55f),
             TomiloSurface2.copy(alpha = 0.85f),
-            Color.White.copy(alpha = 0.12f),
+            TomiloSurface3,
             TomiloSurface2.copy(alpha = 0.85f),
             TomiloSurface2.copy(alpha = 0.55f),
         ),
@@ -296,7 +297,7 @@ fun PosterSkeleton(modifier: Modifier = Modifier) {
                 .clip(RoundedCornerShape(18.dp))
                 .background(TomiloSurface2)
                 .background(rememberShimmerBrush())
-                .border(1.dp, Color.White.copy(alpha = 0.04f), RoundedCornerShape(18.dp)),
+                .border(1.dp, TomiloBorder, RoundedCornerShape(18.dp)),
         ) {
             // Top badge placeholder (e.g. status badge)
             SkeletonBox(
@@ -675,7 +676,7 @@ fun LeaderboardSkeleton(modifier: Modifier = Modifier) {
                     .padding(horizontal = 14.dp),
                 color = TomiloSurface.copy(alpha = 0.65f),
                 shape = RoundedCornerShape(26.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
             ) {
                 Row(
                     modifier = Modifier

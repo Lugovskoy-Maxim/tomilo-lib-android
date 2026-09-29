@@ -160,10 +160,13 @@ import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 import java.io.File
 import java.util.Locale
 
@@ -1269,13 +1272,13 @@ fun ReaderScreen(
         ModalBottomSheet(
             onDismissRequest = { showRating = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = Color(0xFF17171D),
+            containerColor = TomiloSurface,
         ) {
             Column(
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("Оценить главу", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Оценить главу", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(5.dp))
                 Text(
                     if (myChapterRating > 0) "Текущая оценка: $myChapterRating из 10" else "Выберите оценку от 1 до 10",
@@ -1320,7 +1323,7 @@ fun ReaderScreen(
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
             Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                Text("Режим чтения", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Режим чтения", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Text("Настройте читалку под этот тайтл", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(14.dp))
                 Text("Раскладка", color = TomiloMuted, style = MaterialTheme.typography.labelMedium)
@@ -1371,21 +1374,21 @@ fun ReaderScreen(
                     }
                 }
                 Spacer(Modifier.height(18.dp))
-                Text("Яркость", color = Color.White)
+                Text("Яркость", color = TomiloText)
                 Slider(
                     value = if (brightness < 0f) 0.55f else brightness,
                     onValueChange = { brightness = it },
                     valueRange = 0.08f..1f,
                 )
                 if (layout == ReaderLayout.WEBTOON) {
-                    Text("Скорость ленты", color = Color.White)
+                    Text("Скорость ленты", color = TomiloText)
                     Slider(value = speed, onValueChange = { speed = it }, valueRange = 0.4f..5f, steps = 22)
                     Text("${String.format(Locale.ROOT, "%.1f", speed)}×", color = TomiloMuted)
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Не выключать экран", color = Color.White)
+                        Text("Не выключать экран", color = TomiloText)
                         Text("Пока открыта читалка", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(
@@ -1395,7 +1398,7 @@ fun ReaderScreen(
                 }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Сразу без панелей", color = Color.White)
+                        Text("Сразу без панелей", color = TomiloText)
                         Text("Полный экран при открытии", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(
@@ -1431,7 +1434,7 @@ fun ReaderScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Главы", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    Text("Главы", color = TomiloText, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                     Text(
                         if (currentIndex >= 0) "Сейчас ${currentIndex + 1} из ${chapters.size}" else "Всего ${chapters.size}",
                         color = TomiloMuted,
@@ -1439,7 +1442,7 @@ fun ReaderScreen(
                     )
                 }
                 IconButton(onClick = { showChapters = false }) {
-                    Icon(Icons.Default.Close, "Закрыть", tint = Color.White)
+                    Icon(Icons.Default.Close, "Закрыть", tint = TomiloText)
                 }
             }
             if (chapters.isEmpty()) {
@@ -1477,7 +1480,7 @@ fun ReaderScreen(
                     ) {
                         Icon(Icons.Default.Search, null, tint = TomiloMuted, modifier = Modifier.size(34.dp))
                         Spacer(Modifier.height(10.dp))
-                        Text("Главы не найдены", color = Color.White)
+                        Text("Главы не найдены", color = TomiloText)
                         Text("Измените запрос", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
                 } else LazyColumn(state = chaptersListState, modifier = Modifier.fillMaxHeight(0.68f)) {
@@ -1492,14 +1495,14 @@ fun ReaderScreen(
                                     showChapters = false
                                     goChapter(ch.stableId())
                                 }
-                                .background(if (selected) TomiloPrimary.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.025f))
+                                .background(if (selected) TomiloPrimary.copy(alpha = 0.16f) else TomiloSurface2.copy(alpha = 0.55f))
                                 .padding(horizontal = 14.dp, vertical = 13.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 formatChapterTitle(ch.numberLabel(), ch.name) +
                                     if (selected) "  · сейчас" else "",
-                                color = if (selected) TomiloPrimary else Color.White,
+                                color = if (selected) TomiloPrimary else TomiloText,
                                 style = if (selected) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.weight(1f),
                             )
@@ -1602,7 +1605,7 @@ private fun ReaderLoading() {
                 Modifier
                     .size(72.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Brush.linearGradient(listOf(TomiloPrimary.copy(alpha = 0.24f), Color(0xFF17171D))))
+                    .background(Brush.linearGradient(listOf(TomiloPrimary.copy(alpha = 0.24f), TomiloSurface)))
                     .border(1.dp, TomiloPrimary.copy(alpha = 0.30f), RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -1613,7 +1616,7 @@ private fun ReaderLoading() {
                 )
             }
             Spacer(Modifier.height(15.dp))
-            Text("Открываем главу", color = Color.White, style = MaterialTheme.typography.titleMedium)
+            Text("Открываем главу", color = TomiloText, style = MaterialTheme.typography.titleMedium)
             Text("Подготавливаем страницы и позицию чтения", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -1663,9 +1666,9 @@ private fun AdCountdownOverlay(secondsLeft: Int) {
 private fun ReaderError(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
         Surface(
-            color = Color(0xFF17171D),
+            color = TomiloSurface,
             shape = RoundedCornerShape(28.dp),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+            border = BorderStroke(1.dp, TomiloBorder),
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(26.dp),
@@ -1676,7 +1679,7 @@ private fun ReaderError(message: String, onRetry: () -> Unit) {
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Default.BrokenImage, null, tint = Color(0xFFE98273), modifier = Modifier.size(31.dp)) }
                 Spacer(Modifier.height(15.dp))
-                Text("Страница не открылась", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Страница не открылась", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(5.dp))
                 Text(message, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(18.dp))
@@ -1711,7 +1714,7 @@ private fun OfflineAdGate(
     }
     Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
         Surface(
-            color = Color(0xFF17171D),
+            color = TomiloSurface,
             shape = RoundedCornerShape(28.dp),
             border = BorderStroke(1.dp, Color(0xFFE4B85D).copy(alpha = 0.30f)),
         ) {
@@ -1726,7 +1729,7 @@ private fun OfflineAdGate(
                     Icon(Icons.Default.CloudDownload, null, tint = Color(0xFFE4B85D), modifier = Modifier.size(32.dp))
                 }
                 Spacer(Modifier.height(15.dp))
-                Text("Офлайн-глава за рекламу", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Офлайн-глава за рекламу", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(5.dp))
                 Text(message, color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(18.dp))
@@ -1765,9 +1768,9 @@ private fun OfflineConnectionState(
 ) {
     Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
         Surface(
-            color = Color(0xFF17171D),
+            color = TomiloSurface,
             shape = RoundedCornerShape(28.dp),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+            border = BorderStroke(1.dp, TomiloBorder),
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(26.dp),
@@ -1780,7 +1783,7 @@ private fun OfflineConnectionState(
                     modifier = Modifier.size(142.dp),
                 )
                 Spacer(Modifier.height(10.dp))
-                Text("Нет соединения", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Нет соединения", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Не удалось загрузить главу. Проверьте интернет или откройте сохранённые главы.",
@@ -1814,7 +1817,7 @@ private fun PremiumGate(
 ) {
     Box(Modifier.fillMaxSize().padding(22.dp), contentAlignment = Alignment.Center) {
         Surface(
-            color = Color(0xFF17171D),
+            color = TomiloSurface,
             shape = RoundedCornerShape(28.dp),
             border = BorderStroke(1.dp, Color(0xFFE4B85D).copy(alpha = 0.30f)),
         ) {
@@ -1827,7 +1830,7 @@ private fun PremiumGate(
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Default.Lock, null, tint = Color(0xFFE4B85D), modifier = Modifier.size(32.dp)) }
                 Spacer(Modifier.height(15.dp))
-                Text("Глава доступна в Premium", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                Text("Глава доступна в Premium", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(5.dp))
                 Text(message ?: "Платная глава", color = TomiloMuted, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(18.dp))
@@ -1899,9 +1902,9 @@ private fun WebtoonReader(
         item {
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 18.dp),
-                color = Color(0xFF15151A),
+                color = TomiloSurface,
                 shape = RoundedCornerShape(26.dp),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.09f)),
+                border = BorderStroke(1.dp, TomiloBorder),
             ) {
                 Column(
                     Modifier.fillMaxWidth().padding(18.dp),
@@ -1916,7 +1919,7 @@ private fun WebtoonReader(
                     Spacer(Modifier.height(10.dp))
                     Text(
                         if (hasNext) "Глава прочитана" else "Вы дочитали доступные главы",
-                        color = Color.White,
+                        color = TomiloText,
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
@@ -1931,7 +1934,7 @@ private fun WebtoonReader(
                     Spacer(Modifier.height(16.dp))
                     Text(
                         if (myRating > 0) "Ваша оценка главы — $myRating из 10" else "Как вам эта глава?",
-                        color = if (myRating > 0) Color(0xFFE4B85D) else Color.White,
+                        color = if (myRating > 0) TomiloPremium else TomiloText,
                         style = MaterialTheme.typography.titleSmall,
                     )
                     Spacer(Modifier.height(7.dp))
@@ -1969,9 +1972,9 @@ private fun WebtoonReader(
                         ) { Text("Вернуться к тайтлу") }
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 9.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        TextButton(onClick = onPrev) { Text("← Предыдущая", color = Color.White) }
+                        TextButton(onClick = onPrev) { Text("← Предыдущая", color = TomiloPrimary) }
                         if (hasNext) {
-                            TextButton(onClick = onNext) { Text("Следующая →", color = Color.White) }
+                            TextButton(onClick = onNext) { Text("Следующая →", color = TomiloPrimary) }
                         }
                     }
                     TextButton(onClick = onOpenComments, modifier = Modifier.padding(top = 4.dp)) {

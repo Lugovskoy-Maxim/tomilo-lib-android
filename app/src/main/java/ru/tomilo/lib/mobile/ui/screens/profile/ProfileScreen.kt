@@ -9,6 +9,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NotificationsNone
@@ -63,11 +65,9 @@ import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -127,7 +127,12 @@ import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.UserDto
+import ru.tomilo.lib.mobile.data.local.ACCENT_PALETTES
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
+import ru.tomilo.lib.mobile.data.local.DEFAULT_ACCENT_HEX
+import ru.tomilo.lib.mobile.data.local.FREE_ACCENT_COUNT
+import ru.tomilo.lib.mobile.data.local.ThemeMode
+import ru.tomilo.lib.mobile.data.local.accentUnlocked
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.local.ReadingSettings
@@ -145,10 +150,12 @@ import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private sealed interface ProfileUserState {
@@ -310,7 +317,11 @@ fun ProfileScreen(
                                 )
                             }
                             2 -> {
-                                ProfileSubscreenHeader("Настройки", onBack = { selectedProfileTab = 0 })
+                                ProfileSubscreenHeader(
+                                    title = "Настройки",
+                                    onBack = { selectedProfileTab = 0 },
+                                    subtitle = "Настройки читалки, тем, уведомлений, оформление, приватность, безопасность",
+                                )
                                 ProfileSettingsTab(
                                     readingSettings = readingSettings,
                                     contentSettings = contentSettings,
@@ -318,6 +329,8 @@ fun ProfileScreen(
                                     offlineBytes = offlineBytes,
                                     cacheMsg = cacheMsg,
                                     isStaff = profileUser.isStaff(),
+                                    isPremium = premium,
+                                    onOpenPremium = onOpenPremium,
                                     onKeepScreenOn = { scope.launch { readingPrefs.setKeepScreenOn(it) } },
                                     onStartFullscreen = { scope.launch { readingPrefs.setStartFullscreen(it) } },
                                     onAutoAdvanceChapters = { scope.launch { readingPrefs.setAutoAdvanceChapters(it) } },
@@ -516,10 +529,34 @@ private fun ProfileMenuRow(icon: ImageVector, title: String, subtitle: String, o
 }
 
 @Composable
-private fun ProfileSubscreenHeader(title: String, onBack: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Вернуться к профилю", tint = TomiloText) }
-        Text(title, color = TomiloText, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+private fun ProfileSubscreenHeader(title: String, onBack: () -> Unit, subtitle: String? = null) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                onClick = onBack,
+                shape = CircleShape,
+                color = TomiloSurface2,
+                modifier = Modifier.size(40.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = TomiloText)
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Surface(shape = RoundedCornerShape(20.dp), color = TomiloSurface2) {
+                Text(
+                    title,
+                    color = TomiloText,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                )
+            }
+        }
+        if (!subtitle.isNullOrBlank()) {
+            Spacer(Modifier.height(14.dp))
+            Text(subtitle, color = TomiloMuted, fontSize = 14.sp, lineHeight = 20.sp)
+        }
     }
     Spacer(Modifier.height(8.dp))
 }
@@ -545,7 +582,7 @@ private fun UserProfileHeaderCard(
 
     val rankTitle = profileRankTitle(level)
 
-    val accent = if (isPremium) TomiloPremium else TomiloPrimary
+    val accent = TomiloPrimary
     val backgroundUrl = user.decorations()?.backgroundUrl() ?: user.decorations()?.cardUrl()
 
     Column(
@@ -641,7 +678,7 @@ private fun UserProfileHeaderCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 user.username ?: "Пользователь",
-                                color = if (isPremium) TomiloPremium else TomiloText,
+                                color = TomiloText,
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
@@ -703,21 +740,28 @@ private fun UserProfileHeaderCard(
 
                 Spacer(Modifier.height(18.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = accent.copy(alpha = 0.82f), shape = RoundedCornerShape(9.dp)) {
+                    Icon(
+                        Icons.Default.Bolt,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Surface(color = accent, shape = RoundedCornerShape(9.dp)) {
                         Text(
                             "Уровень $level",
-                            color = Color.White,
+                            color = TomiloOnPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                         )
                     }
                     Spacer(Modifier.weight(1f))
-                    Text("${levelExpDelta.coerceAtMost(neededExp)}/$neededExp", color = TomiloText, fontSize = 12.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("XP", color = TomiloMuted, fontSize = 11.sp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("${(progress * 100).toInt()}%", color = TomiloMuted, fontSize = 11.sp)
+                    Text(
+                        "${levelExpDelta.coerceAtMost(neededExp)}/$neededExp XP  ${(progress * 100).toInt()}%",
+                        color = TomiloMuted,
+                        fontSize = 12.sp,
+                    )
                 }
                 Spacer(Modifier.height(7.dp))
                 Box(
@@ -725,16 +769,14 @@ private fun UserProfileHeaderCard(
                         .fillMaxWidth()
                         .height(7.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFB8BBC2)),
+                        .background(TomiloSurface3),
                 ) {
                     Box(
                         Modifier
                             .fillMaxWidth(progress)
                             .height(7.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.horizontalGradient(listOf(TomiloPrimary, Color(0xFFFF6D7E))),
-                            ),
+                            .background(accent),
                     )
                 }
                 Spacer(Modifier.height(7.dp))
@@ -1289,6 +1331,8 @@ private fun ProfileSettingsTab(
     offlineBytes: Long,
     cacheMsg: String?,
     isStaff: Boolean,
+    isPremium: Boolean,
+    onOpenPremium: () -> Unit,
     onKeepScreenOn: (Boolean) -> Unit,
     onStartFullscreen: (Boolean) -> Unit,
     onAutoAdvanceChapters: (Boolean) -> Unit,
@@ -1298,7 +1342,65 @@ private fun ProfileSettingsTab(
     onOpenAdmin: () -> Unit,
     onLogout: () -> Unit,
 ) {
+    val themeMode by themePrefs.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+    val accentHex by themePrefs.accentHexFlow.collectAsState(initial = null)
+    val settingsScope = rememberCoroutineScope()
+    val settingsContext = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ProfileSectionHeader("Настройка тем", "Акцент и цветовая схема")
+        ThemeAccentRow(
+            accentHex = accentHex,
+            isPremium = isPremium,
+            onSelect = { hex -> settingsScope.launch { themePrefs.setAccentHex(hex) } },
+            onLocked = {
+                Toast.makeText(settingsContext, "Этот акцент доступен с Premium", Toast.LENGTH_SHORT).show()
+                onOpenPremium()
+            },
+        )
+        Text("Цветовая схема", color = TomiloMuted, fontSize = 13.sp)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SchemePreviewCard(
+                label = "Тёмная",
+                selected = themeMode == ThemeMode.DARK,
+                background = Color(0xFF1C1E22),
+                foreground = Color.White,
+                bar = Color(0xFF9AA0A8),
+                accent = TomiloPrimary,
+                onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.DARK) } },
+                modifier = Modifier.weight(1f),
+            )
+            SchemePreviewCard(
+                label = "Светлая",
+                selected = themeMode == ThemeMode.LIGHT,
+                background = Color(0xFFF2F3F5),
+                foreground = Color(0xFF1A1C20),
+                bar = Color(0xFF2A2E35),
+                accent = TomiloPrimary,
+                onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.LIGHT) } },
+                modifier = Modifier.weight(1f),
+            )
+            SchemePreviewCard(
+                label = "Кофейная",
+                selected = themeMode == ThemeMode.COFFEE,
+                background = Color(0xFFF6F0E6),
+                foreground = Color(0xFF2A2118),
+                bar = Color(0xFF6B5A48),
+                accent = TomiloPrimary,
+                onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.COFFEE) } },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        TextButton(
+            onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.SYSTEM) } },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                "Как в системе",
+                color = if (themeMode == ThemeMode.SYSTEM) TomiloPrimary else TomiloMuted,
+                fontWeight = if (themeMode == ThemeMode.SYSTEM) FontWeight.Bold else FontWeight.Medium,
+            )
+        }
+
         // 1. Reader Settings
         ProfileSectionHeader("Настройки читалки", "Параметры отображения и комфорта")
         Surface(
@@ -1398,57 +1500,6 @@ private fun ProfileSettingsTab(
                     onToggle = onToggleAdult,
                 )
             }
-        }
-
-        // 3. Оформление
-        val themeMode by themePrefs.themeModeFlow.collectAsState(
-            initial = ru.tomilo.lib.mobile.data.local.ThemeMode.SYSTEM,
-        )
-        var themePickerOpen by remember { mutableStateOf(false) }
-        val settingsScope = rememberCoroutineScope()
-        ProfileSectionHeader("Оформление", "Тема приложения")
-        ActionRow(
-            icon = Icons.Outlined.DarkMode,
-            title = "Тема оформления",
-            subtitle = when (themeMode) {
-                ru.tomilo.lib.mobile.data.local.ThemeMode.SYSTEM -> "Как в системе"
-                ru.tomilo.lib.mobile.data.local.ThemeMode.DARK -> "Тёмная"
-                ru.tomilo.lib.mobile.data.local.ThemeMode.LIGHT -> "Светлая"
-            },
-            onClick = { themePickerOpen = true },
-        )
-        if (themePickerOpen) {
-            AlertDialog(
-                onDismissRequest = { themePickerOpen = false },
-                title = { Text("Тема оформления") },
-                text = {
-                    Column {
-                        ru.tomilo.lib.mobile.data.local.ThemeMode.entries.forEach { mode ->
-                            val selected = mode == themeMode
-                            TextButton(
-                                onClick = {
-                                    themePickerOpen = false
-                                    settingsScope.launch { themePrefs.setThemeMode(mode) }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text(
-                                    text = when (mode) {
-                                        ru.tomilo.lib.mobile.data.local.ThemeMode.SYSTEM -> "Как в системе"
-                                        ru.tomilo.lib.mobile.data.local.ThemeMode.DARK -> "Тёмная"
-                                        ru.tomilo.lib.mobile.data.local.ThemeMode.LIGHT -> "Светлая"
-                                    },
-                                    color = if (selected) TomiloPrimary else TomiloText,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = { themePickerOpen = false }) { Text("Отмена") }
-                },
-            )
         }
 
         // 4. Memory & Cache
@@ -1776,6 +1827,145 @@ private fun AppVersionFooter() {
         style = MaterialTheme.typography.labelSmall,
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+@Composable
+private fun ThemeAccentRow(
+    accentHex: String?,
+    isPremium: Boolean,
+    onSelect: (String) -> Unit,
+    onLocked: () -> Unit,
+) {
+    val activeHex = when {
+        accentHex.isNullOrBlank() -> DEFAULT_ACCENT_HEX
+        accentUnlocked(accentHex, isPremium) -> accentHex
+        else -> DEFAULT_ACCENT_HEX
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ACCENT_PALETTES.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { item ->
+                    val index = ACCENT_PALETTES.indexOf(item)
+                    val locked = index >= FREE_ACCENT_COUNT && !isPremium
+                    AccentSwatch(
+                        color = item.color,
+                        mate = accentMate(index),
+                        selected = item.hex.equals(activeHex, ignoreCase = true),
+                        locked = locked,
+                        onClick = { if (locked) onLocked() else onSelect(item.hex) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun accentMate(index: Int): Color = when (index % 4) {
+    0 -> Color(0xFF1A1A1A)
+    1 -> Color(0xFFE6E6E6)
+    2 -> Color(0xFFD9CBB8)
+    else -> Color(0xFF2A2A2A)
+}
+
+@Composable
+private fun AccentSwatch(
+    color: Color,
+    mate: Color,
+    selected: Boolean,
+    locked: Boolean,
+    onClick: () -> Unit,
+) {
+    val lockTint = if (mate.red > 0.7f) Color(0xFF2A2118) else Color.White
+    Box(
+        Modifier
+            .size(48.dp)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) Color(0xFFE6C27A) else TomiloBorder.copy(alpha = 0.45f),
+                shape = CircleShape,
+            )
+            .padding(3.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawCircle(mate)
+            drawArc(color = color, startAngle = 90f, sweepAngle = 180f, useCenter = true)
+        }
+        if (locked) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.28f)))
+            Icon(
+                Icons.Default.Lock,
+                contentDescription = "Premium",
+                tint = lockTint,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SchemePreviewCard(
+    label: String,
+    selected: Boolean,
+    background: Color,
+    foreground: Color,
+    bar: Color,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(124.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(background)
+                .border(
+                    width = if (selected) 2.dp else 1.dp,
+                    color = if (selected) Color(0xFFE6C27A) else TomiloBorder.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(18.dp),
+                )
+                .clickable(onClick = onClick)
+                .padding(12.dp),
+        ) {
+            Column {
+                Text("Abc", color = foreground, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.72f)
+                        .height(5.dp)
+                        .clip(CircleShape)
+                        .background(bar),
+                )
+                Spacer(Modifier.height(7.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.46f)
+                        .height(5.dp)
+                        .clip(CircleShape)
+                        .background(bar.copy(alpha = 0.7f)),
+                )
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(accent),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            label,
+            color = if (selected) TomiloText else TomiloMuted,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
 }
 
 private fun formatBytes(bytes: Long): String {

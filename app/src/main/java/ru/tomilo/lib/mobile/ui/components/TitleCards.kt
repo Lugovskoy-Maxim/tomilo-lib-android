@@ -56,10 +56,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
 import ru.tomilo.lib.mobile.core.MediaUrl
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSuccess
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 import java.util.Locale
 
@@ -156,7 +158,7 @@ fun TitlePosterCard(
                     listOf(TomiloSurface2, TomiloSurface2.copy(alpha = 0.76f)),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.075f), CoverShape)
+            .border(1.dp, TomiloBorder, CoverShape)
             .clickable(onClick = onClick)
             .padding(bottom = 9.dp)
     }
@@ -483,7 +485,7 @@ fun TitleWideCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
             .background(TomiloSurface2)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .border(1.dp, TomiloBorder, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .padding(10.dp),
         verticalAlignment = Alignment.Top,
@@ -581,7 +583,7 @@ fun TitleWideCard(
 private fun WideOutlineChip(
     text: String,
     color: Color = TomiloText,
-    borderColor: Color = Color.White.copy(alpha = 0.16f),
+    borderColor: Color = TomiloBorder,
     leading: @Composable (() -> Unit)? = null,
 ) {
     Row(
@@ -639,7 +641,7 @@ fun TitleSearchCard(
         shadowElevation = 5.dp,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            Color.White.copy(alpha = 0.09f),
+            TomiloBorder,
         ),
     ) {
         Row(
@@ -766,7 +768,7 @@ fun TitleSearchCard(
                     Modifier
                         .size(32.dp)
                         .clip(RoundedCornerShape(11.dp))
-                        .background(Color.White.copy(alpha = 0.055f)),
+                        .background(TomiloSurface3),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(

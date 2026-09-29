@@ -80,13 +80,37 @@ val TomiloLightPalette = TomiloPalette(
     ink = Color(0xFF121315),
 )
 
+/** Кофейная схема из макета: тёплый кремовый фон, тёмный текст, тот же акцент. */
+val TomiloCoffeePalette = TomiloPalette(
+    bg = Color(0xFFF3EBDD),
+    surface = Color(0xFFFFF8F1),
+    surface2 = Color(0xFFEFE4D4),
+    surface3 = Color(0xFFE4D5C0),
+    primary = Color(0xFFE04841),
+    primaryDim = Color(0xFFC93A34),
+    primarySoft = Color(0xFFF6CFCB),
+    onPrimary = Color(0xFFFFFFFF),
+    text = Color(0xFF2A2118),
+    muted = Color(0xFF7A6A58),
+    border = Color(0xFFD9C8B0),
+    danger = Color(0xFFE04841),
+    premium = Color(0xFFC2964A),
+    success = Color(0xFF3B7E4C),
+    info = Color(0xFF8A5A32),
+    pink = Color(0xFFC27A8C),
+    glass = Color(0xF2FFF8F1),
+    glassBorder = Color(0x332A2118),
+    paper = Color(0xFFFFF8F1),
+    ink = Color(0xFF2A2118),
+)
+
 val LocalTomiloPalette = staticCompositionLocalOf { TomiloDarkPalette }
 
 val TomiloBg: Color @Composable get() = LocalTomiloPalette.current.bg
 val TomiloSurface: Color @Composable get() = LocalTomiloPalette.current.surface
 val TomiloSurface2: Color @Composable get() = LocalTomiloPalette.current.surface2
 val TomiloSurface3: Color @Composable get() = LocalTomiloPalette.current.surface3
-val TomiloPrimary: Color @Composable get() = LocalTomiloPalette.current.primary
+val TomiloPrimary: Color @Composable get() = LocalTomiloAccent.current
 val TomiloPrimaryDim: Color @Composable get() = LocalTomiloPalette.current.primaryDim
 val TomiloPrimarySoft: Color @Composable get() = LocalTomiloPalette.current.primarySoft
 val TomiloOnPrimary: Color @Composable get() = LocalTomiloPalette.current.onPrimary

@@ -82,8 +82,10 @@ import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.components.PageIntro
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 
@@ -526,7 +528,7 @@ private fun OfflineStatusCard(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = RoundedCornerShape(24.dp),
         color = TomiloSurface2.copy(alpha = 0.68f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
     ) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -534,8 +536,8 @@ private fun OfflineStatusCard(
                     Modifier
                         .size(58.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (online) Color.White.copy(alpha = 0.06f) else TomiloPrimary.copy(alpha = 0.12f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp)),
+                        .background(if (online) TomiloSurface3 else TomiloPrimary.copy(alpha = 0.12f))
+                        .border(1.dp, TomiloBorder, RoundedCornerShape(20.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -632,7 +634,7 @@ private fun OfflineTitleBlock(
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(24.dp))
             .background(TomiloSurface2.copy(alpha = 0.66f))
-            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(24.dp)),
+            .border(1.dp, TomiloBorder, RoundedCornerShape(24.dp)),
     ) {
         Row(
             Modifier
@@ -683,13 +685,13 @@ private fun OfflineTitleBlock(
                         progress = { if (dlCount > 0) (readCount.toFloat() / dlCount).coerceIn(0f, 1f) else 0f },
                         modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(99.dp)),
                         color = TomiloPrimary,
-                        trackColor = Color.White.copy(alpha = 0.13f),
+                        trackColor = TomiloSurface3,
                     )
                 }
             }
             IconButton(onClick = onDeleteTitle) {
                 Box(
-                    Modifier.size(42.dp).clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = 0.06f)),
+                    Modifier.size(42.dp).clip(RoundedCornerShape(15.dp)).background(TomiloSurface3),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Default.Delete, contentDescription = "Удалить тайтл", tint = TomiloMuted) }
             }

@@ -24,20 +24,31 @@ val DEFAULT_ACCENT_HEX = "#FF5F57"
 
 val ACCENT_PALETTES = listOf(
     AccentPaletteItem("coral", "Коралловый", "#FF5F57", Color(0xFFFF5F57), "Фирменный стиль Tomilo"),
-    AccentPaletteItem("amber", "Золотой янтарь", "#FFB300", Color(0xFFFFB300), "Премиальное сияние"),
+    AccentPaletteItem("crimson", "Рубин", "#F43F5E", Color(0xFFF43F5E), "Тёплый красный"),
+    AccentPaletteItem("amber", "Янтарь", "#FFB300", Color(0xFFFFB300), "Золотой акцент"),
+    AccentPaletteItem("orange", "Оранжевый", "#FF7043", Color(0xFFFF7043), "Закатный луч"),
     AccentPaletteItem("amethyst", "Аметист", "#9D4EDD", Color(0xFF9D4EDD), "Магический фиолетовый"),
     AccentPaletteItem("emerald", "Изумруд", "#10B981", Color(0xFF10B981), "Киберпанк-нефрит"),
     AccentPaletteItem("sapphire", "Сапфир", "#00B4D8", Color(0xFF00B4D8), "Морская лазурь"),
-    AccentPaletteItem("crimson", "Рубин & Сакура", "#F43F5E", Color(0xFFF43F5E), "Неоновый розовый"),
     AccentPaletteItem("cyan", "Циан", "#06B6D4", Color(0xFF06B6D4), "Электрическая волна"),
-    AccentPaletteItem("orange", "Солнечный оранж", "#FF7043", Color(0xFFFF7043), "Закатный луч"),
 )
+
+/** Первые акценты доступны всем, остальные — с Premium, как в макете настроек. */
+const val FREE_ACCENT_COUNT = 4
+
+fun accentUnlocked(hex: String?, premium: Boolean): Boolean {
+    if (hex.isNullOrBlank() || hex.equals(DEFAULT_ACCENT_HEX, ignoreCase = true)) return true
+    val index = ACCENT_PALETTES.indexOfFirst { it.hex.equals(hex, ignoreCase = true) }
+    if (index < 0) return premium
+    return premium || index < FREE_ACCENT_COUNT
+}
 
 /** Режим темы: следовать системе, принудительно тёмная или светлая. */
 enum class ThemeMode(val storageValue: String) {
     SYSTEM("system"),
     DARK("dark"),
     LIGHT("light"),
+    COFFEE("coffee"),
     ;
 
     companion object {

@@ -129,9 +129,12 @@ import ru.tomilo.lib.mobile.ui.components.formatRating
 import ru.tomilo.lib.mobile.ui.components.statusLabel
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 import java.util.Locale
@@ -695,14 +698,14 @@ fun TitleScreen(
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = TomiloPrimary,
-                                        selectedLabelColor = Color.White,
-                                        containerColor = Color(0xFF1A1C20),
-                                        labelColor = Color.White,
+                                        selectedLabelColor = TomiloOnPrimary,
+                                        containerColor = TomiloSurface3,
+                                        labelColor = TomiloText,
                                     ),
                                     border = FilterChipDefaults.filterChipBorder(
                                         enabled = true,
                                         selected = selectedSort,
-                                        borderColor = Color.White.copy(alpha = 0.08f),
+                                        borderColor = TomiloBorder,
                                         selectedBorderColor = TomiloPrimary,
                                     ),
                                     shape = RoundedCornerShape(20.dp),
@@ -785,7 +788,7 @@ fun TitleScreen(
                                             when {
                                                 isRead -> TomiloPrimary.copy(alpha = 0.15f)
                                                 paidLocked -> TomiloPremium.copy(alpha = 0.10f)
-                                                else -> Color.White.copy(alpha = 0.055f)
+                                                else -> TomiloSurface3
                                             },
                                         ),
                                     contentAlignment = Alignment.Center,
@@ -1127,7 +1130,7 @@ private fun TitleSectionHeader(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
         }
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(title, color = TomiloText, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             Text(
                 subtitle,
                 color = TomiloMuted,
@@ -1242,7 +1245,7 @@ private fun TitleHero(
             Spacer(Modifier.height(12.dp))
             Text(
                 title.name.orEmpty(),
-                color = Color.White,
+                color = TomiloText,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
@@ -1283,8 +1286,8 @@ private fun TitleHero(
                     onClick = onBookmark,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                     shape = RoundedCornerShape(19.dp),
-                    color = Color(0xCC17181C),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                    color = TomiloSurface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
                 ) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
@@ -1294,14 +1297,14 @@ private fun TitleHero(
                         Icon(
                             if (bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                             contentDescription = null,
-                            tint = if (bookmarked) TomiloPrimary else Color.White,
+                            tint = if (bookmarked) TomiloPrimary else TomiloText,
                             modifier = Modifier.size(17.dp),
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (bookmarked) "В закладках" else "Закладки",
                             modifier = Modifier.weight(1f),
-                            color = Color.White,
+                            color = TomiloText,
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
                             maxLines = 2,
@@ -1335,7 +1338,7 @@ private fun TitleHeroMetadataChip(
     accent: Color = TomiloMuted,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
 ) {
-    Surface(color = Color.White.copy(alpha = 0.08f), shape = RoundedCornerShape(9.dp)) {
+    Surface(color = TomiloSurface3, shape = RoundedCornerShape(9.dp)) {
         Row(
             modifier = Modifier
                 .heightIn(min = 48.dp)
@@ -1346,7 +1349,7 @@ private fun TitleHeroMetadataChip(
             icon?.let { Icon(it, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp)) }
             Text(
                 label,
-                color = Color.White.copy(alpha = 0.88f),
+                color = if (accent == TomiloMuted) TomiloText else accent,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 14.sp,
@@ -1372,11 +1375,11 @@ private fun TitlePageSwitcher(
                 Surface(
                     onClick = { onSelect(tab) },
                     modifier = Modifier.weight(1f),
-                    color = if (active) TomiloPrimary.copy(alpha = 0.16f) else Color(0xFF111216),
+                    color = if (active) TomiloPrimary.copy(alpha = 0.16f) else TomiloSurface2,
                     shape = RoundedCornerShape(18.dp),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (active) TomiloPrimary.copy(alpha = 0.32f) else Color.White.copy(alpha = 0.05f),
+                        if (active) TomiloPrimary.copy(alpha = 0.32f) else TomiloBorder,
                     ),
                 ) {
                     Text(
@@ -1503,7 +1506,7 @@ private fun TitleCreditsAndRecommendations(
     if (credits.isNotEmpty()) {
         Text(
             "Над тайтлом работали",
-            color = Color.White,
+            color = TomiloText,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
         )
@@ -1521,7 +1524,7 @@ private fun TitleCreditsAndRecommendations(
                     Column(Modifier.padding(14.dp)) {
                         Text(role, color = TomiloMuted, fontSize = 11.sp)
                         Spacer(Modifier.height(4.dp))
-                        Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                        Text(name, color = TomiloText, fontWeight = FontWeight.SemiBold, maxLines = 2)
                     }
                 }
             }
@@ -1530,7 +1533,7 @@ private fun TitleCreditsAndRecommendations(
     if (recommendations.isNotEmpty()) {
         Text(
             "Рекомендуем почитать",
-            color = Color.White,
+            color = TomiloText,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
         )

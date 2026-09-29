@@ -110,10 +110,13 @@ import ru.tomilo.lib.mobile.ui.components.formatRating
 import ru.tomilo.lib.mobile.ui.components.statusColor
 import ru.tomilo.lib.mobile.ui.components.statusLabel
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
+import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
+import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 enum class FeedFilter(val label: String) {
@@ -752,15 +755,15 @@ private fun HomeFilterRow(
             val isSelected = selected == filter
             Text(
                 filter.label,
-                color = Color.White,
+                color = if (isSelected) TomiloOnPrimary else TomiloText,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                 fontSize = 13.sp,
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(if (isSelected) TomiloPrimary else Color(0xFF1A1C20))
+                    .background(if (isSelected) TomiloPrimary else TomiloSurface3)
                     .border(
                         1.dp,
-                        if (isSelected) TomiloPrimary else Color.White.copy(alpha = 0.10f),
+                        if (isSelected) TomiloPrimary else TomiloBorder,
                         RoundedCornerShape(999.dp),
                     )
                     .clickable { onSelect(filter) }
@@ -815,8 +818,8 @@ private fun ShortcutActionItem(
             Modifier
                 .size(34.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF17191D))
-                .border(1.dp, Color.White.copy(alpha = 0.09f), CircleShape),
+                .background(TomiloSurface3)
+                .border(1.dp, TomiloBorder, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(icon, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(18.dp))

@@ -67,10 +67,10 @@ private fun lightScheme(p: TomiloPalette, accent: Color) = lightColorScheme(
     surfaceContainerHighest = p.surface3,
     surfaceContainerHigh = p.surface2,
     surfaceContainer = p.surface,
-    surfaceContainerLow = Color(0xFFF0F1F4),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    inverseSurface = Color(0xFF303236),
-    inverseOnSurface = Color(0xFFF4F5F7),
+    surfaceContainerLow = p.bg,
+    surfaceContainerLowest = p.surface,
+    inverseSurface = p.ink,
+    inverseOnSurface = p.paper,
     scrim = Color.Black,
 )
 
@@ -93,12 +93,17 @@ val LocalTomiloAccent = compositionLocalOf { TomiloDarkPalette.primary }
 fun TomiloTheme(
     accentColor: Color? = null,
     darkTheme: Boolean = isSystemInDarkTheme(),
+    coffee: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val palette = if (darkTheme) TomiloDarkPalette else TomiloLightPalette
+    val palette = when {
+        coffee -> TomiloCoffeePalette
+        darkTheme -> TomiloDarkPalette
+        else -> TomiloLightPalette
+    }
     val activePrimary = accentColor ?: palette.primary
-    val colors: ColorScheme = remember(palette, activePrimary) {
-        if (darkTheme) darkScheme(palette, activePrimary) else lightScheme(palette, activePrimary)
+    val colors: ColorScheme = remember(palette, activePrimary, darkTheme, coffee) {
+        if (darkTheme && !coffee) darkScheme(palette, activePrimary) else lightScheme(palette, activePrimary)
     }
     val systemDensity = LocalDensity.current
     // Preserve the user's accessibility setting while capping extreme scales that

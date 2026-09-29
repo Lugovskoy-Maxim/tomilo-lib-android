@@ -23,6 +23,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
 import ru.tomilo.lib.mobile.data.local.ThemeMode
+import ru.tomilo.lib.mobile.data.local.accentUnlocked
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,9 +35,10 @@ class MainActivity : ComponentActivity() {
             val accentHex by themePrefs.accentHexFlow.collectAsState(initial = null)
             val themeMode by themePrefs.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
             val systemDark = isSystemInDarkTheme()
+            val coffee = themeMode == ThemeMode.COFFEE
             val darkTheme = when (themeMode) {
                 ThemeMode.DARK -> true
-                ThemeMode.LIGHT -> false
+                ThemeMode.LIGHT, ThemeMode.COFFEE -> false
                 ThemeMode.SYSTEM -> systemDark
             }
             // Системные панели следуют выбранной теме, а не системной ночи.
@@ -56,7 +58,7 @@ class MainActivity : ComponentActivity() {
             val user by app.container.authStore.userFlow.collectAsState(initial = null)
             val isPremium = ru.tomilo.lib.mobile.core.Premium.isActive(user?.subscriptionExpiresAt)
             val activeAccent = remember(accentHex, isPremium) {
-                if (isPremium && !accentHex.isNullOrBlank()) {
+                if (!accentHex.isNullOrBlank() && accentUnlocked(accentHex, isPremium)) {
                     try {
                         Color(android.graphics.Color.parseColor(accentHex))
                     } catch (_: Exception) {
@@ -64,7 +66,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else null
             }
-            TomiloTheme(accentColor = activeAccent, darkTheme = darkTheme) {
+            TomiloTheme(accentColor = activeAccent, darkTheme = darkTheme, coffee = coffee) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TomiloNavHost(container = app.container)
                 }

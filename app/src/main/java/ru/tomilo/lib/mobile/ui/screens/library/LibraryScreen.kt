@@ -82,6 +82,7 @@ import ru.tomilo.lib.mobile.ui.components.TitleSearchCard
 import ru.tomilo.lib.mobile.ui.components.rememberSwipeRevealCoordinator
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
@@ -141,7 +142,7 @@ private fun LibrarySummary(tab: ShelfTab, count: Int, isSearching: Boolean, book
                     listOf(TomiloPrimary.copy(alpha = 0.14f), TomiloSurface2, TomiloSurface),
                 ),
             )
-            .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(22.dp))
+            .border(1.dp, TomiloBorder, RoundedCornerShape(22.dp))
             .padding(14.dp),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
@@ -306,7 +307,7 @@ fun LibraryScreen(
                     shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = TomiloPrimary,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.10f),
+                        unfocusedBorderColor = TomiloBorder,
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
                     ),
