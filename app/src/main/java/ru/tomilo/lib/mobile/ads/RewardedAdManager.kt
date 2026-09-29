@@ -18,23 +18,26 @@ import com.yandex.mobile.ads.rewarded.RewardedAdLoader
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Rewarded РСЯ (R-M-19689456-1).
+ * Rewarded РСЯ: оба блока кабинета грузятся заранее и независимо.
+ * R-M-19689456-1 и R-M-19689456-3. Показ берёт уже готовый креатив,
+ * второй остаётся в кеше на следующий явный просмотр (скачивание или офлайн).
+ * Между главами rewarded не показывается.
  * Награда из кабинета: валюта Reward, сумма 1 → 1 офлайн-кредит главы.
  */
 class RewardedAdManager(
     appContext: Context,
-    private val adUnitId: String = AdUnits.rewarded,
+    adUnitIds: List<String> = AdUnits.rewardedUnits,
 ) {
     private val appContext = appContext.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
-    private var loader: RewardedAdLoader? = null
-    private var loadedAd: RewardedAd? = null
+    private val slots = adUnitIds
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+        .map { Slot(it) }
     private val sdkReady = AtomicBoolean(false)
-    private val loading = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(false)
     private val personalized = AtomicBoolean(true)
-    private var retryAttempt = 0
-    private var retryRunnable: Runnable? = null
 
     @Volatile
     var isReady: Boolean = false
@@ -53,7 +56,7 @@ class RewardedAdManager(
     }
 
     fun initialize(onReady: (() -> Unit)? = null) {
-        if (!adsAllowed.get() || adUnitId.isBlank()) {
+        if (!adsAllowed.get() || slots.isEmpty()) {
             onReady?.invoke()
             return
         }
@@ -61,7 +64,6 @@ class RewardedAdManager(
             onReady?.invoke()
             return
         }
-        // Инициализация SDK — однократная и общая для всех менеджеров (YandexAdsSdk).
         mainHandler.post { YandexAds.setUserConsent(personalized.get()) }
         YandexAdsSdk.initialize(appContext) {
             if (!adsAllowed.get()) {
@@ -69,51 +71,20 @@ class RewardedAdManager(
                 return@initialize
             }
             sdkReady.set(true)
-            ensureLoader()
             preload()
             onReady?.invoke()
-            Log.i(TAG, "Yandex Mobile Ads SDK ready, unit=$adUnitId")
+            Log.i(TAG, "Yandex Mobile Ads SDK ready, units=${slots.joinToString { it.unitId }}")
         }
     }
 
-    private fun ensureLoader() {
-        if (loader == null) {
-            loader = RewardedAdLoader(appContext)
-        }
-    }
-
+    /** Грузит каждый блок, у которого ещё нет креатива. Повторные вызовы не сбрасывают готовый кеш. */
     fun preload() {
-        if (!adsAllowed.get() || adUnitId.isBlank() || !sdkReady.get()) return
-        if (loadedAd != null || loading.get()) return
-        mainHandler.post {
-            if (loadedAd != null || loading.get()) return@post
-            ensureLoader()
-            loading.set(true)
-            isReady = false
-            val request = AdRequest.Builder(adUnitId).build()
-            loader?.loadAd(
-                request,
-                object : RewardedAdLoadListener {
-                    override fun onAdLoaded(ad: RewardedAd) {
-                        loadedAd = ad
-                        loading.set(false)
-                        isReady = true
-                        retryAttempt = 0
-                        retryRunnable?.let(mainHandler::removeCallbacks)
-                        retryRunnable = null
-                        Log.i(TAG, "Rewarded loaded")
-                    }
-
-                    override fun onAdFailedToLoad(error: AdRequestError) {
-                        loading.set(false)
-                        isReady = false
-                        loadedAd = null
-                        Log.w(TAG, "Rewarded failed: ${error.code} ${error.description}")
-                        scheduleRetry()
-                    }
-                },
-            )
+        if (!adsAllowed.get() || slots.isEmpty() || !sdkReady.get()) return
+        slots.forEach { slot ->
+            slot.retryRunnable?.let(mainHandler::removeCallbacks)
+            slot.retryRunnable = null
         }
+        slots.forEach(::loadSlot)
     }
 
     /** Premium completely disables requests, cached ads and future shows. */
@@ -127,7 +98,8 @@ class RewardedAdManager(
     }
 
     /**
-     * Показать rewarded. [onRewarded] — после полного просмотра (amount/type из РСЯ).
+     * Показать rewarded. Если кеш пуст, ждёт загрузку, а не сразу отвечает ошибкой.
+     * [onRewarded] — после полного просмотра (amount/type из РСЯ).
      * Вызывать с UI-потока; [activity] не finishing.
      */
     fun show(
@@ -137,84 +109,211 @@ class RewardedAdManager(
         onDismissed: () -> Unit = {},
     ) {
         mainHandler.post {
-            if (!adsAllowed.get() || adUnitId.isBlank()) {
+            if (!adsAllowed.get() || slots.isEmpty()) {
                 onFailed("Реклама недоступна")
                 return@post
             }
-            if (activity.isFinishing) {
+            if (activity.isFinishing || activity.isDestroyed) {
                 onFailed("Экран недоступен")
                 return@post
             }
-            val ad = loadedAd
-            if (ad == null) {
-                preload()
-                onFailed("Реклама ещё загружается — попробуйте через пару секунд")
+            if (!sdkReady.get()) {
+                initialize {
+                    awaitShow(
+                        activity = activity,
+                        deadlineMs = System.currentTimeMillis() + SHOW_WAIT_MS,
+                        kick = true,
+                        onRewarded = onRewarded,
+                        onFailed = onFailed,
+                        onDismissed = onDismissed,
+                    )
+                }
                 return@post
             }
-            loadedAd = null
-            isReady = false
-
-            var rewarded = false
-            ad.setAdEventListener(
-                object : RewardedAdEventListener {
-                    override fun onAdShown() = Unit
-
-                    override fun onAdFailedToShow(adError: AdError) {
-                        ad.setAdEventListener(null)
-                        onFailed(adError.description ?: "Не удалось показать рекламу")
-                        preload()
-                    }
-
-                    override fun onAdDismissed() {
-                        ad.setAdEventListener(null)
-                        if (!rewarded) {
-                            // закрыл досрочно — без награды
-                        }
-                        onDismissed()
-                        preload()
-                    }
-
-                    override fun onAdClicked() = Unit
-
-                    override fun onAdImpression(impressionData: ImpressionData?) = Unit
-
-                    override fun onRewarded(reward: Reward) {
-                        rewarded = true
-                        val amount = reward.amount.coerceAtLeast(1)
-                        val type = reward.type.ifBlank { "Reward" }
-                        onRewarded(amount, type)
-                    }
-                },
+            awaitShow(
+                activity = activity,
+                deadlineMs = System.currentTimeMillis() + SHOW_WAIT_MS,
+                kick = true,
+                onRewarded = onRewarded,
+                onFailed = onFailed,
+                onDismissed = onDismissed,
             )
-            ad.show(activity)
         }
     }
 
     fun destroy() {
-        retryRunnable?.let(mainHandler::removeCallbacks)
-        retryRunnable = null
+        slots.forEach { slot ->
+            slot.retryRunnable?.let(mainHandler::removeCallbacks)
+            slot.retryRunnable = null
+        }
+        isReady = false
         mainHandler.post {
-            loadedAd?.setAdEventListener(null)
-            loadedAd = null
-            loader?.cancelLoading()
-            loader = null
+            slots.forEach { slot ->
+                slot.loadedAd?.setAdEventListener(null)
+                slot.loadedAd = null
+                slot.loader?.cancelLoading()
+                slot.loader = null
+                slot.loading.set(false)
+            }
             isReady = false
-            loading.set(false)
         }
     }
 
-    private fun scheduleRetry() {
-        if (!adsAllowed.get() || adUnitId.isBlank() || retryRunnable != null) return
-        val delay = (RETRY_BASE_MS * (1L shl retryAttempt.coerceAtMost(4))).coerceAtMost(RETRY_MAX_MS)
-        retryAttempt = (retryAttempt + 1).coerceAtMost(5)
-        retryRunnable = Runnable {
-            retryRunnable = null
-            preload()
+    private fun awaitShow(
+        activity: Activity,
+        deadlineMs: Long,
+        kick: Boolean,
+        onRewarded: (amount: Int, type: String) -> Unit,
+        onFailed: (message: String) -> Unit,
+        onDismissed: () -> Unit,
+    ) {
+        if (!adsAllowed.get() || slots.isEmpty()) {
+            onFailed("Реклама недоступна")
+            return
+        }
+        if (activity.isFinishing || activity.isDestroyed) {
+            onFailed("Экран недоступен")
+            return
+        }
+        val slot = slots.firstOrNull { it.loadedAd != null }
+        if (slot != null) {
+            present(activity, slot, onRewarded, onFailed, onDismissed)
+            return
+        }
+        if (kick) preload()
+        if (System.currentTimeMillis() >= deadlineMs) {
+            onFailed("Не удалось загрузить рекламу. Проверьте интернет и попробуйте ещё раз.")
+            return
+        }
+        mainHandler.postDelayed(
+            {
+                awaitShow(
+                    activity = activity,
+                    deadlineMs = deadlineMs,
+                    kick = false,
+                    onRewarded = onRewarded,
+                    onFailed = onFailed,
+                    onDismissed = onDismissed,
+                )
+            },
+            AD_POLL_INTERVAL_MS,
+        )
+    }
+
+    private fun present(
+        activity: Activity,
+        slot: Slot,
+        onRewarded: (amount: Int, type: String) -> Unit,
+        onFailed: (message: String) -> Unit,
+        onDismissed: () -> Unit,
+    ) {
+        val ad = slot.loadedAd
+        if (ad == null || !adsAllowed.get()) {
+            onFailed("Реклама недоступна")
+            return
+        }
+        slot.loadedAd = null
+        refreshReady()
+        var rewarded = false
+        ad.setAdEventListener(
+            object : RewardedAdEventListener {
+                override fun onAdShown() {
+                    Log.i(TAG, "Rewarded shown unit=${slot.unitId}")
+                }
+
+                override fun onAdFailedToShow(adError: AdError) {
+                    ad.setAdEventListener(null)
+                    onFailed(adError.description ?: "Не удалось показать рекламу")
+                    loadSlot(slot)
+                }
+
+                override fun onAdDismissed() {
+                    ad.setAdEventListener(null)
+                    if (!rewarded) {
+                        // закрыл досрочно — без награды
+                    }
+                    onDismissed()
+                    loadSlot(slot)
+                }
+
+                override fun onAdClicked() = Unit
+
+                override fun onAdImpression(impressionData: ImpressionData?) = Unit
+
+                override fun onRewarded(reward: Reward) {
+                    rewarded = true
+                    val amount = reward.amount.coerceAtLeast(1)
+                    val type = reward.type.ifBlank { "Reward" }
+                    onRewarded(amount, type)
+                }
+            },
+        )
+        ad.show(activity)
+    }
+
+    private fun loadSlot(slot: Slot) {
+        if (!adsAllowed.get() || !sdkReady.get()) return
+        if (slot.loadedAd != null || slot.loading.get()) return
+        mainHandler.post {
+            if (!adsAllowed.get() || slot.loadedAd != null || slot.loading.get()) return@post
+            if (slot.loader == null) slot.loader = RewardedAdLoader(appContext)
+            slot.loading.set(true)
+            val request = AdRequest.Builder(slot.unitId).build()
+            slot.loader?.loadAd(
+                request,
+                object : RewardedAdLoadListener {
+                    override fun onAdLoaded(ad: RewardedAd) {
+                        slot.loading.set(false)
+                        if (!adsAllowed.get()) {
+                            ad.setAdEventListener(null)
+                            return
+                        }
+                        slot.loadedAd = ad
+                        slot.retryAttempt = 0
+                        slot.retryRunnable?.let(mainHandler::removeCallbacks)
+                        slot.retryRunnable = null
+                        refreshReady()
+                        Log.i(TAG, "Rewarded loaded unit=${slot.unitId}")
+                    }
+
+                    override fun onAdFailedToLoad(error: AdRequestError) {
+                        slot.loading.set(false)
+                        slot.loadedAd = null
+                        refreshReady()
+                        Log.w(TAG, "Rewarded failed unit=${slot.unitId}: ${error.code} ${error.description}")
+                        scheduleRetry(slot)
+                    }
+                },
+            )
+        }
+    }
+
+    private fun scheduleRetry(slot: Slot) {
+        if (!adsAllowed.get() || slot.retryRunnable != null) return
+        val delay = (RETRY_BASE_MS * (1L shl slot.retryAttempt.coerceAtMost(4))).coerceAtMost(RETRY_MAX_MS)
+        slot.retryAttempt = (slot.retryAttempt + 1).coerceAtMost(5)
+        slot.retryRunnable = Runnable {
+            slot.retryRunnable = null
+            loadSlot(slot)
         }.also { mainHandler.postDelayed(it, delay) }
+    }
+
+    private fun refreshReady() {
+        isReady = slots.any { it.loadedAd != null }
+    }
+
+    private class Slot(val unitId: String) {
+        var loader: RewardedAdLoader? = null
+        var loadedAd: RewardedAd? = null
+        val loading = AtomicBoolean(false)
+        var retryAttempt = 0
+        var retryRunnable: Runnable? = null
     }
 
     companion object {
         private const val TAG = "TomiloRewarded"
+        private const val SHOW_WAIT_MS = 8_000L
+        private const val AD_POLL_INTERVAL_MS = 200L
         private const val RETRY_BASE_MS = 5_000L
         private const val RETRY_MAX_MS = 60_000L
     }

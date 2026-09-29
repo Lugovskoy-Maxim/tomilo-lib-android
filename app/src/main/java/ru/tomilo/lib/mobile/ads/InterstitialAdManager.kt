@@ -84,6 +84,8 @@ class InterstitialAdManager(
 
     fun preload() {
         if (!enabled || !sdkReady.get()) return
+        retryRunnable?.let(mainHandler::removeCallbacks)
+        retryRunnable = null
         if (loadedAd != null || loading.get()) return
         mainHandler.post {
             if (loadedAd != null || loading.get()) return@post
@@ -137,13 +139,18 @@ class InterstitialAdManager(
         onFinished: (shown: Boolean) -> Unit,
     ) {
         mainHandler.post {
-            if (!enabled || activity.isFinishing) {
+            if (!enabled || activity.isFinishing || activity.isDestroyed) {
                 onFinished(false)
                 return@post
             }
+            if (!sdkReady.get()) {
+                initialize { showWhenReady(activity, maxWaitMs, onFinished) }
+                return@post
+            }
+            preload()
             val deadline = System.currentTimeMillis() + maxWaitMs
             fun waitForAd() {
-                if (activity.isFinishing) {
+                if (activity.isFinishing || activity.isDestroyed || !enabled) {
                     onFinished(false)
                     return
                 }
@@ -151,7 +158,6 @@ class InterstitialAdManager(
                     show(activity, onFinished)
                     return
                 }
-                preload()
                 if (System.currentTimeMillis() >= deadline) {
                     onFinished(false)
                 } else {
@@ -245,7 +251,7 @@ class InterstitialAdManager(
 
     companion object {
         private const val TAG = "TomiloInterstitial"
-        private const val INITIAL_AD_WAIT_MS = 2_000L
+        private const val INITIAL_AD_WAIT_MS = 8_000L
         private const val AD_POLL_INTERVAL_MS = 200L
         private const val RETRY_BASE_MS = 5_000L
         private const val RETRY_MAX_MS = 60_000L

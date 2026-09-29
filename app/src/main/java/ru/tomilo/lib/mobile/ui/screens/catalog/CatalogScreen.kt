@@ -93,13 +93,13 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ReaderMode
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
+import ru.tomilo.lib.mobile.ads.NativeCatalogAdManager
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.ui.components.CatalogGridSkeleton
@@ -121,7 +121,6 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface3
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
 private const val CATALOG_AD_AFTER_TITLES = 8
-private const val CATALOG_AD_TRIGGER_INDEX = 9
 
 private data class SortOption(
     val sortBy: String,
@@ -218,6 +217,7 @@ private fun CatalogTitleGridItem(
 fun CatalogScreen(
     catalogRepository: CatalogRepository,
     contentPrefs: ContentPrefs,
+    nativeCatalogAdManager: NativeCatalogAdManager,
     adsEnabled: Boolean,
     initialGenre: String? = null,
     onOpenTitle: (id: String, slug: String?) -> Unit,
@@ -261,20 +261,11 @@ fun CatalogScreen(
     var reload by remember { mutableIntStateOf(0) }
 
     val gridState = rememberLazyGridState()
-    var shouldRequestNativeAd by remember { mutableStateOf(false) }
     val nativeAd = rememberNativeCatalogAd(
         enabled = adsEnabled,
-        shouldRequest = shouldRequestNativeAd,
+        manager = nativeCatalogAdManager,
     )
     val canShowAdult = contentSettings.isAdultUser == true
-
-    LaunchedEffect(items.size, adsEnabled) {
-        if (!adsEnabled || items.size < CATALOG_AD_AFTER_TITLES) return@LaunchedEffect
-        snapshotFlow {
-            gridState.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0
-        }.first { lastVisibleIndex -> lastVisibleIndex >= CATALOG_AD_TRIGGER_INDEX }
-        shouldRequestNativeAd = true
-    }
 
     LaunchedEffect(contentSettings.showAdultContent) {
         includeAdult = contentSettings.showAdultContent && canShowAdult

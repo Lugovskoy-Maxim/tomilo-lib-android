@@ -369,6 +369,10 @@ fun TitleScreen(
         if (!authRepository.isPremium()) rewardedAdManager.preload()
     }
 
+    LaunchedEffect(pendingAdChapters) {
+        if (pendingAdChapters != null && !authRepository.isPremium()) rewardedAdManager.preload()
+    }
+
     LaunchedEffect(titleKey, reload) {
         loading = true
         error = null

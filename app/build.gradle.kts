@@ -48,8 +48,8 @@ android {
         // RuStore / production consumer release
         // Каждый production-релиз получает новый versionCode: магазины не
         // позволяют заменить уже загруженную сборку тем же кодом версии.
-        versionCode = 47
-        versionName = "1.4.2"
+        versionCode = 48
+        versionName = "1.4.3"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -62,6 +62,8 @@ android {
         buildConfigField("String", "RUSTORE_PUSH_PROJECT_ID", "\"$rustorePushProjectId\"")
         // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
         buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
+        // РСЯ: «Реклама с вознаграждением 31-08-2026». Грузится параллельно с -1.
+        buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID_2", "\"R-M-19689456-3\"")
         // Interstitial между главами (~1/10 мин), блок РСЯ «Межстраничная»
         buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", "\"R-M-19689456-2\"")
         // по умолчанию (переопределяется flavor)
@@ -87,6 +89,8 @@ android {
         }
         create("play") {
             dimension = "store"
+            // Play Console зарегистрирован на этот id. Кабинет РСЯ привязан к
+            // ru.tomilo.lib.mobile, поэтому заполнение блоков на play-сборке не ждём.
             applicationId = "ru.tomilolib.mobile"
             buildConfigField("String", "STORE_CHANNEL", "\"play\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
@@ -119,7 +123,9 @@ android {
             }
         }
         debug {
-            applicationIdSuffix = ".debug"
+            // Суффикс .debug даёт пакет ru.tomilo.lib.mobile.debug. Кабинет РСЯ
+            // такой пакет не знает и отдаёт пустые блоки. debug ставится поверх
+            // release того же id.
             versionNameSuffix = "-debug"
         }
     }

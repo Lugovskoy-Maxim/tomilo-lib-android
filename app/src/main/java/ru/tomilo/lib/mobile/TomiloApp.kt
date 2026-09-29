@@ -91,6 +91,7 @@ class TomiloApp : Application(), ImageLoaderFactory {
         container.interstitialAdManager.setPersonalized(initialConsent.personalized)
         container.rewardedAdManager.setAdsAllowed(adsAllowedInitially)
         container.interstitialAdManager.setAdsAllowed(adsAllowedInitially)
+        container.nativeCatalogAdManager.setAdsAllowed(adsAllowedInitially)
         NotificationHelper.ensureChannel(this)
         if (BuildConfig.RUSTORE_PUSH_PROJECT_ID.isNotBlank()) {
             runCatching {
@@ -155,9 +156,12 @@ class TomiloApp : Application(), ImageLoaderFactory {
     private fun applyAdsConsent(consent: AdsConsent, nonPremium: Boolean) {
         container.rewardedAdManager.setPersonalized(consent.personalized)
         container.interstitialAdManager.setPersonalized(consent.personalized)
+        // Пауза рекламы на сайте (siteAdPause*) и настройки показа РСЯ сайта
+        // мобильные блоки не выключают. Единственное исключение — активный Premium.
         val allowed = consent.allowsAds && nonPremium
         container.rewardedAdManager.setAdsAllowed(allowed)
         container.interstitialAdManager.setAdsAllowed(allowed)
+        container.nativeCatalogAdManager.setAdsAllowed(allowed)
     }
 
     override fun newImageLoader(): ImageLoader {

@@ -707,6 +707,12 @@ fun ReaderScreen(
         }
     }
 
+    LaunchedEffect(needsOfflineAd, online) {
+        if (needsOfflineAd && online && !authRepository.isPremium()) {
+            rewardedAdManager.preload()
+        }
+    }
+
     LaunchedEffect(chapterId) {
         if (chapterId.isNotBlank()) {
             loadChapter(currentChapterId.ifBlank { chapterId })

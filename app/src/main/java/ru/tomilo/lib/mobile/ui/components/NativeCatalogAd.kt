@@ -4,8 +4,6 @@ import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.ViewGroup
@@ -17,81 +15,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.yandex.mobile.ads.common.AdRequest
 import com.yandex.mobile.ads.common.AdBindingResult
-import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.nativeads.MediaView
 import com.yandex.mobile.ads.nativeads.NativeAd
 import com.yandex.mobile.ads.nativeads.NativeAdEventListener
-import com.yandex.mobile.ads.nativeads.NativeAdLoadListener
-import com.yandex.mobile.ads.nativeads.NativeAdLoader
 import com.yandex.mobile.ads.nativeads.NativeAdView
 import com.yandex.mobile.ads.nativeads.NativeAdViewBinder
 import ru.tomilo.lib.mobile.R
-import ru.tomilo.lib.mobile.ads.AdUnits
-import ru.tomilo.lib.mobile.ads.YandexAdsSdk
+import ru.tomilo.lib.mobile.ads.NativeCatalogAdManager
 
 private const val TAG = "TomiloNativeCatalogAd"
 
-/** Requests a single native ad after the user reaches the in-list placement. */
+/** Берёт нативку, которую [NativeCatalogAdManager] предзагрузил до открытия каталога. */
 @Composable
 fun rememberNativeCatalogAd(
     enabled: Boolean,
-    shouldRequest: Boolean,
+    manager: NativeCatalogAdManager,
 ): NativeAd? {
-    val context = LocalContext.current
-    val loader = remember(context) { NativeAdLoader(context) }
-    val disposed = remember(loader) { java.util.concurrent.atomic.AtomicBoolean(false) }
-    var nativeAd by remember(loader) { mutableStateOf<NativeAd?>(null) }
-    var requested by remember(loader) { mutableStateOf(false) }
-    val currentAd by rememberUpdatedState(nativeAd)
-
-    LaunchedEffect(enabled, shouldRequest) {
-        if (!enabled || !shouldRequest || requested) return@LaunchedEffect
-        requested = true
-        // SDK инициализируется однократно и общим single-flight (YandexAdsSdk).
-        YandexAdsSdk.initialize(context.applicationContext) {
-            if (disposed.get()) return@initialize
-            loader.loadAd(
-                AdRequest.Builder(AdUnits.nativeCatalog).build(),
-                object : NativeAdLoadListener {
-                    override fun onAdLoaded(ad: NativeAd) {
-                        Handler(Looper.getMainLooper()).post {
-                            if (disposed.get()) {
-                                ad.setNativeAdEventListener(null)
-                            } else {
-                                nativeAd = ad
-                            }
-                        }
-                    }
-
-                    override fun onAdFailedToLoad(error: AdRequestError) {
-                        Log.w(TAG, "Native ad failed: ${error.code} ${error.description}")
-                    }
-                },
-            )
-        }
+    val ad by manager.nativeAd.collectAsState()
+    LaunchedEffect(enabled) {
+        if (enabled) manager.preload()
     }
-
-    DisposableEffect(loader, disposed) {
-        disposed.set(false)
-        onDispose {
-            disposed.set(true)
-            loader.cancelLoading()
-            currentAd?.setNativeAdEventListener(null)
-        }
-    }
-
-    return nativeAd.takeIf { enabled }
+    return ad.takeIf { enabled }
 }
 
 @Composable

@@ -142,7 +142,9 @@ fun TomiloNavHost(container: AppContainer) {
     val adEligibilityFlow = remember(container.authStore.userFlow) {
         container.authStore.userFlow.map { user -> !Premium.isActive(user?.subscriptionExpiresAt) }
     }
-    val adEligibility by adEligibilityFlow.collectAsState(initial = false)
+    // До первого профиля не считаем пользователя Premium: иначе нативка не запрашивается.
+    // Активный Premium гасит кеш в TomiloApp до первого кадра.
+    val adEligibility by adEligibilityFlow.collectAsState(initial = true)
     val adsConsent by container.adsConsentStore.consent.collectAsState()
     val adsEnabled = adEligibility && adsConsent.allowsAds
     val scope = rememberCoroutineScope()
@@ -412,6 +414,7 @@ fun TomiloNavHost(container: AppContainer) {
                 CatalogScreen(
                     catalogRepository = container.catalogRepository,
                     contentPrefs = container.contentPrefs,
+                    nativeCatalogAdManager = container.nativeCatalogAdManager,
                     adsEnabled = adsEnabled,
                     initialGenre = genre,
                     onOpenTitle = { id, slug ->
