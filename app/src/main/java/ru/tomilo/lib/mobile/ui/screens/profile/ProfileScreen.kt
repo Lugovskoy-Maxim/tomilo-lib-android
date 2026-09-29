@@ -64,9 +64,11 @@ import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Campaign
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -87,6 +89,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -164,6 +167,7 @@ fun ProfileScreen(
     offlineRepository: OfflineRepository,
     contentPrefs: ContentPrefs,
     readingPrefs: ReadingPrefs,
+    themePrefs: ru.tomilo.lib.mobile.data.local.AppThemePrefs,
     onLogin: () -> Unit,
     onOpenOffline: () -> Unit,
     onOpenNotifications: () -> Unit,
@@ -314,6 +318,7 @@ fun ProfileScreen(
                                 ProfileSettingsTab(
                                     readingSettings = readingSettings,
                                     contentSettings = contentSettings,
+                                    themePrefs = themePrefs,
                                     offlineBytes = offlineBytes,
                                     cacheMsg = cacheMsg,
                                     isStaff = profileUser.isStaff(),
@@ -1286,6 +1291,7 @@ private fun EquippedSlotCard(
 private fun ProfileSettingsTab(
     readingSettings: ReadingSettings,
     contentSettings: ContentSettings,
+    themePrefs: ru.tomilo.lib.mobile.data.local.AppThemePrefs,
     offlineBytes: Long,
     cacheMsg: String?,
     isStaff: Boolean,
@@ -1402,7 +1408,58 @@ private fun ProfileSettingsTab(
             }
         }
 
-        // 3. Advertising
+        // 3. Оформление
+        val themeMode by themePrefs.themeModeFlow.collectAsState(
+            initial = ru.tomilo.lib.mobile.data.local.ThemeMode.SYSTEM,
+        )
+        var themePickerOpen by remember { mutableStateOf(false) }
+        val settingsScope = rememberCoroutineScope()
+        ProfileSectionHeader("Оформление", "Тема приложения")
+        ActionRow(
+            icon = Icons.Outlined.DarkMode,
+            title = "Тема оформления",
+            subtitle = when (themeMode) {
+                ru.tomilo.lib.mobile.data.local.ThemeMode.SYSTEM -> "Как в системе"
+                ru.tomilo.lib.mobile.data.local.ThemeMode.DARK -> "Тёмная"
+                ru.tomilo.lib.mobile.data.local.ThemeMode.LIGHT -> "Светлая"
+            },
+            onClick = { themePickerOpen = true },
+        )
+        if (themePickerOpen) {
+            AlertDialog(
+                onDismissRequest = { themePickerOpen = false },
+                title = { Text("Тема оформления") },
+                text = {
+                    Column {
+                        ru.tomilo.lib.mobile.data.local.ThemeMode.entries.forEach { mode ->
+                            val selected = mode == themeMode
+                            TextButton(
+                                onClick = {
+                                    themePickerOpen = false
+                                    settingsScope.launch { themePrefs.setThemeMode(mode) }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = when (mode) {
+                                        ru.tomilo.lib.mobile.data.local.ThemeMode.SYSTEM -> "Как в системе"
+                                        ru.tomilo.lib.mobile.data.local.ThemeMode.DARK -> "Тёмная"
+                                        ru.tomilo.lib.mobile.data.local.ThemeMode.LIGHT -> "Светлая"
+                                    },
+                                    color = if (selected) TomiloPrimary else TomiloText,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { themePickerOpen = false }) { Text("Отмена") }
+                },
+            )
+        }
+
+        // 4. Advertising
         ProfileSectionHeader("Реклама", "Согласие на показ объявлений")
         ActionRow(
             icon = Icons.Outlined.Campaign,

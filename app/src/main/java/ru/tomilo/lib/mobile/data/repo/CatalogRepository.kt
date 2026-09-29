@@ -84,11 +84,15 @@ class CatalogRepository(private val api: TomiloApi) {
         }
 
     /**
-     * Все главы тайтла (сервер режет list limit до 200 — ходим по страницам).
+     * Все главы тайтла. Сервер режет limit до 200 и не всегда отдаёт корректную
+     * пагинацию (hasMore=false / pages=0 при живых следующих страницах), поэтому
+     * критерий продолжения — полная страница, а не только флаги пагинации.
+     * Стоп: пустая страница или сервер вернул уже известные id (игнорирует page).
      */
     suspend fun chaptersAll(titleId: String, pageSize: Int = 200): Result<List<ChapterDto>> =
         runCatchingCancellable {
             val all = mutableListOf<ChapterDto>()
+            val seen = mutableSetOf<String>()
             var page = 1
             val limit = pageSize.coerceIn(1, 200)
             while (page <= 100) {
@@ -100,15 +104,17 @@ class CatalogRepository(private val api: TomiloApi) {
                 )
                 if (!res.success) error(res.message ?: "Ошибка глав")
                 val batch = res.data?.chapters.orEmpty()
-                all.addAll(batch)
+                val fresh = batch.filter { seen.add(it.stableId()) }
+                all.addAll(fresh)
+                if (batch.isEmpty()) break
                 val pag = res.data?.pagination
-                val hasMore = pag?.hasMore == true ||
-                    (pag != null && pag.pages > 0 && page < pag.pages) ||
-                    (pag == null && batch.size >= limit)
-                if (!hasMore || batch.isEmpty()) break
+                val serverSaysMore = pag?.hasMore == true || (pag != null && pag.pages > page)
+                val fullPage = batch.size >= limit
+                if (fresh.isEmpty()) break // повтор id — сервер игнорирует page
+                if (!fullPage && !serverSaysMore) break
                 page++
             }
-            all.distinctBy { it.stableId() }.filter { it.stableId().isNotBlank() }
+            all.filter { it.stableId().isNotBlank() }
         }
 
     suspend fun chapter(chapterId: String): Result<ChapterDto> = runCatchingCancellable {

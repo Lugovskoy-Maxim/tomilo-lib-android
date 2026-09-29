@@ -5,6 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.SystemBarStyle
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationOpen
@@ -28,16 +31,37 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
 import ru.tomilo.lib.mobile.data.local.AdsConsent
+import ru.tomilo.lib.mobile.data.local.ThemeMode
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         val app = application as TomiloApp
         handleNotificationIntent(intent)
         setContent {
             val themePrefs = app.container.themePrefs
             val accentHex by themePrefs.accentHexFlow.collectAsState(initial = null)
+            val themeMode by themePrefs.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val systemDark = isSystemInDarkTheme()
+            val darkTheme = when (themeMode) {
+                ThemeMode.DARK -> true
+                ThemeMode.LIGHT -> false
+                ThemeMode.SYSTEM -> systemDark
+            }
+            // Системные панели следуют выбранной теме, а не системной ночи.
+            androidx.compose.runtime.SideEffect {
+                val statusBarStyle = if (darkTheme) {
+                    SystemBarStyle.dark(Color.Transparent.toArgb())
+                } else {
+                    SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
+                }
+                val navBarStyle = if (darkTheme) {
+                    SystemBarStyle.dark(Color.Transparent.toArgb())
+                } else {
+                    SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
+                }
+                enableEdgeToEdge(statusBarStyle = statusBarStyle, navigationBarStyle = navBarStyle)
+            }
             val user by app.container.authStore.userFlow.collectAsState(initial = null)
             val isPremium = ru.tomilo.lib.mobile.core.Premium.isActive(user?.subscriptionExpiresAt)
             val activeAccent = remember(accentHex, isPremium) {
@@ -49,7 +73,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else null
             }
-            TomiloTheme(accentColor = activeAccent) {
+            TomiloTheme(accentColor = activeAccent, darkTheme = darkTheme) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TomiloNavHost(container = app.container)
                     val adsConsent by app.container.adsConsentStore.consent.collectAsState()

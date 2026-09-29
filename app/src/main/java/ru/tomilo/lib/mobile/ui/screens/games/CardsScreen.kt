@@ -1693,12 +1693,14 @@ private fun cardRank(card: GameCardCatalogItemDto): String = CardEconomy.rank(ca
 private fun cardSellPrice(card: GameCardDto, roulettePrice: Int): Int =
     CardEconomy.sellPrice(roulettePrice, cardRank(card))
 
+@Composable
 private fun rarityColor(card: GameCardDto) = when (cardRank(card)) {
     "SSS" -> TomiloPremium
     "S", "A", "B" -> TomiloPrimary
     else -> TomiloBorder
 }
 
+@Composable
 private fun rarityColor(rarity: String, rank: String) = when (CardEconomy.rank(rank, rarity)) {
     "SSS" -> TomiloPremium
     "S", "A", "B" -> TomiloPrimary

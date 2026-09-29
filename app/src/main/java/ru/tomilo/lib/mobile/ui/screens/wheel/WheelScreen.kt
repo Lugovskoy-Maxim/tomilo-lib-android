@@ -1023,6 +1023,7 @@ private fun rewardIcon(type: String) = when (type.lowercase()) {
     else -> Icons.Default.Casino
 }
 
+@Composable
 private fun rarityColor(rarity: String?): Color = when (rarity?.lowercase()) {
     "legendary" -> Color(0xFFFFB743)
     "epic" -> Color(0xFFB36BFF)

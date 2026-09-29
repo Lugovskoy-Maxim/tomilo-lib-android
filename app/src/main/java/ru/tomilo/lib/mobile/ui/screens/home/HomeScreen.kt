@@ -169,6 +169,7 @@ fun HomeScreen(
     onOpenLeaders: () -> Unit = {},
     onOpenPremium: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
+    onOpenLucky: () -> Unit = {},
     onContinueReading: (titleId: String, chapterId: String) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
@@ -305,13 +306,8 @@ fun HomeScreen(
                             coins = user?.balance ?: 0,
                             decorations = user?.decorations(),
                             onOpen = { item -> onOpenTitle(item.stableId(), item.slug) },
-                            onLuckyRandom = {
-                                val pool = (randomTitles + popular + updates).distinctBy { it.stableId() }
-                                if (pool.isNotEmpty()) {
-                                    val pick = pool.random()
-                                    onOpenTitle(pick.stableId(), pick.slug)
-                                }
-                            },
+                            // «Мне повезёт» открывает подборку с бесконечной лентой случайных тайтлов.
+                            onLuckyRandom = onOpenLucky,
                             onOpenProfile = onOpenProfile,
                         )
                     }

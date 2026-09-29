@@ -29,8 +29,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.yandex.mobile.ads.common.AdRequest
 import com.yandex.mobile.ads.common.AdBindingResult
 import com.yandex.mobile.ads.common.AdRequestError
-import com.yandex.mobile.ads.common.InitializationListener
-import com.yandex.mobile.ads.common.YandexAds
 import com.yandex.mobile.ads.nativeads.MediaView
 import com.yandex.mobile.ads.nativeads.NativeAd
 import com.yandex.mobile.ads.nativeads.NativeAdEventListener
@@ -40,6 +38,7 @@ import com.yandex.mobile.ads.nativeads.NativeAdView
 import com.yandex.mobile.ads.nativeads.NativeAdViewBinder
 import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.ads.AdUnits
+import ru.tomilo.lib.mobile.ads.YandexAdsSdk
 
 private const val TAG = "TomiloNativeCatalogAd"
 
@@ -59,30 +58,28 @@ fun rememberNativeCatalogAd(
     LaunchedEffect(enabled, shouldRequest) {
         if (!enabled || !shouldRequest || requested) return@LaunchedEffect
         requested = true
-        YandexAds.initialize(
-            context.applicationContext,
-            InitializationListener {
-                if (disposed.get()) return@InitializationListener
-                loader.loadAd(
-                    AdRequest.Builder(AdUnits.nativeCatalog).build(),
-                    object : NativeAdLoadListener {
-                        override fun onAdLoaded(ad: NativeAd) {
-                            Handler(Looper.getMainLooper()).post {
-                                if (disposed.get()) {
-                                    ad.setNativeAdEventListener(null)
-                                } else {
-                                    nativeAd = ad
-                                }
+        // SDK инициализируется однократно и общим single-flight (YandexAdsSdk).
+        YandexAdsSdk.initialize(context.applicationContext) {
+            if (disposed.get()) return@initialize
+            loader.loadAd(
+                AdRequest.Builder(AdUnits.nativeCatalog).build(),
+                object : NativeAdLoadListener {
+                    override fun onAdLoaded(ad: NativeAd) {
+                        Handler(Looper.getMainLooper()).post {
+                            if (disposed.get()) {
+                                ad.setNativeAdEventListener(null)
+                            } else {
+                                nativeAd = ad
                             }
                         }
+                    }
 
-                        override fun onAdFailedToLoad(error: AdRequestError) {
-                            Log.w(TAG, "Native ad failed: ${error.code} ${error.description}")
-                        }
-                    },
-                )
-            },
-        )
+                    override fun onAdFailedToLoad(error: AdRequestError) {
+                        Log.w(TAG, "Native ad failed: ${error.code} ${error.description}")
+                    }
+                },
+            )
+        }
     }
 
     DisposableEffect(loader, disposed) {

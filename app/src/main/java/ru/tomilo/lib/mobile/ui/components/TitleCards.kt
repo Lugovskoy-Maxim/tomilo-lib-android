@@ -57,13 +57,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
-import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
+import ru.tomilo.lib.mobile.ui.theme.TomiloSuccess
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 import java.util.Locale
 
-private val CardRadius = 20.dp
+private val CardRadius = 12.dp
 private val CoverShape = RoundedCornerShape(CardRadius)
 
 fun formatRating(value: Double): String =
@@ -307,14 +307,15 @@ fun TitlePosterCard(
                         .padding(6.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.Black.copy(alpha = 0.76f))
-                        .border(0.8.dp, TomiloPremium.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        // Дизайн: тёмный чип рейтинга, нейтральная рамка (без золота).
+                        .border(0.8.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(8.dp))
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         Icons.Default.Star,
                         contentDescription = "Рейтинг",
-                        tint = TomiloPremium,
+                        tint = Color.White,
                         modifier = Modifier.size(12.dp),
                     )
                     Spacer(Modifier.width(3.dp))
@@ -428,14 +429,14 @@ fun TitlePosterCard(
                     Icon(
                         Icons.Default.Star,
                         contentDescription = null,
-                        tint = TomiloPremium,
+                        tint = TomiloText,
                         modifier = Modifier.size(11.dp),
                     )
                     Spacer(Modifier.width(2.dp))
                     Text(
                         formatRating(rating),
                         style = MaterialTheme.typography.labelSmall,
-                        color = TomiloPremium,
+                        color = TomiloText,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
                     )
@@ -524,7 +525,7 @@ fun TitleWideCard(
                         WideOutlineChip(
                             formatRating(rating),
                             leading = {
-                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = TomiloPremium, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = TomiloText, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(4.dp))
                             },
                         )
@@ -723,7 +724,7 @@ fun TitleSearchCard(
                         Icon(
                             Icons.Default.Star,
                             contentDescription = null,
-                            tint = TomiloPremium,
+                            tint = TomiloText,
                             modifier = Modifier.size(14.dp),
                         )
                         Spacer(Modifier.width(3.dp))
@@ -834,14 +835,17 @@ fun statusLabel(raw: String?): String {
     }
 }
 
+@Composable
 fun statusColor(raw: String?): Color {
-    if (raw.isNullOrBlank()) return Color(0xFF8E8E93)
+    // Дизайн: точка статуса — единый приглушённый Success #7CB98A, текст белый.
+    if (raw.isNullOrBlank()) return TomiloMuted
     return when (raw.trim().lowercase()) {
-        "ongoing", "publishing", "выходит", "онгоинг" -> Color(0xFF34C759) // Vibrant Green
-        "completed", "finished", "complete", "завершено", "завершён" -> Color(0xFF3897F0) // Vibrant Blue
-        "pause", "hiatus", "paused", "пауза" -> Color(0xFFFF9500) // Amber
-        "cancelled", "canceled", "dropped", "отменён", "отменен" -> Color(0xFFFF3B30) // Red
-        "announced", "анонс" -> Color(0xFFAF52DE) // Purple
-        else -> Color(0xFF8E8E93)
+        "ongoing", "publishing", "выходит", "онгоинг",
+        "completed", "finished", "complete", "завершено", "завершён",
+        "pause", "hiatus", "paused", "пауза",
+        "cancelled", "canceled", "dropped", "отменён", "отменен",
+        "announced", "анонс",
+        -> TomiloSuccess
+        else -> TomiloMuted
     }
 }

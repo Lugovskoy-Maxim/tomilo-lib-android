@@ -83,14 +83,15 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloText
 private val fallbackCommentReactions = listOf("👍", "👎", "❤️", "🔥", "😂", "😮", "😢", "🎉", "👏")
 private val HeartActive = Color(0xFFEF4444)
 private val CommentDivider = Color.White.copy(alpha = 0.065f)
-private val ReplyConnector = TomiloPrimary.copy(alpha = 0.34f)
-private val ReplySurface = TomiloPrimary.copy(alpha = 0.055f)
-private val commentBody = TextStyle(
-    fontSize = 15.sp,
-    lineHeight = 20.sp,
-    fontWeight = FontWeight.Normal,
-    color = TomiloText,
-)
+private val ReplyConnector: Color @Composable get() = TomiloPrimary.copy(alpha = 0.34f)
+private val ReplySurface: Color @Composable get() = TomiloPrimary.copy(alpha = 0.055f)
+private val commentBody: TextStyle
+    @Composable get() = TextStyle(
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        fontWeight = FontWeight.Normal,
+        color = TomiloText,
+    )
 private val sortTabs = listOf(
     "newest" to "Новые",
     "oldest" to "Старые",
@@ -672,6 +673,7 @@ private fun CommentThread(
         onReport = { onReport(comment) },
     )
     if (comment.replies.orEmpty().isNotEmpty()) {
+        val replyConnector = ReplyConnector
         Box(
             Modifier
                 .fillMaxWidth()
@@ -679,7 +681,7 @@ private fun CommentThread(
                     val x = 31.dp.toPx()
                     val inset = 12.dp.toPx()
                     drawLine(
-                        ReplyConnector,
+                        replyConnector,
                         Offset(x, inset),
                         Offset(x, (size.height - inset).coerceAtLeast(inset)),
                         1.dp.toPx(),

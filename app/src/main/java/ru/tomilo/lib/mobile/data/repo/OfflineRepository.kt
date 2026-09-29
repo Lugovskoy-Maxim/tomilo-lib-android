@@ -68,10 +68,13 @@ class OfflineRepository(
         runCatchingCancellable {
             val detail = runCatchingCancellable { api.titleById(titleId) }.getOrNull()
                 ?.takeIf { it.success }?.data
-            // серверный MAX_LIST_LIMIT = 200 — грузим все страницы
+            // серверный MAX_LIST_LIMIT = 200 — грузим все страницы.
+            // Сервер не всегда отдаёт корректную пагинацию (hasMore/pages), поэтому
+            // идём дальше, пока страница приходит полной; стоп по пустой или повтору id.
             var catalogComplete = true
             val chapters = buildList {
                 var page = 1
+                val seen = mutableSetOf<String>()
                 while (page <= 100) {
                     val res = runCatchingCancellable {
                         api.chaptersByTitle(titleId, page = page, limit = 200, sortOrder = "asc")
@@ -80,12 +83,15 @@ class OfflineRepository(
                         catalogComplete = false
                         break
                     }
-                    addAll(res.chapters)
+                    val batch = res.chapters
+                    val fresh = batch.filter { seen.add(it.stableId()) }
+                    addAll(fresh)
+                    if (batch.isEmpty()) break
                     val pag = res.pagination
-                    val hasMore = pag?.hasMore == true ||
-                        (pag != null && pag.pages > page) ||
-                        (pag == null && res.chapters.size >= 200)
-                    if (!hasMore || res.chapters.isEmpty()) break
+                    val serverSaysMore = pag?.hasMore == true || (pag != null && pag.pages > page)
+                    val fullPage = batch.size >= 200
+                    if (fresh.isEmpty()) break // сервер игнорирует page — дальше не продвинуться
+                    if (!fullPage && !serverSaysMore) break
                     page++
                 }
             }.distinctBy { it.stableId() }

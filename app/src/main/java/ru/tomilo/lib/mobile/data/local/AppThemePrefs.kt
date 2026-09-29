@@ -33,12 +33,30 @@ val ACCENT_PALETTES = listOf(
     AccentPaletteItem("orange", "Солнечный оранж", "#FF7043", Color(0xFFFF7043), "Закатный луч"),
 )
 
+/** Режим темы: следовать системе, принудительно тёмная или светлая. */
+enum class ThemeMode(val storageValue: String) {
+    SYSTEM("system"),
+    DARK("dark"),
+    LIGHT("light"),
+    ;
+
+    companion object {
+        fun fromStorage(value: String?): ThemeMode =
+            entries.firstOrNull { it.storageValue == value } ?: SYSTEM
+    }
+}
+
 class AppThemePrefs(private val context: Context) {
     private val accentKey = stringPreferencesKey("accent_color_hex")
+    private val themeModeKey = stringPreferencesKey("theme_mode")
     private val shelfNotificationsKey = booleanPreferencesKey("shelf_notifications_enabled")
 
     val accentHexFlow: Flow<String?> = context.themeDataStore.data.map { prefs ->
         prefs[accentKey]
+    }
+
+    val themeModeFlow: Flow<ThemeMode> = context.themeDataStore.data.map { prefs ->
+        ThemeMode.fromStorage(prefs[themeModeKey])
     }
 
     val shelfNotificationsFlow: Flow<Boolean> = context.themeDataStore.data.map { prefs ->
@@ -46,6 +64,8 @@ class AppThemePrefs(private val context: Context) {
     }
 
     suspend fun accentHex(): String? = accentHexFlow.first()
+
+    suspend fun themeMode(): ThemeMode = themeModeFlow.first()
 
     suspend fun shelfNotificationsEnabled(): Boolean = shelfNotificationsFlow.first()
 
@@ -55,6 +75,16 @@ class AppThemePrefs(private val context: Context) {
                 prefs.remove(accentKey)
             } else {
                 prefs[accentKey] = hex
+            }
+        }
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.themeDataStore.edit { prefs ->
+            if (mode == ThemeMode.SYSTEM) {
+                prefs.remove(themeModeKey)
+            } else {
+                prefs[themeModeKey] = mode.storageValue
             }
         }
     }

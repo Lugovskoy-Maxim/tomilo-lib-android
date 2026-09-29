@@ -48,20 +48,22 @@ private data class HubLink(
     val color: Color,
 )
 
-private val contentLinks = listOf(
-    HubLink("Подборки", "Тематические коллекции от сообщества", "/collections", Icons.Default.CollectionsBookmark, TomiloPrimary),
-    HubLink("Новости", "Обновления проекта и анонсы", "/news", Icons.Default.Newspaper, Color(0xFF62B8FF)),
-    HubLink("Гайды", "Полезные материалы для читателей", "/guides", Icons.AutoMirrored.Filled.MenuBook, Color(0xFF57C7B8)),
-    HubLink("Магазин Tomilo", "Украшения профиля и игровые предметы", "/tomilo-shop", Icons.Default.ShoppingBag, TomiloPremium),
-    HubLink("Игры", "Активные режимы публичной беты", "/games", Icons.Default.SportsEsports, Color(0xFF9B8CFF)),
-    HubLink("Благодарности", "Участники развития библиотеки", "/thanks", Icons.Default.VolunteerActivism, Color(0xFFF06E9C)),
-)
+private val contentLinks: List<HubLink>
+    @Composable get() = listOf(
+        HubLink("Подборки", "Тематические коллекции от сообщества", "/collections", Icons.Default.CollectionsBookmark, TomiloPrimary),
+        HubLink("Новости", "Обновления проекта и анонсы", "/news", Icons.Default.Newspaper, Color(0xFF62B8FF)),
+        HubLink("Гайды", "Полезные материалы для читателей", "/guides", Icons.AutoMirrored.Filled.MenuBook, Color(0xFF57C7B8)),
+        HubLink("Магазин Tomilo", "Украшения профиля и игровые предметы", "/tomilo-shop", Icons.Default.ShoppingBag, TomiloPremium),
+        HubLink("Игры", "Активные режимы публичной беты", "/games", Icons.Default.SportsEsports, Color(0xFF9B8CFF)),
+        HubLink("Благодарности", "Участники развития библиотеки", "/thanks", Icons.Default.VolunteerActivism, Color(0xFFF06E9C)),
+    )
 
-private val helpLinks = listOf(
-    HubLink("Частые вопросы", "Ответы по аккаунту, чтению и Premium", "/faq", Icons.AutoMirrored.Filled.ContactSupport, TomiloPrimary),
-    HubLink("О проекте", "Команда и история tomilo-lib", "/about", Icons.AutoMirrored.Filled.Article, Color(0xFF62B8FF)),
-    HubLink("Условия и документы", "Правила, конфиденциальность и оферта", "/terms-of-use", Icons.Default.Gavel, TomiloMuted),
-)
+private val helpLinks: List<HubLink>
+    @Composable get() = listOf(
+        HubLink("Частые вопросы", "Ответы по аккаунту, чтению и Premium", "/faq", Icons.AutoMirrored.Filled.ContactSupport, TomiloPrimary),
+        HubLink("О проекте", "Команда и история tomilo-lib", "/about", Icons.AutoMirrored.Filled.Article, Color(0xFF62B8FF)),
+        HubLink("Условия и документы", "Правила, конфиденциальность и оферта", "/terms-of-use", Icons.Default.Gavel, TomiloMuted),
+    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

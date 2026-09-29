@@ -94,7 +94,8 @@ private data class LeaderCategory(
 
 private data class LeaderPeriod(val id: String, val label: String)
 
-private val categories = listOf(
+@Composable
+private fun leaderCategories() = listOf(
     LeaderCategory("level", "Уровень", "Уровень и опыт", "Кто набрал больше всего опыта", Icons.AutoMirrored.Filled.TrendingUp, TomiloPrimary),
     LeaderCategory("chaptersRead", "Главы", "Прочитанные главы", "Самые активные читатели", Icons.Default.Bolt, Color(0xFF57C7B8)),
     LeaderCategory("ratings", "Оценки", "Оценки тайтлов", "Кто оценил больше всего историй", Icons.Default.Star, TomiloPremium),
@@ -129,7 +130,7 @@ fun LeadersScreen(
     var users by remember { mutableStateOf<List<LeaderboardUserDto>>(emptyList()) }
     var reload by remember { mutableIntStateOf(0) }
 
-    val category = categories[categoryIndex]
+    val category = leaderCategories()[categoryIndex]
     val period = periods[periodIndex]
 
     LaunchedEffect(category.id, period.id, reload) {
@@ -262,7 +263,7 @@ private fun CategorySelector(selectedIndex: Int, onSelected: (Int) -> Unit) {
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        categories.forEachIndexed { index, category ->
+        leaderCategories().forEachIndexed { index, category ->
             val selected = selectedIndex == index
             FilterChip(
                 selected = selected,

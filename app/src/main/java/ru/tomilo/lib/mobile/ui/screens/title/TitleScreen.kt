@@ -133,6 +133,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
+import ru.tomilo.lib.mobile.ui.theme.TomiloText
 import java.util.Locale
 
 private enum class TitlePageTab(val label: String) {
@@ -1309,7 +1310,8 @@ private fun TitleHero(
                 title.releaseYear?.let { TitleHeroMetadataChip("$it") }
                 title.type?.takeIf { it.isNotBlank() }?.let { TitleHeroMetadataChip(titleTypeLabel(it)) }
                 title.averageRating?.takeIf { it > 0 }?.let {
-                    TitleHeroMetadataChip("${formatRating(it)}", TomiloPremium, Icons.Default.Star)
+                    // Дизайн Т3: рейтинг в hero — акцент Primary, без иконки (золото только для Premium).
+                    TitleHeroMetadataChip("${formatRating(it)}", TomiloPrimary)
                 }
                 title.status?.takeIf { it.isNotBlank() }?.let { TitleHeroMetadataChip(titleStatusLabel(it)) }
                 title.totalChapters?.takeIf { it > 0 }?.let { TitleHeroMetadataChip("$it глав") }
@@ -1443,7 +1445,8 @@ private fun TitleRatingBlock(
                 Text(
                     if (average != null && average > 0) String.format(Locale.ROOT, "%.1f", average) else "—",
                     style = MaterialTheme.typography.headlineMedium,
-                    color = TomiloPremium,
+                    // Дизайн Т8: средняя оценка — нейтральный белый, без золота.
+                    color = TomiloText,
                 )
                 Text(
                     " / 10",
@@ -1461,7 +1464,7 @@ private fun TitleRatingBlock(
                     Icon(
                         imageVector = if (star <= myRating) Icons.Default.Star else Icons.Default.StarBorder,
                         contentDescription = "$star",
-                        tint = if (star <= myRating) TomiloPremium else TomiloMuted,
+                        tint = if (star <= myRating) TomiloPrimary else TomiloMuted,
                         modifier = Modifier
                             .size(28.dp)
                             .clickable { onRate(star) },
@@ -1471,7 +1474,7 @@ private fun TitleRatingBlock(
             Spacer(Modifier.height(8.dp))
             Text(
                 if (myRating > 0) "Ваша оценка: $myRating из 10" else "Нажмите звезду, чтобы оценить",
-                color = if (myRating > 0) TomiloPremium else TomiloMuted,
+                color = if (myRating > 0) TomiloPrimary else TomiloMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
         }

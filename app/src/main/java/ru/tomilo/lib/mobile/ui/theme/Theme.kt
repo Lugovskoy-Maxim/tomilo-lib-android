@@ -2,6 +2,7 @@ package ru.tomilo.lib.mobile.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
@@ -15,48 +16,62 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 
-private val DarkColors = darkColorScheme(
-    primary = TomiloPrimary,
-    onPrimary = TomiloOnPrimary,
-    primaryContainer = TomiloPrimaryDim,
-    onPrimaryContainer = TomiloOnPrimary,
-    secondary = TomiloSurface2,
-    onSecondary = TomiloText,
-    secondaryContainer = TomiloSurface2,
-    onSecondaryContainer = TomiloText,
-    background = TomiloBg,
-    onBackground = TomiloText,
-    surface = TomiloSurface,
-    onSurface = TomiloText,
-    surfaceVariant = TomiloSurface2,
-    onSurfaceVariant = TomiloMuted,
-    outline = TomiloBorder,
-    outlineVariant = TomiloBorder.copy(alpha = 0.6f),
-    error = TomiloDanger,
+private fun darkScheme(p: TomiloPalette, accent: Color) = darkColorScheme(
+    primary = accent,
+    onPrimary = p.onPrimary,
+    primaryContainer = accent.copy(alpha = 0.25f),
+    onPrimaryContainer = Color.White,
+    secondary = p.surface2,
+    onSecondary = p.text,
+    secondaryContainer = p.surface2,
+    onSecondaryContainer = p.text,
+    background = p.bg,
+    onBackground = p.text,
+    surface = p.surface,
+    onSurface = p.text,
+    surfaceVariant = p.surface2,
+    onSurfaceVariant = p.muted,
+    outline = p.border,
+    outlineVariant = p.border.copy(alpha = 0.6f),
+    error = p.danger,
     onError = Color.White,
-    surfaceContainerHighest = TomiloSurface3,
-    surfaceContainerHigh = TomiloSurface2,
-    surfaceContainer = TomiloSurface,
+    surfaceContainerHighest = p.surface3,
+    surfaceContainerHigh = p.surface2,
+    surfaceContainer = p.surface,
     surfaceContainerLow = Color(0xFF0D0F11),
     surfaceContainerLowest = Color(0xFF050607),
-    inverseSurface = TomiloText,
-    inverseOnSurface = TomiloBg,
+    inverseSurface = p.text,
+    inverseOnSurface = p.bg,
     scrim = Color.Black,
 )
 
-private val LightColors = lightColorScheme(
-    primary = Color(0xFF3D5FD9),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCE4FF),
-    onPrimaryContainer = Color(0xFF0A1B5C),
-    background = Color(0xFFF4F5F8),
-    onBackground = Color(0xFF12141A),
-    surface = Color.White,
-    onSurface = Color(0xFF12141A),
-    surfaceVariant = Color(0xFFEBEDF2),
-    onSurfaceVariant = Color(0xFF5C6578),
-    outline = Color(0xFFD0D4DE),
-    error = TomiloDanger,
+private fun lightScheme(p: TomiloPalette, accent: Color) = lightColorScheme(
+    primary = accent,
+    onPrimary = p.onPrimary,
+    primaryContainer = accent.copy(alpha = 0.14f),
+    onPrimaryContainer = accent,
+    secondary = p.surface2,
+    onSecondary = p.text,
+    secondaryContainer = p.surface2,
+    onSecondaryContainer = p.text,
+    background = p.bg,
+    onBackground = p.text,
+    surface = p.surface,
+    onSurface = p.text,
+    surfaceVariant = p.surface2,
+    onSurfaceVariant = p.muted,
+    outline = p.border,
+    outlineVariant = p.border.copy(alpha = 0.7f),
+    error = p.danger,
+    onError = Color.White,
+    surfaceContainerHighest = p.surface3,
+    surfaceContainerHigh = p.surface2,
+    surfaceContainer = p.surface,
+    surfaceContainerLow = Color(0xFFF0F1F4),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    inverseSurface = Color(0xFF303236),
+    inverseOnSurface = Color(0xFFF4F5F7),
+    scrim = Color.Black,
 )
 
 private val TomiloShapes = Shapes(
@@ -67,22 +82,23 @@ private val TomiloShapes = Shapes(
     extraLarge = RoundedCornerShape(30.dp),
 )
 
-val LocalTomiloAccent = compositionLocalOf { TomiloPrimary }
+val LocalTomiloAccent = compositionLocalOf { TomiloDarkPalette.primary }
 
+/**
+ * Корневая тема приложения.
+ * [darkTheme] решается на уровне MainActivity по выбору пользователя
+ * (системная/тёмная/светлая), поэтому здесь флаг используется как есть.
+ */
 @Composable
 fun TomiloTheme(
     accentColor: Color? = null,
-    darkTheme: Boolean = true, // Ink: тёмная читалка по умолчанию
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val activePrimary = accentColor ?: TomiloPrimary
-    val baseColors = if (darkTheme || isSystemInDarkTheme()) DarkColors else LightColors
-    val colors = remember(baseColors, activePrimary) {
-        baseColors.copy(
-            primary = activePrimary,
-            primaryContainer = activePrimary.copy(alpha = 0.25f),
-            onPrimaryContainer = Color.White,
-        )
+    val palette = if (darkTheme) TomiloDarkPalette else TomiloLightPalette
+    val activePrimary = accentColor ?: palette.primary
+    val colors: ColorScheme = remember(palette, activePrimary) {
+        if (darkTheme) darkScheme(palette, activePrimary) else lightScheme(palette, activePrimary)
     }
     val systemDensity = LocalDensity.current
     // Preserve the user's accessibility setting while capping extreme scales that
@@ -92,6 +108,7 @@ fun TomiloTheme(
         Density(density = systemDensity.density, fontScale = appFontScale)
     }
     CompositionLocalProvider(
+        LocalTomiloPalette provides palette,
         LocalTomiloAccent provides activePrimary,
         LocalDensity provides appDensity,
     ) {

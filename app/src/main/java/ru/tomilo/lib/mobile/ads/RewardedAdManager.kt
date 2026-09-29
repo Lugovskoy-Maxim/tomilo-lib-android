@@ -9,7 +9,6 @@ import com.yandex.mobile.ads.common.AdError
 import com.yandex.mobile.ads.common.AdRequest
 import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.common.ImpressionData
-import com.yandex.mobile.ads.common.InitializationListener
 import com.yandex.mobile.ads.common.YandexAds
 import com.yandex.mobile.ads.rewarded.Reward
 import com.yandex.mobile.ads.rewarded.RewardedAd
@@ -31,7 +30,6 @@ class RewardedAdManager(
     private var loader: RewardedAdLoader? = null
     private var loadedAd: RewardedAd? = null
     private val sdkReady = AtomicBoolean(false)
-    private val initializationStarted = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(true)
     private val personalized = AtomicBoolean(true)
@@ -61,24 +59,18 @@ class RewardedAdManager(
             onReady?.invoke()
             return
         }
-        if (!initializationStarted.compareAndSet(false, true)) return
-        mainHandler.post {
-            YandexAds.setUserConsent(personalized.get())
-            YandexAds.initialize(
-                appContext,
-                InitializationListener {
-                    initializationStarted.set(false)
-                    if (!adsAllowed.get()) {
-                        onReady?.invoke()
-                        return@InitializationListener
-                    }
-                    sdkReady.set(true)
-                    ensureLoader()
-                    preload()
-                    onReady?.invoke()
-                    Log.i(TAG, "Yandex Mobile Ads SDK ready, unit=$adUnitId")
-                },
-            )
+        // Инициализация SDK — однократная и общая для всех менеджеров (YandexAdsSdk).
+        mainHandler.post { YandexAds.setUserConsent(personalized.get()) }
+        YandexAdsSdk.initialize(appContext) {
+            if (!adsAllowed.get()) {
+                onReady?.invoke()
+                return@initialize
+            }
+            sdkReady.set(true)
+            ensureLoader()
+            preload()
+            onReady?.invoke()
+            Log.i(TAG, "Yandex Mobile Ads SDK ready, unit=$adUnitId")
         }
     }
 

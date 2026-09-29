@@ -25,6 +25,10 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.NewReleases
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Store
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,6 +70,7 @@ import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
 import ru.tomilo.lib.mobile.ui.screens.games.GamesScreen
 import ru.tomilo.lib.mobile.ui.screens.games.MatchThreeScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
+import ru.tomilo.lib.mobile.ui.screens.lucky.LuckyScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
 import ru.tomilo.lib.mobile.ui.screens.onboarding.OnboardingScreen
@@ -106,6 +111,7 @@ object Routes {
     const val Quests = "quests"
     const val Hub = "hub"
     const val Wheel = "wheel"
+    const val Lucky = "lucky"
     const val Shop = "shop"
     const val Games = "games"
     const val MatchThree = "games/match-three"
@@ -173,10 +179,10 @@ fun TomiloNavHost(container: AppContainer) {
     )
     val moreTabs = listOf(
         TomiloTabItem(Routes.Profile, "Профиль", Icons.Outlined.AccountCircle, Icons.Filled.AccountCircle),
-        TomiloTabItem(Routes.Updates, "Обновления", Icons.Outlined.Explore, Icons.Filled.Explore),
-        TomiloTabItem(Routes.Notifications, "Уведомления", Icons.Outlined.Bookmarks, Icons.Filled.Bookmarks),
-        TomiloTabItem(Routes.Shop, "Магазин", Icons.Outlined.AccountCircle, Icons.Filled.AccountCircle),
-        TomiloTabItem(Routes.Games, "Игры", Icons.Outlined.Forum, Icons.Filled.Forum),
+        TomiloTabItem(Routes.Updates, "Обновления", Icons.Outlined.NewReleases, Icons.Outlined.NewReleases),
+        TomiloTabItem(Routes.Notifications, "Уведомления", Icons.Outlined.Notifications, Icons.Outlined.Notifications),
+        TomiloTabItem(Routes.Shop, "Магазин", Icons.Outlined.Store, Icons.Outlined.Store),
+        TomiloTabItem(Routes.Games, "Игры", Icons.Outlined.SportsEsports, Icons.Outlined.SportsEsports),
     )
     val tabRoutes = (tabs + moreTabs).map { it.route }.toSet()
     val showBottomBar = current in tabRoutes
@@ -373,6 +379,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenGames = { navController.navigate(Routes.Games) },
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
+                    onOpenLucky = { navController.navigate(Routes.Lucky) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
                     onOpenPremium = { navController.navigate(Routes.Premium) },
                     onOpenProfile = { navigateTab(Routes.Profile) },
@@ -460,6 +467,7 @@ fun TomiloNavHost(container: AppContainer) {
                     offlineRepository = container.offlineRepository,
                     contentPrefs = container.contentPrefs,
                     readingPrefs = container.readingPrefs,
+                    themePrefs = container.themePrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },
@@ -508,6 +516,16 @@ fun TomiloNavHost(container: AppContainer) {
                     authRepository = container.authRepository,
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
+                )
+            }
+            composable(Routes.Lucky) {
+                LuckyScreen(
+                    catalogRepository = container.catalogRepository,
+                    includeAdult = contentSettings.showAdultContent,
+                    onBack = { navController.popBackStack() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
                 )
             }
             composable(Routes.Hub) {
