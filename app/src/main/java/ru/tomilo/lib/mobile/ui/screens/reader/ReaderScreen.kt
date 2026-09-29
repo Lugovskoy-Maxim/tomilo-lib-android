@@ -1,5 +1,7 @@
 package ru.tomilo.lib.mobile.ui.screens.reader
 
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -11,6 +13,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -107,9 +111,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -121,6 +125,7 @@ import coil.compose.AsyncImagePainter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.debounce
@@ -137,6 +142,7 @@ import ru.tomilo.lib.mobile.core.formatChapterTitle
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.isNetworkAvailable
 import ru.tomilo.lib.mobile.core.networkAvailabilityFlow
+import ru.tomilo.lib.mobile.core.PageDecodeFallback
 import ru.tomilo.lib.mobile.core.PageImages
 import ru.tomilo.lib.mobile.core.PageDimensions
 import ru.tomilo.lib.mobile.core.PageRetryPolicy
@@ -222,6 +228,13 @@ fun ReaderScreen(
     val latestCountdownJob = rememberUpdatedState(adCountdownJob)
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
     var pageDimensions by remember { mutableStateOf<List<PageDimensions>>(emptyList()) }
+    var offlineIncomplete by remember { mutableStateOf(false) }
+    var settledPages by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
+    var coilPages by remember { mutableStateOf(setOf<Int>()) }
+    var coilSources by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    var loadToken by remember { mutableIntStateOf(0) }
+    var loadJob by remember { mutableStateOf<Job?>(null) }
+    var restoreStep by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
     var title by remember { mutableStateOf("Глава") }
     var offline by remember { mutableStateOf(false) }
@@ -371,33 +384,49 @@ fun ReaderScreen(
 
     fun loadChapter(id: String, restorePosition: Boolean = true) {
         if (id.isBlank()) return
-        scope.launch {
-            loading = true
-            error = null
-            needsPremium = false
-            needsLogin = false
-            needsOfflineAd = false
-            currentChapterId = id
-            currentChapterNumber = null
-            autoScroll = false
-            pages = emptyList()
-            pageDimensions = emptyList()
-            failedPages = emptySet()
-            loadedPages = emptySet()
-            pageRetryNonce = emptyMap()
-            restoredChapterId = null
+        val token = loadToken + 1
+        loadToken = token
+        loadJob?.cancel()
+        loading = true
+        error = null
+        needsPremium = false
+        needsLogin = false
+        needsOfflineAd = false
+        currentChapterId = id
+        currentChapterNumber = null
+        autoScroll = false
+        pages = emptyList()
+        pageDimensions = emptyList()
+        failedPages = emptySet()
+        loadedPages = emptySet()
+        pageRetryNonce = emptyMap()
+        restoredChapterId = null
+        pendingRestore = null
+        chapterNavMessage = null
+        hasScrolledThisChapter = false
+        autoAdvanceFromChapter = null
+        offlineIncomplete = false
+        settledPages = emptyMap()
+        coilPages = emptySet()
+        coilSources = emptyMap()
+        restoreStep = 0
+        loadJob = scope.launch {
+            fun still() = loadToken == token
+            try {
             pendingRestore = if (restorePosition) {
                 readingPrefs.readingPosition(id)
             } else {
                 ReadingPosition(0, 0)
             }
+            if (!still()) return@launch
             chapterNavMessage = null
             hasScrolledThisChapter = false
             autoAdvanceFromChapter = null
 
             if (preferOffline || offlineRepository.isDownloaded(id)) {
-                val local = offlineRepository.getLocalPages(id)
-                if (!local.isNullOrEmpty()) {
+                val local = offlineRepository.readLocalChapter(id)
+                if (!still()) return@launch
+                if (local != null) {
                     val entity = offlineRepository.getEntity(id)
                     effectiveTitleId = titleId ?: entity?.titleId
                     title = entity?.let { "Глава ${it.chapterNumber}" } ?: "Глава (офлайн)"
@@ -411,17 +440,21 @@ fun ReaderScreen(
                         online = context.isNetworkAvailable(),
                         hasReadPass = adRewardStore.hasOfflineReadAccess(),
                     )
+                    if (!still()) return@launch
                     if (gateRead) {
                         needsOfflineAd = true
                         offline = true
-                        loading = false
                         return@launch
                     }
-                    val localSources = local.map { File(it).toURI().toString() }
+                    val localSources = local.slots.map { path ->
+                        if (path.isNullOrBlank()) "" else File(path).toURI().toString()
+                    }
+                    val dims = WebtoonTiles.measureLocalSources(localSources)
+                    if (!still()) return@launch
+                    pageDimensions = dims
                     pages = localSources
+                    offlineIncomplete = !local.complete
                     offline = true
-                    loading = false
-                    pageDimensions = WebtoonTiles.measureLocalSources(localSources)
                     val tid = effectiveTitleId
                     if (!tid.isNullOrBlank()) {
                         val loggedIn = authRepository.isLoggedIn()
@@ -431,6 +464,7 @@ fun ReaderScreen(
                         if (loggedIn && !preferOffline && context.isNetworkAvailable()) {
                             historyRepository.markRead(tid, id)
                                 .onSuccess { reward ->
+                                    if (!still()) return@onSuccess
                                     readingPrefs.markHistorySynced(tid, id)
                                     RuStoreEngagement.onChapterRead(context)
                                     RewardNotifications.show(
@@ -448,10 +482,10 @@ fun ReaderScreen(
                 }
             }
 
+            if (!still()) return@launch
             if (preferOffline || !context.isNetworkAvailable()) {
                 offline = true
                 error = "Эта глава не скачана на устройство"
-                loading = false
                 return@launch
             }
 
@@ -486,6 +520,7 @@ fun ReaderScreen(
                         pageDimensions = chapter.pageDimensions
                             ?.takeIf { it.size == pagePaths.size }
                             .orEmpty()
+                        if (!still()) return
                         pages = resolved
                         val resolvedTitleId = chapter.titleKey().ifBlank { effectiveTitleId.orEmpty() }
                         if (resolvedTitleId.isNotBlank()) {
@@ -494,6 +529,7 @@ fun ReaderScreen(
                             if (loggedIn) {
                                 historyRepository.markRead(resolvedTitleId, id)
                                 .onSuccess { reward ->
+                                    if (!still()) return@onSuccess
                                     readingPrefs.markHistorySynced(resolvedTitleId, id)
                                     RuStoreEngagement.onChapterRead(context)
                                     RewardNotifications.show(
@@ -531,24 +567,43 @@ fun ReaderScreen(
                 }
             }
 
+            if (!still()) return@launch
             catalogRepository.chapter(id)
-                .onSuccess { applyChapter(it, allowRetry = true) }
-                .onFailure { error = it.toUserFacingError("Не удалось открыть главу.") }
-            loading = false
+                .onSuccess {
+                    if (!still()) return@onSuccess
+                    applyChapter(it, allowRetry = true)
+                }
+                .onFailure {
+                    if (still()) error = it.toUserFacingError("Не удалось открыть главу.")
+                }
+            } finally {
+                if (loadToken == token) loading = false
+            }
         }
     }
 
-    LaunchedEffect(currentChapterId, loading, pages.size, pendingRestore, layout) {
+    LaunchedEffect(currentChapterId, loading, pages.size, pendingRestore, layout, settledPages, restoreStep) {
         if (loading || pages.isEmpty()) return@LaunchedEffect
         val pos = pendingRestore ?: ReadingPosition()
         val index = pos.pageIndex.coerceIn(0, pages.lastIndex)
-        val offset = if (pos.pageIndex > pages.lastIndex) 0 else pos.scrollOffset.coerceAtLeast(0)
         if (layout == ReaderLayout.PAGER) {
+            if (restoreStep >= 1) return@LaunchedEffect
             runCatching { pagerState.scrollToPage(index) }
-        } else {
-            runCatching { listState.scrollToItem(index, offset) }
+            restoreStep = 2
+            restoredChapterId = currentChapterId
+            return@LaunchedEffect
         }
-        restoredChapterId = currentChapterId
+        if (restoreStep == 0) {
+            runCatching { listState.scrollToItem(index, 0) }
+            restoreStep = 1
+        }
+        if (restoreStep == 1) {
+            val tiled = settledPages[index] ?: return@LaunchedEffect
+            val offset = if (tiled && pos.pageIndex <= pages.lastIndex) pos.scrollOffset.coerceAtLeast(0) else 0
+            runCatching { listState.scrollToItem(index, offset) }
+            restoreStep = 2
+            restoredChapterId = currentChapterId
+        }
     }
 
     fun showRewardedForOfflineRead() {
@@ -860,6 +915,64 @@ fun ReaderScreen(
         }
     }
 
+    fun markSettled(index: Int, tiled: Boolean) {
+        if (settledPages[index] == tiled) return
+        settledPages = settledPages + (index to tiled)
+    }
+
+    fun useCoil(index: Int, file: File?) {
+        if (index in coilPages) {
+            markSettled(index, false)
+            return
+        }
+        val page = pages.getOrNull(index).orEmpty()
+        val uri = when {
+            file != null && file.isFile -> file.toURI().toString()
+            else -> WebtoonTiles.peekCachedFile(context, page)
+                ?.takeIf { it.isFile }
+                ?.toURI()
+                ?.toString()
+                ?: page
+        }
+        val wasTiled = settledPages[index] == true
+        coilSources = coilSources + (index to uri)
+        coilPages = coilPages + index
+        markSettled(index, false)
+        if (wasTiled && listState.firstVisibleItemIndex == index) {
+            scope.launch { runCatching { listState.scrollToItem(index, 0) } }
+        }
+    }
+
+    fun retryPage(index: Int, page: String) {
+        if (page.isBlank()) {
+            scope.launch {
+                offlineRepository.repairChapter(currentChapterId).onFailure {
+                    chapterNavMessage = it.toUserFacingError("Не удалось докачать страницу.")
+                }
+                loadChapter(currentChapterId, restorePosition = true)
+            }
+            return
+        }
+        val wasCoil = index in coilPages
+        failedPages = failedPages - index
+        loadedPages = loadedPages - index
+        PageImages.evict(context, page)
+        WebtoonTiles.evict(context, page)
+        coilSources[index]?.let { extra ->
+            if (extra != page) {
+                PageImages.evict(context, extra)
+                WebtoonTiles.evict(context, extra)
+            }
+        }
+        coilPages = coilPages - index
+        coilSources = coilSources - index
+        settledPages = settledPages - index
+        pageRetryNonce = pageRetryNonce + (index to ((pageRetryNonce[index] ?: 0) + 1))
+        if (wasCoil && layout != ReaderLayout.PAGER && listState.firstVisibleItemIndex == index) {
+            scope.launch { runCatching { listState.scrollToItem(index, 0) } }
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -894,18 +1007,14 @@ fun ReaderScreen(
             pages.isEmpty() -> ReaderError("Нет страниц") { loadChapter(currentChapterId) }
             layout == ReaderLayout.PAGER -> PagerReader(
                 pages = pages,
+                pageDimensions = pageDimensions,
                 pagerState = pagerState,
                 direction = direction,
                 chapterId = currentChapterId,
                 failedPages = failedPages,
                 loadedPages = loadedPages,
                 pageRetryNonce = pageRetryNonce,
-                onRetry = { index, page ->
-                    failedPages = failedPages - index
-                    loadedPages = loadedPages - index
-                    PageImages.evict(context, page)
-                    pageRetryNonce = pageRetryNonce + (index to (pageRetryNonce[index] ?: 0) + 1)
-                },
+                onRetry = { index, page -> retryPage(index, page) },
                 onState = { index, success, attempt, page ->
                     handlePageState(
                         index = index,
@@ -927,9 +1036,10 @@ fun ReaderScreen(
             )
             else -> WebtoonReader(
                 pages = pages,
-                pageDimensions = pageDimensions,
                 listState = listState,
                 chapterId = currentChapterId,
+                coilPages = coilPages,
+                coilSources = coilSources,
                 failedPages = failedPages,
                 loadedPages = loadedPages,
                 pageRetryNonce = pageRetryNonce,
@@ -956,12 +1066,9 @@ fun ReaderScreen(
                         }
                     }
                 },
-                onRetry = { index, page ->
-                    failedPages = failedPages - index
-                    loadedPages = loadedPages - index
-                    PageImages.evict(context, page)
-                    pageRetryNonce = pageRetryNonce + (index to (pageRetryNonce[index] ?: 0) + 1)
-                },
+                onRetry = { index, page -> retryPage(index, page) },
+                onUseCoil = { index, file -> useCoil(index, file) },
+                onSettled = { index, tiled -> markSettled(index, tiled) },
                 onState = { index, success, attempt, page ->
                     handlePageState(
                         index = index,
@@ -1212,6 +1319,21 @@ fun ReaderScreen(
                     }
                 }
             }
+        }
+
+        if (offlineIncomplete && error == null && !loading && !needsOfflineAd && pages.isNotEmpty()) {
+            Text(
+                "Глава скачана не полностью. Пустые страницы можно докачать.",
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = if (chromeVisible) 92.dp else 10.dp, start = 12.dp, end = 12.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xE01B1B21))
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
         }
 
         if (adCountdown > 0) {
@@ -1587,6 +1709,7 @@ private fun handlePageState(
     when (success) {
         false -> {
             onLoaded(loadedPages - index)
+            WebtoonTiles.evict(context, page)
             if (PageRetryPolicy.shouldRetry(attempt, PageImages.MAX_ATTEMPTS)) {
                 PageImages.evict(context, page)
                 onFailed(failedPages - index)
@@ -1856,9 +1979,10 @@ private fun PremiumGate(
 @Composable
 private fun WebtoonReader(
     pages: List<String>,
-    pageDimensions: List<PageDimensions>,
     listState: LazyListState,
     chapterId: String,
+    coilPages: Set<Int>,
+    coilSources: Map<Int, String>,
     failedPages: Set<Int>,
     loadedPages: Set<Int>,
     pageRetryNonce: Map<Int, Int>,
@@ -1869,6 +1993,8 @@ private fun WebtoonReader(
     canRate: Boolean = false,
     onRate: (Int) -> Unit = {},
     onRetry: (Int, String) -> Unit,
+    onUseCoil: (Int, File?) -> Unit,
+    onSettled: (Int, Boolean) -> Unit,
     onState: (index: Int, success: Boolean?, attempt: Int, page: String) -> Unit,
     onToggleChrome: () -> Unit,
     onPrev: () -> Unit,
@@ -1878,31 +2004,32 @@ private fun WebtoonReader(
 ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
         itemsIndexed(pages, key = { i, _ -> "$chapterId-$i" }) { index, page ->
-            Box(Modifier.fillMaxWidth().clipToBounds()) {
-                val dimensions = pageDimensions.getOrNull(index)
-                if (dimensions?.isValid() == true) {
-                    TiledWebtoonPage(
-                        page = page,
-                        index = index,
-                        total = pages.size,
-                        dimensions = dimensions,
-                        attempt = pageRetryNonce[index] ?: 0,
-                        onTap = onToggleChrome,
-                    )
-                } else {
-                    ReaderPage(
-                        page = page,
-                        index = index,
-                        total = pages.size,
-                        failed = index in failedPages,
-                        loaded = index in loadedPages,
-                        attempt = pageRetryNonce[index] ?: 0,
-                        fillHeight = false,
-                        onRetry = { onRetry(index, page) },
-                        onState = { success, attempt -> onState(index, success, attempt, page) },
-                        onTap = onToggleChrome,
-                    )
-                }
+            val useCoil = page.isBlank() || index in coilPages
+            if (useCoil) {
+                LaunchedEffect(chapterId, index) { onSettled(index, false) }
+                ReaderPage(
+                    page = if (page.isBlank()) "" else (coilSources[index] ?: page),
+                    index = index,
+                    total = pages.size,
+                    failed = index in failedPages,
+                    loaded = index in loadedPages,
+                    attempt = pageRetryNonce[index] ?: 0,
+                    fillHeight = false,
+                    onRetry = { onRetry(index, page) },
+                    onState = { success, attempt -> onState(index, success, attempt, page) },
+                    onTap = onToggleChrome,
+                )
+            } else {
+                TiledWebtoonPage(
+                    page = page,
+                    index = index,
+                    total = pages.size,
+                    attempt = pageRetryNonce[index] ?: 0,
+                    listState = listState,
+                    onTap = onToggleChrome,
+                    onUseCoil = { file -> onUseCoil(index, file) },
+                    onSettled = { onSettled(index, true) },
+                )
             }
         }
         item {
@@ -2026,59 +2153,79 @@ private fun TiledWebtoonPage(
     page: String,
     index: Int,
     total: Int,
-    dimensions: PageDimensions,
     attempt: Int,
+    listState: LazyListState,
     onTap: () -> Unit,
+    onUseCoil: (File?) -> Unit,
+    onSettled: () -> Unit,
 ) {
     val context = LocalContext.current
-    // Серверные pageDimensions часто расходятся с файлом (сжатие, webp).
-    // Нарезка до measure даёт некратные MCU границы: декодер захватывает
-    // пиксели соседней плитки, и страницы наезжают. Офлайн меряет файл сразу —
-    // онлайн ждём тот же размер и только потом split/decode.
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }.coerceAtLeast(1)
+    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }.coerceAtLeast(1)
     var sourceDims by remember(page, attempt) { mutableStateOf<PageDimensions?>(null) }
+    var gaveUp by remember(page, attempt) { mutableStateOf(false) }
+    // Качаем исходник только у страницы, которая уже на экране. Серверные
+    // размеры в нарезку не идут: сетка строится по файлу.
     LaunchedEffect(page, attempt) {
-        val measured = runCatching { WebtoonTiles.measureSource(context, page, retry = attempt) }
-            .getOrNull()
-            ?.takeIf { it.isValid() }
-        sourceDims = measured ?: dimensions.takeIf { it.isValid() }
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val onScreen = info.visibleItemsInfo.any { it.index == index }
+            val beforeLayout = info.visibleItemsInfo.isEmpty() && index == listState.firstVisibleItemIndex
+            onScreen || beforeLayout
+        }.collect { visible ->
+            if (!visible || sourceDims != null || gaveUp) return@collect
+            val measured = try {
+                WebtoonTiles.measureSource(context, page, retry = attempt)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Throwable) {
+                null
+            }
+            if (measured == null || !measured.isValid()) {
+                gaveUp = true
+                onUseCoil(WebtoonTiles.peekCachedFile(context, page))
+            } else {
+                sourceDims = measured
+            }
+        }
     }
     val splitDims = sourceDims
     if (splitDims == null) {
-        val placeholder = if (dimensions.isValid()) {
-            Modifier.aspectRatio(dimensions.width.toFloat() / dimensions.height.toFloat())
-        } else {
-            Modifier.heightIn(min = 280.dp)
-        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(placeholder)
+                .height(configuration.screenHeightDp.dp)
                 .background(Color.Black)
                 .clipToBounds()
                 .pointerInput(page) { detectTapGestures(onTap = { onTap() }) },
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.TopCenter,
         ) {
             androidx.compose.material3.CircularProgressIndicator(
-                modifier = Modifier.size(25.dp),
+                modifier = Modifier.padding(top = 28.dp).size(25.dp),
                 color = TomiloPrimary,
                 strokeWidth = 2.dp,
             )
         }
         return
     }
-    val tiles = remember(splitDims) { WebtoonTiles.split(splitDims) }
+    LaunchedEffect(splitDims) { onSettled() }
+    val maxTile = WebtoonTiles.maxTileHeightFor(splitDims, screenWidthPx, screenHeightPx)
+    val tiles = remember(splitDims, maxTile) { WebtoonTiles.split(splitDims, maxTile) }
     Column(Modifier.fillMaxWidth().background(Color.Black).clipToBounds()) {
         tiles.forEach { tile ->
-            key("${page}-${tile.index}-${tile.top}-${tile.height}-${splitDims.height}") {
+            key("${page}-${tile.index}-${tile.top}-${tile.height}-${splitDims.height}-$maxTile") {
                 WebtoonTileImage(
                     page = page,
                     pageIndex = index,
                     totalPages = total,
                     tile = tile,
                     claimed = splitDims,
-                    eager = tile.index == 0,
                     attempt = attempt,
+                    listState = listState,
                     onTap = onTap,
+                    onUseCoil = onUseCoil,
                 )
             }
         }
@@ -2092,106 +2239,125 @@ private fun WebtoonTileImage(
     totalPages: Int,
     tile: WebtoonTile,
     claimed: PageDimensions,
-    eager: Boolean,
     attempt: Int,
+    listState: LazyListState,
     onTap: () -> Unit,
+    onUseCoil: (File?) -> Unit,
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val tileKey = "${page}-${tile.index}-${tile.top}-${tile.height}-${claimed.height}"
-    // Верх страницы должен начать загрузку до первого события прокрутки.
-    var active by remember(tileKey) { mutableStateOf(eager) }
-    var bitmap by remember(tileKey, attempt) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var reach by remember(tileKey) { mutableStateOf(TileReach.Away) }
+    var bitmap by remember(tileKey, attempt) { mutableStateOf<Bitmap?>(null) }
     var loading by remember(tileKey, attempt) { mutableStateOf(false) }
-    var error by remember(tileKey, attempt) { mutableStateOf<String?>(null) }
-    var localRetry by remember(tileKey, attempt) { mutableIntStateOf(0) }
+    val latestBitmap = rememberUpdatedState(bitmap)
 
-    LaunchedEffect(active, tileKey, claimed, attempt, localRetry) {
-        if (!active) {
-            loading = false
-            delay(900)
-            if (!active) bitmap = null
-            return@LaunchedEffect
+    fun recycleLater(bmp: Bitmap?) {
+        if (bmp == null || bmp.isRecycled) return
+        view.postDelayed({ if (!bmp.isRecycled) bmp.recycle() }, 48L)
+    }
+
+    DisposableEffect(tileKey) {
+        onDispose {
+            val bmp = latestBitmap.value
+            if (bmp != null && !bmp.isRecycled) view.postDelayed({ if (!bmp.isRecycled) bmp.recycle() }, 48L)
         }
-        if (bitmap != null || loading) return@LaunchedEffect
+    }
+
+    // Видимость из LazyListState на каждом кадре скролла. Короткий уход
+    // из окна bitmap не сбрасывает — иначе плитка залипает чёрной.
+    LaunchedEffect(tileKey, claimed, attempt) {
+        var job: Job? = null
+        var handedOff = false
+        fun handOff(file: File?) {
+            if (handedOff) return
+            handedOff = true
+            job?.cancel()
+            onUseCoil(file)
+        }
         try {
-            loading = true
-            error = null
-            var lastFailure: Throwable? = null
-            repeat(PageImages.MAX_ATTEMPTS) { retry ->
-                val result = runCatching {
-                    WebtoonTiles.decode(
-                        context,
-                        page,
-                        tile,
-                        claimed = claimed,
-                        retry = attempt + localRetry + retry,
-                    )
+            snapshotFlow { tileReach(listState, pageIndex, tile, claimed) }.collect { next ->
+                reach = next
+                if (handedOff) return@collect
+                when (next) {
+                    TileReach.Near -> {
+                        if (bitmap != null || job?.isActive == true) return@collect
+                        loading = true
+                        job = launch {
+                            try {
+                                repeat(PageImages.MAX_ATTEMPTS) { retry ->
+                                    ensureActive()
+                                    try {
+                                        val decoded = WebtoonTiles.decode(
+                                            context,
+                                            page,
+                                            tile,
+                                            claimed = claimed,
+                                            retry = attempt + retry,
+                                        )
+                                        val previous = bitmap
+                                        bitmap = decoded
+                                        if (previous != null && previous !== decoded) recycleLater(previous)
+                                        return@launch
+                                    } catch (cancelled: CancellationException) {
+                                        throw cancelled
+                                    } catch (fallback: PageDecodeFallback) {
+                                        handOff(fallback.file)
+                                        return@launch
+                                    } catch (_: Throwable) {
+                                        delay(300L * (retry + 1))
+                                    }
+                                }
+                                handOff(WebtoonTiles.peekCachedFile(context, page))
+                            } finally {
+                                loading = false
+                            }
+                        }
+                    }
+                    TileReach.Far -> {
+                        job?.cancel()
+                        job = null
+                        loading = false
+                        val previous = bitmap
+                        bitmap = null
+                        recycleLater(previous)
+                    }
+                    TileReach.Away -> Unit
                 }
-                result.onSuccess {
-                    bitmap = it
-                    return@LaunchedEffect
-                }.onFailure { lastFailure = it }
-                delay(300L * (retry + 1))
             }
-            error = lastFailure?.message ?: "Не удалось загрузить фрагмент"
         } finally {
-            loading = false
+            job?.cancel()
         }
     }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(tile.width.toFloat() / tile.height.toFloat())
+            .aspectRatio(tile.width.toFloat() / tile.height.coerceAtLeast(1).toFloat())
             .clipToBounds()
             .background(Color.Black)
-            .onGloballyPositioned { coordinates ->
-                val top = coordinates.positionInWindow().y
-                // На первом layout-pass positionInWindow иногда ещё NaN. Не
-                // выключаем eager-загрузку, пока координаты не стали валидными.
-                if (!top.isFinite()) return@onGloballyPositioned
-                val bottom = top + coordinates.size.height
-                val screenHeight = view.height.takeIf { it > 0 }
-                    ?: context.resources.displayMetrics.heightPixels
-                val visibleSoon = bottom >= -screenHeight * 0.5f &&
-                    top <= screenHeight * 1.5f
-                // Не отменяем самый первый decode верхней плитки из-за
-                // промежуточной геометрии до появления bitmap/ошибки.
-                if (visibleSoon || !eager || bitmap != null || error != null) {
-                    active = visibleSoon
-                }
-            }
             .pointerInput(page, tile.index) {
                 detectTapGestures(onTap = { onTap() })
             },
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.TopCenter,
     ) {
         bitmap?.let { ready ->
-            Image(
-                bitmap = ready.asImageBitmap(),
-                contentDescription = "Страница ${pageIndex + 1} из $totalPages, фрагмент ${tile.index + 1}",
-                contentScale = ContentScale.FillBounds,
-                filterQuality = FilterQuality.High,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (!ready.isRecycled) {
+                Image(
+                    bitmap = ready.asImageBitmap(),
+                    contentDescription = "Страница ${pageIndex + 1} из $totalPages, фрагмент ${tile.index + 1}",
+                    contentScale = ContentScale.FillBounds,
+                    filterQuality = FilterQuality.High,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
-        if (loading && bitmap == null) {
+        if (bitmap == null && (loading || reach == TileReach.Near)) {
             androidx.compose.material3.CircularProgressIndicator(
-                modifier = Modifier.size(25.dp),
+                modifier = Modifier.padding(top = 28.dp).size(25.dp),
                 color = TomiloPrimary,
                 strokeWidth = 2.dp,
             )
-        }
-        if (error != null && bitmap == null) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(20.dp)) {
-                Icon(Icons.Default.BrokenImage, null, tint = TomiloMuted)
-                Text("Не загрузился фрагмент", color = Color.White)
-                TextButton(onClick = { localRetry += 1 }) {
-                    Icon(Icons.Default.Refresh, null)
-                    Text("Повторить")
-                }
-            }
         }
     }
 }
@@ -2200,6 +2366,7 @@ private fun WebtoonTileImage(
 @Composable
 private fun PagerReader(
     pages: List<String>,
+    pageDimensions: List<PageDimensions>,
     pagerState: PagerState,
     direction: ReaderDirection,
     chapterId: String,
@@ -2212,60 +2379,32 @@ private fun PagerReader(
     onPrevPage: () -> Unit,
     onNextPage: () -> Unit,
 ) {
-    Box(Modifier.fillMaxSize()) {
-        HorizontalPager(
-            state = pagerState,
-            reverseLayout = direction == ReaderDirection.RTL,
-            beyondViewportPageCount = 1,
-            modifier = Modifier.fillMaxSize(),
-        ) { index ->
-            val page = pages.getOrNull(index) ?: return@HorizontalPager
-            key("$chapterId-$index") {
-                ReaderPage(
-                    page = page,
-                    index = index,
-                    total = pages.size,
-                    failed = index in failedPages,
-                    loaded = index in loadedPages,
-                    attempt = pageRetryNonce[index] ?: 0,
-                    fillHeight = true,
-                    onRetry = { onRetry(index, page) },
-                    onState = { success, attempt -> onState(index, success, attempt, page) },
-                    onTap = onToggleChrome,
-                )
-            }
-        }
-        Row(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    ) {
-                        if (direction == ReaderDirection.RTL) onNextPage() else onPrevPage()
-                    },
-            )
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    ) { onToggleChrome() },
-            )
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    ) {
-                        if (direction == ReaderDirection.RTL) onPrevPage() else onNextPage()
-                    },
+    HorizontalPager(
+        state = pagerState,
+        reverseLayout = direction == ReaderDirection.RTL,
+        beyondViewportPageCount = 1,
+        modifier = Modifier.fillMaxSize(),
+    ) { index ->
+        val page = pages.getOrNull(index) ?: return@HorizontalPager
+        val knownHeight = pageDimensions.getOrNull(index)?.takeIf { it.isValid() }?.height
+        key("$chapterId-$index") {
+            ReaderPage(
+                page = page,
+                index = index,
+                total = pages.size,
+                failed = index in failedPages,
+                loaded = index in loadedPages,
+                attempt = pageRetryNonce[index] ?: 0,
+                fillHeight = true,
+                pagerZones = true,
+                direction = direction,
+                knownHeightPx = knownHeight,
+                measureBeforeCoil = knownHeight == null && page.isNotBlank(),
+                onRetry = { onRetry(index, page) },
+                onState = { success, attempt -> onState(index, success, attempt, page) },
+                onTap = onToggleChrome,
+                onPrevPage = onPrevPage,
+                onNextPage = onNextPage,
             )
         }
     }
@@ -2284,10 +2423,76 @@ private fun ReaderPage(
     onRetry: () -> Unit,
     onState: (success: Boolean?, attempt: Int) -> Unit,
     onTap: () -> Unit,
+    pagerZones: Boolean = false,
+    direction: ReaderDirection = ReaderDirection.LTR,
+    knownHeightPx: Int? = null,
+    measureBeforeCoil: Boolean = false,
+    onPrevPage: () -> Unit = {},
+    onNextPage: () -> Unit = {},
 ) {
+    if (page.isBlank()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier.heightIn(min = 280.dp))
+                .background(Color.Black)
+                .pointerInput(page) { detectTapGestures(onTap = { onTap() }) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                Icon(Icons.Default.BrokenImage, null, tint = TomiloMuted, modifier = Modifier.size(36.dp))
+                Spacer(Modifier.height(8.dp))
+                Text("Страница ${index + 1} не скачана", color = Color.White)
+                TextButton(onClick = onRetry) {
+                    Icon(Icons.Default.Refresh, null)
+                    Text("Докачать")
+                }
+            }
+        }
+        return
+    }
+
     val context = LocalContext.current
+    val tooTallKnown = knownHeightPx != null && knownHeightPx > PageImages.MAX_DECODE_HEIGHT_PX
+    var tooTall by remember(page, attempt, knownHeightPx) { mutableStateOf(tooTallKnown) }
+    var coilData by remember(page, attempt, knownHeightPx, measureBeforeCoil) {
+        mutableStateOf(if (measureBeforeCoil || tooTallKnown) null else page)
+    }
+    LaunchedEffect(page, attempt, measureBeforeCoil, knownHeightPx) {
+        if (knownHeightPx != null && knownHeightPx > PageImages.MAX_DECODE_HEIGHT_PX) {
+            tooTall = true
+            coilData = null
+            return@LaunchedEffect
+        }
+        if (!measureBeforeCoil) {
+            tooTall = false
+            coilData = page
+            return@LaunchedEffect
+        }
+        val measured = try {
+            WebtoonTiles.measureSource(context, page, attempt)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            null
+        }
+        if (measured != null && measured.height > PageImages.MAX_DECODE_HEIGHT_PX) {
+            tooTall = true
+            coilData = null
+            return@LaunchedEffect
+        }
+        tooTall = false
+        val cached = WebtoonTiles.peekCachedFile(context, page)?.takeIf { it.isFile }
+        coilData = cached?.toURI()?.toString() ?: page
+    }
+
     var zoomScale by remember(page) { mutableFloatStateOf(1f) }
     var zoomOffset by remember(page) { mutableStateOf(Offset.Zero) }
+    val zoomState = rememberUpdatedState(zoomScale)
+    val zonesState = rememberUpdatedState(pagerZones)
+    val tapState = rememberUpdatedState(onTap)
+    val prevState = rememberUpdatedState(onPrevPage)
+    val nextState = rememberUpdatedState(onNextPage)
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         val nextScale = (zoomScale * zoomChange).coerceIn(1f, 4f)
         zoomScale = nextScale
@@ -2300,65 +2505,163 @@ private fun ReaderPage(
             .background(Color.Black)
             .clipToBounds()
             .transformable(state = transformState, canPan = { zoomScale > 1f })
-            .pointerInput(page) {
-                detectTapGestures(
-                    onTap = { onTap() },
-                    onDoubleTap = {
-                        zoomScale = if (zoomScale > 1f) 1f else 2f
-                        if (zoomScale == 1f) zoomOffset = Offset.Zero
-                    },
-                )
+            .pointerInput(page, direction) {
+                // Не consume: щипок и пан при масштабе > 1 остаются у transformable,
+                // горизонтальный свайп — у пейджера.
+                coroutineScope {
+                    var pendingTap: Job? = null
+                    var lastUp = 0L
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = down.position
+                        val pointerId = down.id
+                        var moved = false
+                        var multi = false
+                        val slop = viewConfiguration.touchSlop
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.changes.size > 1 || event.changes.count { it.pressed } > 1) multi = true
+                            val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                            val dx = change.position.x - start.x
+                            val dy = change.position.y - start.y
+                            if (dx * dx + dy * dy > slop * slop) moved = true
+                            if (!change.pressed) break
+                        }
+                        if (moved || multi) {
+                            pendingTap?.cancel()
+                            pendingTap = null
+                            return@awaitEachGesture
+                        }
+                        val now = System.currentTimeMillis()
+                        if (pendingTap?.isActive == true && now - lastUp < viewConfiguration.doubleTapTimeoutMillis) {
+                            pendingTap?.cancel()
+                            pendingTap = null
+                            val next = if (zoomState.value > 1f) 1f else 2f
+                            zoomScale = next
+                            if (next <= 1f) zoomOffset = Offset.Zero
+                        } else {
+                            lastUp = now
+                            val zoomed = zoomState.value > 1f
+                            val zones = zonesState.value
+                            val rtl = direction == ReaderDirection.RTL
+                            val width = size.width.toFloat()
+                            pendingTap = launch {
+                                delay(viewConfiguration.doubleTapTimeoutMillis)
+                                if (!zones || zoomed) {
+                                    tapState.value()
+                                } else {
+                                    val third = width / 3f
+                                    when {
+                                        start.x < third -> if (rtl) nextState.value() else prevState.value()
+                                        start.x >= third * 2f -> if (rtl) prevState.value() else nextState.value()
+                                        else -> tapState.value()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             },
         contentAlignment = Alignment.Center,
     ) {
-        key(attempt) {
-            AsyncImage(
-                model = PageImages.request(context, page, attempt),
-                contentDescription = "Страница ${index + 1} из $total",
-                contentScale = if (fillHeight) ContentScale.Fit else ContentScale.FillWidth,
-                onState = { state ->
-                    when (state) {
-                        is AsyncImagePainter.State.Error -> {
-                            if (state.result.throwable !is CancellationException) {
-                                onState(false, attempt)
-                            }
-                        }
-                        is AsyncImagePainter.State.Success -> {
-                            val ok = state.result.drawable.intrinsicWidth >= 8 &&
-                                state.result.drawable.intrinsicHeight >= 8
-                            onState(if (ok) true else false, attempt)
-                        }
-                        else -> Unit
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier.heightIn(min = 280.dp))
-                    .graphicsLayer {
-                        scaleX = zoomScale
-                        scaleY = zoomScale
-                        translationX = zoomOffset.x
-                        translationY = zoomOffset.y
-                    },
-            )
-        }
-        if (!loaded && !failed) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(48.dp)) {
-                androidx.compose.material3.CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 2.dp, color = TomiloPrimary)
-                Spacer(Modifier.height(8.dp))
-                Text("Страница ${index + 1}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        if (failed) {
+        if (tooTall) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
                 Icon(Icons.Default.BrokenImage, null, tint = TomiloMuted, modifier = Modifier.size(36.dp))
                 Spacer(Modifier.height(8.dp))
-                Text("Не загрузилась страница ${index + 1}", color = Color.White)
+                Text("Страница слишком длинная", color = Color.White)
+                Text("Страница ${index + 1}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = onRetry) {
                     Icon(Icons.Default.Refresh, null)
                     Text("Повторить")
                 }
             }
+        } else {
+            val data = coilData
+            if (data != null) {
+                key(attempt, data) {
+                    AsyncImage(
+                        model = PageImages.request(context, data, attempt),
+                        contentDescription = "Страница ${index + 1} из $total",
+                        contentScale = if (fillHeight) ContentScale.Fit else ContentScale.FillWidth,
+                        onState = { state ->
+                            when (state) {
+                                is AsyncImagePainter.State.Error -> {
+                                    if (state.result.throwable !is CancellationException) {
+                                        onState(false, attempt)
+                                    }
+                                }
+                                is AsyncImagePainter.State.Success -> {
+                                    val drawable = state.result.drawable
+                                    val bmp = (drawable as? BitmapDrawable)?.bitmap
+                                    val black = bmp != null && !bmp.isRecycled && WebtoonTiles.isMostlyBlack(bmp)
+                                    val ok = !black &&
+                                        drawable.intrinsicWidth >= 8 &&
+                                        drawable.intrinsicHeight >= 8
+                                    onState(ok, attempt)
+                                }
+                                else -> Unit
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier.heightIn(min = 280.dp))
+                            .graphicsLayer {
+                                scaleX = zoomScale
+                                scaleY = zoomScale
+                                translationX = zoomOffset.x
+                                translationY = zoomOffset.y
+                            },
+                    )
+                }
+            }
+            if (data == null || (!loaded && !failed)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(48.dp)) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 2.dp, color = TomiloPrimary)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Страница ${index + 1}", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (failed) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                    Icon(Icons.Default.BrokenImage, null, tint = TomiloMuted, modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text("Не загрузилась страница ${index + 1}", color = Color.White)
+                    TextButton(onClick = onRetry) {
+                        Icon(Icons.Default.Refresh, null)
+                        Text("Повторить")
+                    }
+                }
+            }
         }
+    }
+}
+
+private enum class TileReach { Near, Away, Far }
+
+private fun tileReach(
+    listState: LazyListState,
+    pageIndex: Int,
+    tile: WebtoonTile,
+    claimed: PageDimensions,
+): TileReach {
+    val info = listState.layoutInfo
+    val item = info.visibleItemsInfo.firstOrNull { it.index == pageIndex }
+    if (item == null) {
+        if (pageIndex == listState.firstVisibleItemIndex && tile.index == 0) return TileReach.Near
+        return TileReach.Far
+    }
+    val viewport = (info.viewportEndOffset - info.viewportStartOffset).coerceAtLeast(1)
+    val pageHeight = item.size.coerceAtLeast(1)
+    val claimHeight = claimed.height.coerceAtLeast(1)
+    val tileTop = item.offset + tile.top.toFloat() / claimHeight * pageHeight
+    val tileBottom = tileTop + tile.height.toFloat() / claimHeight * pageHeight
+    val start = info.viewportStartOffset.toFloat()
+    val end = info.viewportEndOffset.toFloat()
+    val slack = viewport * 0.5f
+    val far = viewport * 2f
+    return when {
+        tileBottom >= start - slack && tileTop <= end + slack -> TileReach.Near
+        tileBottom < start - far || tileTop > end + far -> TileReach.Far
+        else -> TileReach.Away
     }
 }

@@ -1,6 +1,7 @@
 package ru.tomilo.lib.mobile.ui.screens.home
 
 import android.text.Html
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,6 +57,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -82,8 +84,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.semantics.Role
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.ChatTime
@@ -173,6 +173,7 @@ fun HomeScreen(
     onOpenPremium: () -> Unit = {},
     onOpenProfile: () -> Unit = {},
     onContinueReading: (titleId: String, chapterId: String) -> Unit = { _, _ -> },
+    onLuckyVisible: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -273,9 +274,15 @@ fun HomeScreen(
     val featured = remember(popular, updates, randomTitles) {
         interleaveCarouselTitles(popular, randomTitles, updates)
     }
+    val luckyOpen = showCarousel && featured.isNotEmpty()
+    SideEffect { onLuckyVisible(luckyOpen) }
+    DisposableEffect(Unit) {
+        onDispose { onLuckyVisible(false) }
+    }
 
     val isPremiumUser = Premium.isActive(user?.subscriptionExpiresAt)
 
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         containerColor = TomiloBg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -410,31 +417,23 @@ fun HomeScreen(
         }
     }
 
-    if (showCarousel && featured.isNotEmpty()) {
-        Dialog(
-            onDismissRequest = { showCarousel = false },
-            properties = DialogProperties(
-                dismissOnBackPress = true,
-                dismissOnClickOutside = false,
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false,
-            ),
-        ) {
-            HomeTitleCarousel(
-                items = featured,
-                catalogRepository = catalogRepository,
-                continueItems = continueItems,
-                onDismiss = { showCarousel = false },
-                onOpenTitle = { item ->
-                    showCarousel = false
-                    onOpenTitle(item.stableId(), item.slug)
-                },
-                onReadChapter = { titleId, chapterId ->
-                    showCarousel = false
-                    onContinueReading(titleId, chapterId)
-                },
-            )
-        }
+    if (luckyOpen) {
+        BackHandler { showCarousel = false }
+        HomeTitleCarousel(
+            items = featured,
+            catalogRepository = catalogRepository,
+            continueItems = continueItems,
+            onDismiss = { showCarousel = false },
+            onOpenTitle = { item ->
+                showCarousel = false
+                onOpenTitle(item.stableId(), item.slug)
+            },
+            onReadChapter = { titleId, chapterId ->
+                showCarousel = false
+                onContinueReading(titleId, chapterId)
+            },
+        )
+    }
     }
 }
 
@@ -1034,6 +1033,7 @@ private fun HomeTitleCarousel(
     var descriptions by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var artPreviews by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var opening by remember { mutableStateOf(false) }
+    var zoomArt by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(pagerState.currentPage, items) {
@@ -1095,7 +1095,30 @@ private fun HomeTitleCarousel(
                 onBack = onDismiss,
                 onRead = { readNow(item) },
                 onOpenTitle = { onOpenTitle(item) },
+                onZoomArt = { zoomArt = it },
             )
+        }
+        val frame = zoomArt
+        if (frame != null) {
+            BackHandler { zoomArt = null }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.82f))
+                    .clickable { zoomArt = null },
+                contentAlignment = Alignment.Center,
+            ) {
+                TomiloCoverImage(
+                    source = frame,
+                    contentDescription = "Кадр из главы",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.84f)
+                        .clip(RoundedCornerShape(16.dp)),
+                )
+            }
         }
         Column(
             Modifier
@@ -1128,6 +1151,7 @@ private fun HomeTitleCarouselPage(
     onBack: () -> Unit,
     onRead: () -> Unit,
     onOpenTitle: () -> Unit,
+    onZoomArt: (String) -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         TomiloCoverImage(
@@ -1155,10 +1179,10 @@ private fun HomeTitleCarouselPage(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp),
         ) {
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier.fillMaxWidth().padding(top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
@@ -1202,8 +1226,13 @@ private fun HomeTitleCarouselPage(
                 }
             }
 
-            Spacer(Modifier.weight(1f))
-
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1252,8 +1281,12 @@ private fun HomeTitleCarouselPage(
             // больше не могут вытеснить его ниже видимой границы карусели.
             artPreview?.let { preview ->
                 Row(
-                    Modifier.fillMaxWidth().height(74.dp).clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.48f)),
+                    Modifier
+                        .fillMaxWidth()
+                        .height(74.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.48f))
+                        .clickable { onZoomArt(preview) },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TomiloCoverImage(
@@ -1339,11 +1372,11 @@ private fun HomeTitleCarouselPage(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clickable { descriptionExpanded = !descriptionExpanded }
-                            .padding(vertical = 6.dp),
+                            .padding(top = 4.dp, bottom = 2.dp),
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            }
         }
     }
 }

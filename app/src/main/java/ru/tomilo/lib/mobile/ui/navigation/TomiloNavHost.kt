@@ -185,7 +185,9 @@ fun TomiloNavHost(container: AppContainer) {
         TomiloTabItem(Routes.Games, "Игры", Icons.Outlined.SportsEsports, Icons.Outlined.SportsEsports),
     )
     val tabRoutes = (tabs + moreTabs).map { it.route }.toSet()
-    val showBottomBar = current in tabRoutes
+    var luckyOpen by remember { mutableStateOf(false) }
+    val onTab = current in tabRoutes
+    val showBottomBar = onTab && !luckyOpen
 
     fun goLogin() = navController.navigate(Routes.Login)
 
@@ -348,7 +350,7 @@ fun TomiloNavHost(container: AppContainer) {
             modifier = Modifier
                 .fillMaxSize()
                 .then(
-                    if (!showBottomBar) {
+                    if (!onTab) {
                         Modifier.windowInsetsPadding(WindowInsets.navigationBars)
                     } else {
                         Modifier
@@ -385,6 +387,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onContinueReading = { titleId, chapterId ->
                         navController.navigate(Routes.reader(chapterId, offline = false, titleId = titleId))
                     },
+                    onLuckyVisible = { luckyOpen = it },
                 )
             }
             composable(Routes.Search) {

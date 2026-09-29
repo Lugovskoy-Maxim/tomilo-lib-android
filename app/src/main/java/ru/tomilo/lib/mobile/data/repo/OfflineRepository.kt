@@ -25,6 +25,12 @@ import ru.tomilo.lib.mobile.data.local.OfflineTitleEntity
 import java.io.File
 import java.util.Locale
 
+data class LocalChapterPages(
+    val pageCount: Int,
+    val slots: List<String?>,
+    val complete: Boolean,
+)
+
 data class OfflineIntegrityReport(
     val validChapters: Int,
     val removedEntries: Int,
@@ -156,19 +162,49 @@ class OfflineRepository(
             updated
         }
 
-    suspend fun getLocalPages(chapterId: String): List<String>? = withContext(Dispatchers.IO) {
+    suspend fun getLocalPages(chapterId: String): List<String>? =
+        readLocalChapter(chapterId)?.slots?.filterNotNull()?.takeIf { it.isNotEmpty() }
+
+    /**
+     * Слоты совпадают с номерами страниц главы. Пустой слот — дыра или битый файл,
+     * его нельзя выкидывать из списка: читалка показывает ошибку на этом номере.
+     */
+    suspend fun readLocalChapter(chapterId: String): LocalChapterPages? = withContext(Dispatchers.IO) {
         val entity = dao.get(chapterId) ?: return@withContext null
         val dir = File(entity.localDir)
         if (!dir.isDirectory) return@withContext null
-        val pages = dir.listFiles()
-            ?.filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }
-            ?.sortedBy { it.name }
-            ?.filter { ImageIntegrity.isValidFile(it) }
-            ?.map { it.absolutePath }
-            .orEmpty()
-        // Несовпадение с pageCount не повод качать главу заново: читаем то, что уже на диске.
-        if (pages.isEmpty()) return@withContext null
-        pages
+        val byIndex = HashMap<Int, File>()
+        dir.listFiles()?.forEach { file ->
+            if (!file.isFile || file.name.endsWith(".part")) return@forEach
+            val index = pageIndexFromName(file.name) ?: return@forEach
+            if (!ImageIntegrity.isValidFile(file)) return@forEach
+            val previous = byIndex[index]
+            if (previous == null || file.lastModified() >= previous.lastModified()) {
+                byIndex[index] = file
+            }
+        }
+        val count = maxOf(entity.pageCount, (byIndex.keys.maxOrNull() ?: -1) + 1)
+        if (count <= 0) return@withContext null
+        val slots = List(count) { index -> byIndex[index]?.absolutePath }
+        if (slots.all { it == null }) return@withContext null
+        LocalChapterPages(
+            pageCount = count,
+            slots = slots,
+            complete = slots.none { it == null },
+        )
+    }
+
+    suspend fun repairChapter(chapterId: String): Result<OfflineChapterEntity> {
+        val entity = getEntity(chapterId)
+            ?: return Result.failure(IllegalStateException("Глава не скачана"))
+        val meta = getTitleMeta(entity.titleId)
+        return downloadChapter(
+            titleId = entity.titleId,
+            titleName = meta?.name ?: entity.titleName,
+            titleSlug = meta?.slug ?: entity.titleSlug,
+            titleCover = meta?.coverImage ?: entity.titleCover,
+            chapterId = chapterId,
+        )
     }
 
     suspend fun downloadedChapters(titleId: String): List<OfflineChapterEntity> =
@@ -260,14 +296,17 @@ class OfflineRepository(
                 }
                 currentCoroutineContext().ensureActive()
 
-                if (getLocalPages(chapterId)?.isNotEmpty() == true) {
-                    // A concurrent cleanup may remove the Room row after the files
-                    // were checked; only report completion when metadata still exists.
-                    dao.get(chapterId)?.let { existingChapter ->
-                        if (usedAdCredit) adRewardStore?.refundOfflineCredit()
-                        onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
-                        return@runCatchingCancellable existingChapter
-                    }
+                val existingChapter = dao.get(chapterId)
+                val localChapter = existingChapter?.let { readLocalChapter(chapterId) }
+                if (existingChapter != null && localChapter?.complete == true) {
+                    if (usedAdCredit) adRewardStore?.refundOfflineCredit()
+                    onStage(DownloadStage.Completed, 0, 0, "Уже скачано")
+                    return@runCatchingCancellable existingChapter
+                }
+                if (existingChapter != null && usedAdCredit) {
+                    // Докачка дыр не списывает новый кредит.
+                    adRewardStore?.refundOfflineCredit()
+                    usedAdCredit = false
                 }
 
                 onStage(DownloadStage.FetchingChapter, 0, 0, null)
@@ -288,7 +327,9 @@ class OfflineRepository(
                     val ext = cleanPath.substringAfterLast('.', "jpg").filter { it.isLetterOrDigit() }.take(5)
                         .ifBlank { "jpg" }
                     val out = File(root, String.format(Locale.ROOT, "%04d.%s", index + 1, ext))
-                    if (ImageIntegrity.isValidFile(out)) {
+                    val keep = findValidPage(root, index)
+                    if (keep != null) {
+                        deletePageSiblings(root, index, keep)
                         onProgress(index + 1, pages.size)
                         onStage(
                             DownloadStage.DownloadingPages,
@@ -298,7 +339,7 @@ class OfflineRepository(
                         )
                         return@forEachIndexed
                     }
-                    out.delete()
+                    deletePageSiblings(root, index, null)
                     onStage(DownloadStage.DownloadingPages, index, pages.size, null)
                     downloadPageWithRetry(url = url, dest = out, pageIndex = index)
                     bytes += out.length()
@@ -307,6 +348,10 @@ class OfflineRepository(
                 }
 
                 onStage(DownloadStage.Saving, pages.size, pages.size, null)
+                bytes = root.listFiles()
+                    ?.filter { it.isFile && !it.name.endsWith(".part") }
+                    ?.sumOf { it.length() }
+                    ?: bytes
                 val entity = OfflineChapterEntity(
                     chapterId = chapterId,
                     titleId = titleId,
@@ -329,6 +374,34 @@ class OfflineRepository(
                 throw e
             }
         }.onFailure { if (it is CancellationException) throw it }
+    }
+
+    private fun pageIndexFromName(name: String): Int? {
+        if (name.endsWith(".part")) return null
+        val number = name.substringBefore('.').toIntOrNull() ?: return null
+        if (number <= 0) return null
+        return number - 1
+    }
+
+    private fun findValidPage(root: File, index: Int): File? {
+        val prefix = String.format(Locale.ROOT, "%04d.", index + 1)
+        return root.listFiles()
+            ?.filter { file ->
+                file.isFile &&
+                    file.name.startsWith(prefix) &&
+                    !file.name.endsWith(".part") &&
+                    ImageIntegrity.isValidFile(file)
+            }
+            ?.maxByOrNull { it.lastModified() }
+    }
+
+    private fun deletePageSiblings(root: File, index: Int, keep: File?) {
+        val prefix = String.format(Locale.ROOT, "%04d.", index + 1)
+        root.listFiles()?.forEach { file ->
+            if (!file.isFile || !file.name.startsWith(prefix)) return@forEach
+            if (keep != null && file.absolutePath == keep.absolutePath) return@forEach
+            file.delete()
+        }
     }
 
     private suspend fun downloadPageWithRetry(url: String, dest: File, pageIndex: Int) {

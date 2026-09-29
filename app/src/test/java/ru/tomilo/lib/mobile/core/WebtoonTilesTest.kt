@@ -104,4 +104,25 @@ class WebtoonTilesTest {
 
         assertEquals(PageDimensions(1200, 10100), chapter.pageDimensions?.single())
     }
+
+    @Test
+    fun screenTileHeightCoversPageWithoutGaps() {
+        val dims = PageDimensions(1200, 20_000)
+        val max = WebtoonTiles.maxTileHeightFor(dims, 1080, 2400)
+        assertTrue(max in 512..4096)
+        val tiles = WebtoonTiles.split(dims, max)
+        assertEquals(20_000, tiles.sumOf { it.height })
+        assertTrue(tiles.all { it.height in 1..max })
+        assertTrue(tiles.zipWithNext().all { (upper, lower) -> upper.top + upper.height == lower.top })
+    }
+
+    @Test
+    fun mcuAlignmentStaysInsideFrameAndCoversRequest() {
+        val rect = SourceRect(0, 100, 1200, 2500)
+        val aligned = WebtoonTiles.alignToMcu(rect, 1200, 10_000)
+        assertTrue(aligned.top <= 100 && aligned.top % 16 == 0)
+        assertTrue(aligned.bottom >= 2500 && aligned.bottom <= 10_000)
+        assertEquals(100 - aligned.top, aligned.cropTop)
+        assertEquals(2400, aligned.contentHeight)
+    }
 }

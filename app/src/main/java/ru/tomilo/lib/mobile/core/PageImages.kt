@@ -16,7 +16,7 @@ object PageImages {
     // до 16K по высоте. Это сохраняет чёткость текста у склеенных WebP и всё
     // ещё ограничивает размер software bitmap, защищая приложение от OOM/GPU.
     private const val MAX_DECODE_WIDTH_PX = 1_080
-    private const val MAX_DECODE_HEIGHT_PX = 16_384
+    const val MAX_DECODE_HEIGHT_PX = 16_384
 
     fun request(context: Context, data: Any, attempt: Int = 0): ImageRequest {
         val bypassCache = attempt > 0

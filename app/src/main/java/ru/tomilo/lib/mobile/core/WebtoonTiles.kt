@@ -6,9 +6,12 @@ import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
 import android.graphics.Rect
 import android.net.Uri
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import okhttp3.OkHttpClient
@@ -17,6 +20,7 @@ import ru.tomilo.lib.mobile.data.api.NetworkModule
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 @Serializable
 data class PageDimensions(
@@ -43,33 +47,67 @@ data class SourceRect(
     val height: Int get() = (bottom - top).coerceAtLeast(0)
 }
 
+/** Запрос региона, выровненный по MCU, и сдвиг обрезки обратно к исходной плитке. */
+data class AlignedDecode(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+    val cropLeft: Int,
+    val cropTop: Int,
+    val contentWidth: Int,
+    val contentHeight: Int,
+)
+
 /**
- * Декодирует длинные страницы вебтуна регионами. Bitmap каждой плитки не выше
- * 4096 px, поэтому изображение не обрезается лимитом GPU и не требует держать
- * полный WebP высотой 10–30K в оперативной памяти.
+ * Плиточный декод не смог отдать фрагмент. [file] — уже скачанный оригинал,
+ * его можно отдать в Coil без второго HTTP. Кэш `webtoon_sources` при этом стирается.
+ */
+class PageDecodeFallback(
+    val file: File?,
+    message: String,
+) : IllegalStateException(message)
+
+/**
+ * Декодирует длинные страницы вебтуна регионами. Высоту плитки снаружи
+ * ограничивают примерно одним экраном, но не выше 4096 px.
  */
 object WebtoonTiles {
-    private const val MAX_TILE_SOURCE_HEIGHT = 4_096
+    const val MAX_TILE_SOURCE_HEIGHT = 4_096
     // Степенной inSampleSize у Android не должен перескочить с ~1500 сразу
     // до 750 px на исходниках шириной 3K — сохраняем запас для QHD-экранов.
     private const val MAX_DECODE_WIDTH = 2_048
     private const val CACHE_TRIM_AT = 600L * 1024L * 1024L
     private const val CACHE_TARGET = 450L * 1024L * 1024L
+    private const val DOWNLOAD_PERMITS = 2
 
     private val sourceLocks = ConcurrentHashMap<String, Mutex>()
+    private val downloads = Semaphore(DOWNLOAD_PERMITS)
+    private val activeDecodes = ConcurrentHashMap<String, AtomicInteger>()
+    private val poisoned = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var mediaClient: OkHttpClient? = null
 
-    fun split(dimensions: PageDimensions): List<WebtoonTile> {
+    fun split(dimensions: PageDimensions, maxTileHeight: Int = MAX_TILE_SOURCE_HEIGHT): List<WebtoonTile> {
         if (!dimensions.isValid()) return emptyList()
+        val tileHeight = maxTileHeight.coerceIn(1, MAX_TILE_SOURCE_HEIGHT)
         return buildList {
             var top = 0
             var index = 0
             while (top < dimensions.height) {
-                val height = minOf(MAX_TILE_SOURCE_HEIGHT, dimensions.height - top)
+                val height = minOf(tileHeight, dimensions.height - top)
                 add(WebtoonTile(index = index++, top = top, width = dimensions.width, height = height))
                 top += height
             }
         }
+    }
+
+    /** Высота плитки в пикселях исходника, чтобы на экране она была около одного экрана. */
+    fun maxTileHeightFor(dimensions: PageDimensions, screenWidthPx: Int, screenHeightPx: Int): Int {
+        val screenW = screenWidthPx.coerceAtLeast(1)
+        val screenH = screenHeightPx.coerceAtLeast(1)
+        val imageW = dimensions.width.coerceAtLeast(1)
+        val raw = (screenH.toLong() * imageW / screenW).toInt()
+        return raw.coerceIn(512, MAX_TILE_SOURCE_HEIGHT)
     }
 
     /**
@@ -92,6 +130,57 @@ object WebtoonTiles {
         return SourceRect(left = 0, top = top, right = right, bottom = bottom)
     }
 
+    /** Выравнивает регион по 16 px внутри кадра. Лишнее потом обрезается. */
+    fun alignToMcu(rect: SourceRect, sourceWidth: Int, sourceHeight: Int): AlignedDecode {
+        val srcW = sourceWidth.coerceAtLeast(1)
+        val srcH = sourceHeight.coerceAtLeast(1)
+        val reqLeft = rect.left.coerceIn(0, srcW - 1)
+        val reqTop = rect.top.coerceIn(0, srcH - 1)
+        val reqRight = rect.right.coerceIn(reqLeft + 1, srcW)
+        val reqBottom = rect.bottom.coerceIn(reqTop + 1, srcH)
+        val alignedLeft = (reqLeft / 16) * 16
+        val alignedTop = (reqTop / 16) * 16
+        var alignedRight = ((reqRight + 15) / 16) * 16
+        var alignedBottom = ((reqBottom + 15) / 16) * 16
+        if (alignedRight > srcW) alignedRight = srcW
+        if (alignedBottom > srcH) alignedBottom = srcH
+        if (alignedRight <= alignedLeft) alignedRight = (alignedLeft + 1).coerceAtMost(srcW)
+        if (alignedBottom <= alignedTop) alignedBottom = (alignedTop + 1).coerceAtMost(srcH)
+        return AlignedDecode(
+            left = alignedLeft,
+            top = alignedTop,
+            right = alignedRight,
+            bottom = alignedBottom,
+            cropLeft = reqLeft - alignedLeft,
+            cropTop = reqTop - alignedTop,
+            contentWidth = reqRight - reqLeft,
+            contentHeight = reqBottom - reqTop,
+        )
+    }
+
+    fun isMostlyBlack(bitmap: Bitmap): Boolean {
+        if (bitmap.isRecycled || bitmap.width < 2 || bitmap.height < 2) return true
+        val stepX = (bitmap.width / 16).coerceAtLeast(1)
+        val stepY = (bitmap.height / 16).coerceAtLeast(1)
+        var dark = 0
+        var total = 0
+        var y = 0
+        while (y < bitmap.height) {
+            var x = 0
+            while (x < bitmap.width) {
+                val color = bitmap.getPixel(x, y)
+                val r = (color shr 16) and 0xFF
+                val g = (color shr 8) and 0xFF
+                val b = color and 0xFF
+                if (r < 12 && g < 12 && b < 12) dark++
+                total++
+                x += stepX
+            }
+            y += stepY
+        }
+        return total > 0 && dark * 100 / total >= 96
+    }
+
     suspend fun decode(
         context: Context,
         source: String,
@@ -99,64 +188,123 @@ object WebtoonTiles {
         claimed: PageDimensions,
         retry: Int = 0,
     ): Bitmap = withContext(Dispatchers.IO) {
-        val file = sourceFile(context.applicationContext, source, retry)
-        decodeRegion(file, tile, claimed)
+        val appContext = context.applicationContext
+        val file = sourceFile(appContext, source, retry)
+        decodeRegion(appContext, file, tile, claimed)
     }
 
     suspend fun measureSource(context: Context, source: String, retry: Int = 0): PageDimensions =
         withContext(Dispatchers.IO) {
+            if (source.isBlank()) return@withContext PageDimensions()
             val file = sourceFile(context.applicationContext, source, retry)
-            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(file.absolutePath, options)
-            PageDimensions(options.outWidth.coerceAtLeast(0), options.outHeight.coerceAtLeast(0))
+            boundsOf(file)
         }
 
     suspend fun measureLocalSources(sources: List<String>): List<PageDimensions> =
         withContext(Dispatchers.IO) {
             sources.map { source ->
+                if (source.isBlank()) return@map PageDimensions()
                 val file = localFile(source)
                 if (file == null || !file.isFile) return@map PageDimensions()
-                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(file.absolutePath, options)
-                PageDimensions(options.outWidth.coerceAtLeast(0), options.outHeight.coerceAtLeast(0))
+                boundsOf(file)
             }
         }
 
-    @Suppress("DEPRECATION")
-    private fun decodeRegion(file: File, tile: WebtoonTile, claimed: PageDimensions): Bitmap {
-        val decoder = BitmapRegionDecoder.newInstance(file.absolutePath, false)
-            ?: error("Формат страницы не поддерживает плиточное чтение")
-        return try {
-            val sourceWidth = decoder.width.coerceAtLeast(1)
-            val sourceHeight = decoder.height.coerceAtLeast(1)
-            val region = mapTileToSource(tile, claimed, sourceWidth, sourceHeight)
-            var sample = 1
-            while (sourceWidth / sample > MAX_DECODE_WIDTH) sample *= 2
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = sample
-                inPreferredConfig = Bitmap.Config.ARGB_8888
+    /** Уже скачанный оригинал: локальный файл или кэш плиток. Без сети. */
+    fun peekCachedFile(context: Context, source: String): File? {
+        if (source.isBlank()) return null
+        localFile(source)?.takeIf { it.isFile }?.let { return it }
+        if (isLocalSource(source)) return null
+        val destination = cacheFile(context.applicationContext, source)
+        if (destination.absolutePath in poisoned) return null
+        return destination.takeIf { isImage(it) }
+    }
+
+    fun evict(context: Context, source: String) {
+        if (source.isBlank() || isLocalSource(source)) return
+        val destination = cacheFile(context.applicationContext, source)
+        poisoned.remove(destination.absolutePath)
+        destination.delete()
+    }
+
+    private fun decodeRegion(context: Context, file: File, tile: WebtoonTile, claimed: PageDimensions): Bitmap {
+        acquire(file)
+        try {
+            val decoder = openRegionDecoder(file)
+            if (decoder == null) {
+                poison(context, file)
+                throw PageDecodeFallback(file, "Формат страницы не поддерживает плиточное чтение")
             }
-            val decoded = decoder.decodeRegion(
-                Rect(region.left, region.top, region.right, region.bottom),
-                options,
-            ) ?: error("Не удалось декодировать фрагмент страницы")
-            cropToRequested(decoded, region.width, region.height, sample)
+            try {
+                val sourceWidth = decoder.width.coerceAtLeast(1)
+                val sourceHeight = decoder.height.coerceAtLeast(1)
+                val region = mapTileToSource(tile, claimed, sourceWidth, sourceHeight)
+                var sample = 1
+                while (sourceWidth / sample > MAX_DECODE_WIDTH) sample *= 2
+                var bitmap = decodeOnce(decoder, region, sourceWidth, sourceHeight, sample)
+                if (bitmap != null && !isMostlyBlack(bitmap)) return bitmap
+                bitmap?.let { if (!it.isRecycled) it.recycle() }
+                if (sample != 1) {
+                    bitmap = decodeOnce(decoder, region, sourceWidth, sourceHeight, 1)
+                    if (bitmap != null && !isMostlyBlack(bitmap)) return bitmap
+                    bitmap?.let { if (!it.isRecycled) it.recycle() }
+                }
+                poison(context, file)
+                throw PageDecodeFallback(file, "Не удалось декодировать фрагмент страницы")
+            } finally {
+                decoder.recycle()
+                if (file.exists()) file.setLastModified(System.currentTimeMillis())
+            }
         } finally {
-            decoder.recycle()
-            file.setLastModified(System.currentTimeMillis())
+            release(file)
         }
     }
 
-    /** JPEG/WebP MCU может отдать пиксели соседней плитки — без обрезки куски наплывают. */
-    private fun cropToRequested(bitmap: Bitmap, regionWidth: Int, regionHeight: Int, sample: Int): Bitmap {
-        val expectedW = (regionWidth / sample).coerceAtLeast(1)
-        val expectedH = (regionHeight / sample).coerceAtLeast(1)
-        if (bitmap.width <= expectedW && bitmap.height <= expectedH) return bitmap
-        val width = minOf(expectedW, bitmap.width)
-        val height = minOf(expectedH, bitmap.height)
-        val cropped = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+    @Suppress("DEPRECATION")
+    private fun openRegionDecoder(file: File): BitmapRegionDecoder? = try {
+        BitmapRegionDecoder.newInstance(file.absolutePath, false)
+    } catch (failure: Throwable) {
+        if (failure is CancellationException) throw failure
+        null
+    }
+
+    private fun decodeOnce(
+        decoder: BitmapRegionDecoder,
+        region: SourceRect,
+        sourceWidth: Int,
+        sourceHeight: Int,
+        sample: Int,
+    ): Bitmap? {
+        val aligned = alignToMcu(region, sourceWidth, sourceHeight)
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample.coerceAtLeast(1)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val decoded = decoder.decodeRegion(
+            Rect(aligned.left, aligned.top, aligned.right, aligned.bottom),
+            options,
+        ) ?: return null
+        return cropAligned(decoded, aligned, options.inSampleSize.coerceAtLeast(1))
+    }
+
+    private fun cropAligned(bitmap: Bitmap, aligned: AlignedDecode, sample: Int): Bitmap {
+        val cropX = (aligned.cropLeft / sample).coerceAtLeast(0)
+        val cropY = (aligned.cropTop / sample).coerceAtLeast(0)
+        val wantW = (aligned.contentWidth / sample).coerceAtLeast(1)
+        val wantH = (aligned.contentHeight / sample).coerceAtLeast(1)
+        if (cropX == 0 && cropY == 0 && bitmap.width <= wantW && bitmap.height <= wantH) return bitmap
+        val width = minOf(wantW, bitmap.width - cropX).coerceAtLeast(1)
+        val height = minOf(wantH, bitmap.height - cropY).coerceAtLeast(1)
+        if (cropX >= bitmap.width || cropY >= bitmap.height) return bitmap
+        val cropped = Bitmap.createBitmap(bitmap, cropX, cropY, width, height)
         if (cropped != bitmap) bitmap.recycle()
         return cropped
+    }
+
+    private fun boundsOf(file: File): PageDimensions {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, options)
+        return PageDimensions(options.outWidth.coerceAtLeast(0), options.outHeight.coerceAtLeast(0))
     }
 
     private fun scale(value: Int, from: Int, to: Int): Int {
@@ -172,43 +320,50 @@ object WebtoonTiles {
         val destination = File(cacheDir, "$key.source")
         val lock = sourceLocks.getOrPut(key) { Mutex() }
         return lock.withLock {
-            if (isImage(destination)) {
+            if (isImage(destination) && destination.absolutePath !in poisoned) {
                 destination.setLastModified(System.currentTimeMillis())
                 return@withLock destination
             }
+            poisoned.remove(destination.absolutePath)
             destination.delete()
-            val part = File(cacheDir, "$key.part")
-            var lastError: Throwable? = null
-            val candidates = MediaUrl.candidates(source).ifEmpty { listOf(source) }
-            val ordered = candidates.drop(retry % candidates.size) + candidates.take(retry % candidates.size)
-            for (candidate in ordered) {
-                try {
-                    part.delete()
-                    val request = Request.Builder()
-                        .url(candidate)
-                        .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
-                        .get()
-                        .build()
-                    client(context).newCall(request).execute().use { response ->
-                        if (!response.isSuccessful) error("HTTP ${response.code}")
-                        val body = response.body ?: error("Пустой ответ изображения")
-                        body.byteStream().use { input ->
-                            part.outputStream().use { output -> input.copyTo(output) }
+            downloads.withPermit {
+                if (isImage(destination) && destination.absolutePath !in poisoned) {
+                    return@withPermit destination
+                }
+                val part = File(cacheDir, "$key.part")
+                var lastError: Throwable? = null
+                val candidates = MediaUrl.candidates(source).ifEmpty { listOf(source) }
+                val ordered = candidates.drop(retry % candidates.size) + candidates.take(retry % candidates.size)
+                for (candidate in ordered) {
+                    try {
+                        part.delete()
+                        val request = Request.Builder()
+                            .url(candidate)
+                            .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
+                            .get()
+                            .build()
+                        client(context).newCall(request).execute().use { response ->
+                            if (!response.isSuccessful) error("HTTP ${response.code}")
+                            val body = response.body ?: error("Пустой ответ изображения")
+                            body.byteStream().use { input ->
+                                part.outputStream().use { output -> input.copyTo(output) }
+                            }
                         }
-                    }
-                    if (!isImage(part)) error("Сервер вернул повреждённое изображение")
-                    if (!part.renameTo(destination)) {
-                        part.copyTo(destination, overwrite = true)
+                        if (!isImage(part)) error("Сервер вернул повреждённое изображение")
+                        if (!part.renameTo(destination)) {
+                            part.copyTo(destination, overwrite = true)
+                            part.delete()
+                        }
+                        trimCache(cacheDir, destination)
+                        return@withLock destination
+                    } catch (failure: Throwable) {
+                        if (failure is CancellationException) throw failure
+                        lastError = failure
                         part.delete()
                     }
-                    trimCache(cacheDir, destination)
-                    return@withLock destination
-                } catch (failure: Throwable) {
-                    lastError = failure
-                    part.delete()
                 }
+                throw lastError ?: IllegalStateException("Не удалось загрузить страницу")
             }
-            throw lastError ?: IllegalStateException("Не удалось загрузить страницу")
         }
     }
 
@@ -227,11 +382,46 @@ object WebtoonTiles {
         }
     }.getOrNull()
 
+    private fun cacheFile(context: Context, source: String): File {
+        val cacheDir = File(context.cacheDir, "webtoon_sources")
+        return File(cacheDir, sha256(source) + ".source")
+    }
+
+    private fun isCacheFile(context: Context, file: File): Boolean {
+        val root = File(context.cacheDir, "webtoon_sources").absolutePath
+        return file.absolutePath.startsWith(root)
+    }
+
     private fun isImage(file: File): Boolean {
         if (!file.isFile || file.length() < 64L) return false
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, options)
         return options.outWidth > 0 && options.outHeight > 0
+    }
+
+    private fun acquire(file: File) {
+        activeDecodes.compute(file.absolutePath) { _, current ->
+            val counter = current ?: AtomicInteger(0)
+            counter.incrementAndGet()
+            counter
+        }
+    }
+
+    private fun release(file: File) {
+        activeDecodes.compute(file.absolutePath) { _, current ->
+            if (current == null) return@compute null
+            val left = current.decrementAndGet()
+            if (left <= 0) null else current
+        }
+    }
+
+    /**
+     * Битый кэш не отдаём плиткам повторно, но файл оставляем:
+     * Coil читает его с диска, без второго HTTP. Удаление — в [evict]
+     * или когда та же страница качается заново.
+     */
+    private fun poison(context: Context, file: File) {
+        if (isCacheFile(context, file)) poisoned.add(file.absolutePath)
     }
 
     private fun trimCache(directory: File, keep: File) {
@@ -240,10 +430,11 @@ object WebtoonTiles {
         if (total <= CACHE_TRIM_AT) return
         files.sortedBy { it.lastModified() }.forEach { file ->
             if (total <= CACHE_TARGET) return
-            if (file != keep) {
-                val size = file.length()
-                if (file.delete()) total -= size
-            }
+            if (file == keep) return@forEach
+            if (file.absolutePath in poisoned) return@forEach
+            if ((activeDecodes[file.absolutePath]?.get() ?: 0) > 0) return@forEach
+            val size = file.length()
+            if (file.delete()) total -= size
         }
     }
 

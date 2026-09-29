@@ -1,6 +1,9 @@
 package ru.tomilo.lib.mobile.core
 
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.drawable.BitmapDrawable
+import android.os.Build
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -27,7 +30,9 @@ object ImageIntegrity {
         if (!hasValidContainer(header, tail, bytes.size.toLong())) return false
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
-        return decodeLooksUsable(opts, header)
+        if (decodeLooksUsable(opts)) return true
+        if (isAvif(header)) return avifByteBounds(bytes)
+        return false
     }
 
     private fun hasValidContainer(header: ByteArray, tail: ByteArray, size: Long): Boolean {
@@ -43,16 +48,51 @@ object ImageIntegrity {
 
     private fun canDecodeBounds(file: File): Boolean {
         val header = file.readHead(16)
-        if (isAvif(header)) return true
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.absolutePath, opts)
-        return decodeLooksUsable(opts, header)
+        if (decodeLooksUsable(opts)) return true
+        if (isAvif(header)) return avifFileBounds(file)
+        return false
     }
 
-    private fun decodeLooksUsable(opts: BitmapFactory.Options, header: ByteArray): Boolean {
-        if (opts.outWidth >= 8 && opts.outHeight >= 8) return true
-        // AVIF / редкие форматы: bounds может не сработать на старых API
-        return isAvif(header) || isWebp(header)
+    private fun decodeLooksUsable(opts: BitmapFactory.Options): Boolean =
+        opts.outWidth >= 8 && opts.outHeight >= 8
+
+    private fun avifFileBounds(file: File): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        return try {
+            var width = 0
+            var height = 0
+            val drawable = ImageDecoder.decodeDrawable(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                width = info.size.width
+                height = info.size.height
+                val sample = maxOf(info.size.width, info.size.height) / 64
+                decoder.setTargetSampleSize(sample.coerceAtLeast(1))
+            }
+            (drawable as? BitmapDrawable)?.bitmap?.let { if (!it.isRecycled) it.recycle() }
+            width >= 8 && height >= 8
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun avifByteBounds(bytes: ByteArray): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        return try {
+            val buffer = java.nio.ByteBuffer.wrap(bytes)
+            var width = 0
+            var height = 0
+            val drawable = ImageDecoder.decodeDrawable(ImageDecoder.createSource(buffer)) { decoder, info, _ ->
+                width = info.size.width
+                height = info.size.height
+                val sample = maxOf(info.size.width, info.size.height) / 64
+                decoder.setTargetSampleSize(sample.coerceAtLeast(1))
+            }
+            (drawable as? BitmapDrawable)?.bitmap?.let { if (!it.isRecycled) it.recycle() }
+            width >= 8 && height >= 8
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     private fun isJpeg(h: ByteArray) = h.size >= 3 &&
