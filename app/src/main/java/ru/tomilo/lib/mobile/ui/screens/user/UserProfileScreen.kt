@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -60,17 +60,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
@@ -84,8 +81,8 @@ import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
-import ru.tomilo.lib.mobile.ui.theme.TomiloGlass
-import ru.tomilo.lib.mobile.ui.theme.TomiloGlassBorder
+import ru.tomilo.lib.mobile.ui.components.ProfileDecorationLayer
+import ru.tomilo.lib.mobile.ui.components.profileHeaderGlass
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
@@ -283,49 +280,22 @@ private fun PublicProfileContent(
             .verticalScroll(rememberScrollState())
             .navigationBarsPadding(),
     ) {
-        Box(Modifier.fillMaxWidth().height(248.dp)) {
-            if (!backgroundUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = MediaUrl.resolve(backgroundUrl),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(TomiloPrimary.copy(alpha = 0.55f), TomiloBg),
-                            ),
-                        ),
-                )
-            }
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color.Black.copy(alpha = 0.18f), Color.Transparent, TomiloBg),
-                        ),
-                    ),
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val bannerHeight = maxWidth * (339f / 393f)
+            val cardTop = maxWidth * (188f / 393f)
+            ProfileDecorationLayer(
+                imageUrl = backgroundUrl,
+                modifier = Modifier.fillMaxWidth().height(bannerHeight),
             )
-            ProfileCoverActions(onBack = onBack, onShare = onShare)
-        }
-
-        Column(
-            Modifier
-                .offset(y = (-64).dp)
-                .padding(horizontal = 12.dp),
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                color = TomiloGlass,
-                border = androidx.compose.foundation.BorderStroke(1.dp, TomiloGlassBorder),
+            Column(
+                Modifier
+                    .padding(start = 12.dp, end = 12.dp, top = cardTop)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(profileHeaderGlass())
+                    .border(1.dp, TomiloPrimary.copy(alpha = 0.30f), RoundedCornerShape(24.dp))
+                    .padding(14.dp),
             ) {
-                Column(Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         DecoratedAvatar(
                             avatarUrl = user.avatar,
@@ -464,9 +434,11 @@ private fun PublicProfileContent(
                             ),
                         )
                     }
-                }
             }
+            ProfileCoverActions(onBack = onBack, onShare = onShare)
+        }
 
+        Column(Modifier.padding(horizontal = 12.dp)) {
             Spacer(Modifier.height(16.dp))
             Row(
                 Modifier

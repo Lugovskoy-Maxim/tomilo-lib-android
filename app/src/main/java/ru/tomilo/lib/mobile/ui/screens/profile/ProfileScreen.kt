@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -104,7 +105,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -115,7 +115,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
-import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.catch
@@ -123,7 +122,6 @@ import kotlinx.coroutines.flow.map
 import kotlin.math.floor
 import kotlin.math.pow
 import ru.tomilo.lib.mobile.BuildConfig
-import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.UserDto
@@ -143,6 +141,8 @@ import ru.tomilo.lib.mobile.ui.components.ActionRow
 import ru.tomilo.lib.mobile.ui.components.ProfileScreenSkeleton
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
+import ru.tomilo.lib.mobile.ui.components.ProfileDecorationLayer
+import ru.tomilo.lib.mobile.ui.components.profileHeaderGlass
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.TomiloRingLogo
 import ru.tomilo.lib.mobile.ui.components.TomiloWordmark
@@ -585,86 +585,22 @@ private fun UserProfileHeaderCard(
     val accent = TomiloPrimary
     val backgroundUrl = user.decorations()?.backgroundUrl() ?: user.decorations()?.cardUrl()
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .background(TomiloBg)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val bannerHeight = maxWidth * (339f / 393f)
+        val cardTop = maxWidth * (188f / 393f)
+        ProfileDecorationLayer(
+            imageUrl = backgroundUrl,
+            modifier = Modifier.fillMaxWidth().height(bannerHeight),
+        )
+        Column(
+            Modifier
+                .padding(start = 12.dp, end = 12.dp, top = cardTop, bottom = 6.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(profileHeaderGlass())
+                .border(1.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(24.dp))
+                .padding(horizontal = 18.dp, vertical = 18.dp),
         ) {
-            ProfileHeroAction(
-                icon = Icons.Default.NotificationsNone,
-                contentDescription = "Уведомления",
-                showBadge = notificationCount > 0,
-                onClick = onOpenNotifications,
-            )
-            Spacer(Modifier.width(8.dp))
-            ProfileHeroAction(
-                icon = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = "Открыть публичный профиль",
-                onClick = onOpenPublic,
-            )
-            Spacer(Modifier.width(8.dp))
-            Box {
-                ProfileHeroAction(
-                    icon = Icons.Default.MoreVert,
-                    contentDescription = "Быстрые действия",
-                    onClick = { quickMenuOpen = true },
-                )
-                DropdownMenu(
-                    expanded = quickMenuOpen,
-                    onDismissRequest = { quickMenuOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Открыть профиль") },
-                        onClick = {
-                            quickMenuOpen = false
-                            onOpenPublic()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Скопировать ID") },
-                        onClick = {
-                            quickMenuOpen = false
-                            onCopyId()
-                        },
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = TomiloSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.24f)),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Box {
-                if (!backgroundUrl.isNullOrBlank()) {
-                    AsyncImage(
-                        model = MediaUrl.resolve(backgroundUrl),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.matchParentSize(),
-                    )
-                }
-                Column(
-                    Modifier
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    accent.copy(alpha = if (backgroundUrl == null) 0.18f else 0.42f),
-                                    TomiloSurface.copy(alpha = if (backgroundUrl == null) 1f else 0.86f),
-                                    TomiloSurface.copy(alpha = if (backgroundUrl == null) 1f else 0.94f),
-                                ),
-                            ),
-                        )
-                        .padding(horizontal = 18.dp, vertical = 18.dp),
-                ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     DecoratedAvatar(
                         avatarUrl = user.avatar,
@@ -788,10 +724,54 @@ private fun UserProfileHeaderCard(
                     )
                     Text("Всего: $exp XP", color = TomiloMuted, fontSize = 11.sp)
                 }
+        }
+        Row(
+            Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 8.dp, end = 12.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            ProfileHeroAction(
+                icon = Icons.Default.NotificationsNone,
+                contentDescription = "Уведомления",
+                showBadge = notificationCount > 0,
+                onClick = onOpenNotifications,
+            )
+            Spacer(Modifier.width(8.dp))
+            ProfileHeroAction(
+                icon = Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = "Открыть публичный профиль",
+                onClick = onOpenPublic,
+            )
+            Spacer(Modifier.width(8.dp))
+            Box {
+                ProfileHeroAction(
+                    icon = Icons.Default.MoreVert,
+                    contentDescription = "Быстрые действия",
+                    onClick = { quickMenuOpen = true },
+                )
+                DropdownMenu(
+                    expanded = quickMenuOpen,
+                    onDismissRequest = { quickMenuOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Открыть профиль") },
+                        onClick = {
+                            quickMenuOpen = false
+                            onOpenPublic()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Скопировать ID") },
+                        onClick = {
+                            quickMenuOpen = false
+                            onCopyId()
+                        },
+                    )
                 }
             }
         }
-        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -1082,27 +1062,24 @@ private fun ProfileCustomizationTab(
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Live Profile Card Preview
         ProfileSectionHeader("Предпросмотр профиля", "Так вашу карточку видят другие читатели")
-        Surface(
-            shape = RoundedCornerShape(22.dp),
-            color = TomiloSurface,
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                if (isPremium) gold.copy(alpha = 0.35f) else TomiloPrimary.copy(alpha = 0.20f),
-            ),
-            modifier = Modifier.fillMaxWidth(),
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))) {
+            ProfileDecorationLayer(
+                imageUrl = decor?.backgroundUrl() ?: decor?.cardUrl(),
+                modifier = Modifier.matchParentSize(),
+            )
+        Column(
+            Modifier
+                .padding(top = 72.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(profileHeaderGlass())
+                .border(
+                    1.dp,
+                    if (isPremium) gold.copy(alpha = 0.35f) else TomiloPrimary.copy(alpha = 0.30f),
+                    RoundedCornerShape(22.dp),
+                )
+                .padding(18.dp),
         ) {
-            Column(
-                Modifier
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                if (isPremium) gold.copy(alpha = 0.12f) else TomiloPrimary.copy(alpha = 0.10f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    )
-                    .padding(18.dp),
-            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     DecoratedAvatar(
                         avatarUrl = user.avatar,
@@ -1163,7 +1140,7 @@ private fun ProfileCustomizationTab(
                         )
                     }
                 }
-            }
+        }
         }
 
         // Customization Status / Premium Perk Banner

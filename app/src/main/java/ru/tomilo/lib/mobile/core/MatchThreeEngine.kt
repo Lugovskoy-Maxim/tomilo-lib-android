@@ -1,5 +1,6 @@
 package ru.tomilo.lib.mobile.core
 
+import kotlin.math.floor
 import kotlin.random.Random
 
 /** Deterministic game rules kept independent from Compose. */
@@ -9,12 +10,14 @@ object MatchThreeEngine {
 
     enum class Obstacle { ROCK, ICE, CHAIN }
     data class Level(val number: Int, val target: Int, val moves: Int, val color: Int, val obstacles: Map<Int, Obstacle> = emptyMap(), val seed: Int = number)
+    data class CascadeStep(val matched: Set<Int>, val board: List<Int>, val obstacles: Map<Int, Obstacle>)
     data class Move(
         val board: List<Int>,
         val obstacles: Map<Int, Obstacle>,
         val collected: Int,
         val cleared: Int,
         val matchedCells: Set<Int> = emptySet(),
+        val steps: List<CascadeStep> = emptyList(),
     )
 
     fun createBoard(seed: Int, obstacles: Map<Int, Obstacle>): List<Int> {
@@ -55,13 +58,38 @@ object MatchThreeEngine {
         return level
     }
 
-    fun generateObstacles(seed: Int, count: Int): Map<Int, Obstacle> {
+    fun generateObstacles(seed: Int, count: Int, kind: Obstacle? = null): Map<Int, Obstacle> {
         val reserved = setOf(0, 7, 56, 63, 27, 28, 35, 36)
         val candidates = (0 until SIZE * SIZE).filterNot { it in reserved }.shuffled(Random(seed))
         val random = Random(seed xor 0x5F3759DF)
         return candidates.take(count.coerceIn(0, candidates.size)).sorted().associateWith {
-            Obstacle.entries[random.nextInt(Obstacle.entries.size)]
+            kind ?: Obstacle.entries[random.nextInt(Obstacle.entries.size)]
         }
+    }
+
+    /** Client filler and the server opener both leave a legal move, and the field stays within the publish cap. */
+    fun acceptsLayout(seed: Int, obstacles: Map<Int, Obstacle>): Boolean {
+        if (obstacles.size > 24 || obstacles.keys.any { it !in 0 until SIZE * SIZE }) return false
+        if (runCatching { createBoard(seed, obstacles) }.isFailure) return false
+        return serverBoardPlayable(seed, IntArray(SIZE * SIZE) { index -> obstacles[index]?.ordinal ?: -1 })
+    }
+
+    fun generatePlayable(seed: Int, count: Int, kind: Obstacle? = null): Pair<Int, Map<Int, Obstacle>>? {
+        val base = seed.coerceAtLeast(0)
+        repeat(40) { step ->
+            val next = (base.toLong() + step).toInt().let { if (it < 0) it and Int.MAX_VALUE else it }
+            val map = generateObstacles(next, count, kind)
+            if (acceptsLayout(next, map)) return next to map
+        }
+        return null
+    }
+
+    internal fun serverOpening(seed: Int, obstacles: IntArray): List<Int> = serverCreate(seed, obstacles).toList()
+
+    internal fun serverBoardPlayable(seed: Int, obstacles: IntArray): Boolean {
+        if (obstacles.size != SIZE * SIZE) return false
+        val board = serverCreate(seed, obstacles)
+        return serverMatches(board, obstacles).isEmpty() && serverHasMove(board, obstacles)
     }
 
     fun swap(board: List<Int>, obstacles: Map<Int, Obstacle>, from: Int, to: Int, targetColor: Int, seed: Int): Move? {
@@ -98,7 +126,9 @@ object MatchThreeEngine {
         return createBoard(seed + 1, obstacles)
     }
 
-    internal fun hasLegalMove(board: List<Int>, obstacles: Map<Int, Obstacle>): Boolean {
+    /** First swap that clears a line, or null when the board is stuck. */
+    fun hint(board: List<Int>, obstacles: Map<Int, Obstacle>): Pair<Int, Int>? {
+        if (board.size != SIZE * SIZE) return null
         for (from in board.indices) {
             if (from in obstacles) continue
             for (to in listOf(from + 1, from + SIZE)) {
@@ -106,11 +136,13 @@ object MatchThreeEngine {
                 val swapped = board.toMutableList()
                 val held = swapped[from]; swapped[from] = swapped[to]; swapped[to] = held
                 val matched = matches(swapped, obstacles)
-                if (from in matched || to in matched) return true
+                if (from in matched || to in matched) return from to to
             }
         }
-        return false
+        return null
     }
+
+    internal fun hasLegalMove(board: List<Int>, obstacles: Map<Int, Obstacle>): Boolean = hint(board, obstacles) != null
 
     /** Maps a completed drag from one cell to its dominant adjacent direction. */
     fun swipeTarget(index: Int, deltaX: Float, deltaY: Float, threshold: Float): Int? {
@@ -130,11 +162,13 @@ object MatchThreeEngine {
         var collected = 0
         var cleared = 0
         val clearedCells = linkedSetOf<Int>()
+        val steps = mutableListOf<CascadeStep>()
         repeat(8) {
             if (cells.isEmpty()) return@repeat
             collected += cells.count { board[it] == targetColor }
             cleared += cells.size
             clearedCells += cells
+            val clearedNow = cells.toSet()
             val touching = linkedSetOf<Int>()
             for (cell in cells) for (near in neighbors(cell)) if (near in nextObstacles) touching += near
             touching.forEach { index ->
@@ -158,9 +192,10 @@ object MatchThreeEngine {
                     segmentEnd = segmentStart - 1
                 }
             }
+            steps += CascadeStep(clearedNow, board.toList(), nextObstacles.toMap())
             cells = matches(board, nextObstacles)
         }
-        return Move(board, nextObstacles, collected, cleared, clearedCells)
+        return Move(board.toList(), nextObstacles.toMap(), collected, cleared, clearedCells, steps)
     }
 
     internal fun matches(board: List<Int>, obstacles: Map<Int, Obstacle>): Set<Int> {
@@ -183,4 +218,104 @@ object MatchThreeEngine {
 
     fun adjacent(a: Int, b: Int): Boolean = a in 0 until SIZE * SIZE && b in 0 until SIZE * SIZE && kotlin.math.abs(a / SIZE - b / SIZE) + kotlin.math.abs(a % SIZE - b % SIZE) == 1
     private fun neighbors(i: Int): List<Int> = buildList { if (i / SIZE > 0) add(i - SIZE); if (i / SIZE < SIZE - 1) add(i + SIZE); if (i % SIZE > 0) add(i - 1); if (i % SIZE < SIZE - 1) add(i + 1) }
+
+    private fun serverCreate(seed: Int, obstacles: IntArray): IntArray {
+        repeat(40) { attempt ->
+            val rng = ServerRng((seed.toLong() + attempt).toInt())
+            val board = IntArray(SIZE * SIZE) { floor(rng.next() * COLORS).toInt() }
+            for (index in board.indices) {
+                var guard = 0
+                while (guard++ < COLORS * 2 && serverFormsLine(board, index, obstacles)) board[index] = floor(rng.next() * COLORS).toInt()
+            }
+            if (serverHasMove(board, obstacles)) return board
+        }
+        repeat(80) { attempt ->
+            val board = IntArray(SIZE * SIZE) { cell -> Math.floorMod(cell + seed + COLORS * 1000, COLORS) }
+            val rng = ServerRng((seed.toLong() + 10_000 + attempt).toInt())
+            for (index in board.indices) {
+                var reroll = 0
+                while (reroll < COLORS * 2 && serverFormsLine(board, index, obstacles)) {
+                    board[index] = floor(rng.next() * COLORS).toInt()
+                    reroll++
+                }
+            }
+            if (serverHasMove(board, obstacles)) return board
+        }
+        return IntArray(SIZE * SIZE) { index -> index % COLORS }
+    }
+
+    private fun serverFormsLine(board: IntArray, index: Int, obstacles: IntArray): Boolean {
+        val row = index / SIZE
+        val col = index % SIZE
+        val color = board[index]
+        var horizontal = 1
+        var x = col - 1
+        while (x >= 0 && obstacles[row * SIZE + x] < 0 && board[row * SIZE + x] == color) { horizontal++; x-- }
+        x = col + 1
+        while (x < SIZE && obstacles[row * SIZE + x] < 0 && board[row * SIZE + x] == color) { horizontal++; x++ }
+        var vertical = 1
+        var y = row - 1
+        while (y >= 0 && obstacles[y * SIZE + col] < 0 && board[y * SIZE + col] == color) { vertical++; y-- }
+        y = row + 1
+        while (y < SIZE && obstacles[y * SIZE + col] < 0 && board[y * SIZE + col] == color) { vertical++; y++ }
+        return horizontal >= 3 || vertical >= 3
+    }
+
+    private fun serverMatches(board: IntArray, obstacles: IntArray): Set<Int> {
+        val found = HashSet<Int>()
+        for (row in 0 until SIZE) {
+            var col = 0
+            while (col < SIZE) {
+                val cell = row * SIZE + col
+                if (obstacles[cell] >= 0) { col++; continue }
+                val color = board[cell]
+                var end = col + 1
+                while (end < SIZE && obstacles[row * SIZE + end] < 0 && board[row * SIZE + end] == color) end++
+                if (end - col >= 3) for (x in col until end) found += row * SIZE + x
+                col = end
+            }
+        }
+        for (col in 0 until SIZE) {
+            var row = 0
+            while (row < SIZE) {
+                val cell = row * SIZE + col
+                if (obstacles[cell] >= 0) { row++; continue }
+                val color = board[cell]
+                var end = row + 1
+                while (end < SIZE && obstacles[end * SIZE + col] < 0 && board[end * SIZE + col] == color) end++
+                if (end - row >= 3) for (y in row until end) found += y * SIZE + col
+                row = end
+            }
+        }
+        return found
+    }
+
+    private fun serverHasMove(board: IntArray, obstacles: IntArray): Boolean {
+        for (from in board.indices) {
+            if (obstacles[from] >= 0) continue
+            for (to in intArrayOf(from + 1, from + SIZE)) {
+                if (to >= board.size || obstacles[to] >= 0 || !adjacent(from, to)) continue
+                val swapped = board.copyOf()
+                val held = swapped[from]
+                swapped[from] = swapped[to]
+                swapped[to] = held
+                val matched = serverMatches(swapped, obstacles)
+                if (from in matched || to in matched) return true
+            }
+        }
+        return false
+    }
+}
+
+private class ServerRng(seed: Int) {
+    private var state: Int = if (seed == 0) 0x6d2b79f5 else seed
+
+    fun next(): Double {
+        state += 0x6d2b79f5
+        val mixed = imul(state xor (state ushr 15), 1 or state)
+        val value = mixed xor (mixed + imul(mixed xor (mixed ushr 7), 61 or mixed))
+        return (value xor (value ushr 14)).toUInt().toDouble() / 4294967296.0
+    }
+
+    private fun imul(a: Int, b: Int): Int = (a.toLong() * b.toLong()).toInt()
 }
