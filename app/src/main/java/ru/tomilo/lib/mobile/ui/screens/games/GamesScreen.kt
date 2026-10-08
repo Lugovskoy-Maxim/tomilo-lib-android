@@ -72,6 +72,7 @@ fun GamesScreen(
     onBack: () -> Unit,
     onLogin: () -> Unit,
     onOpenMatch: () -> Unit,
+    onOpenTraining: () -> Unit,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenWebTab: (String) -> Unit,
@@ -118,6 +119,7 @@ fun GamesScreen(
                 onLogin = onLogin,
                 onExploreCards = { page = GamesPage.CARDS },
                 onExploreMatch = onOpenMatch,
+                onExploreTraining = onOpenTraining,
             )
             page == GamesPage.HUB -> GamesContent(
                 balance = user?.balance ?: 0,
@@ -125,6 +127,7 @@ fun GamesScreen(
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
                 onOpenMatch = onOpenMatch,
+                onOpenTraining = onOpenTraining,
                 modifier = Modifier.padding(padding),
             )
             page == GamesPage.CARDS -> CardsScreen(
@@ -146,6 +149,7 @@ private fun GamesGuest(
     onLogin: () -> Unit,
     onExploreCards: () -> Unit,
     onExploreMatch: () -> Unit,
+    onExploreTraining: () -> Unit,
 ) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
@@ -171,6 +175,8 @@ private fun GamesGuest(
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onExploreMatch, modifier = Modifier.fillMaxWidth()) { Text("Играть в сад созвездий") }
         Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onExploreTraining, modifier = Modifier.fillMaxWidth()) { Text("Тропа духозверей · тренировка") }
+        Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти в аккаунт") }
     }
 }
@@ -182,6 +188,7 @@ private fun GamesContent(
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
     onOpenMatch: () -> Unit,
+    onOpenTraining: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -230,6 +237,14 @@ private fun GamesContent(
                 title = "Сад созвездий",
                 subtitle = "Три в ряд, новые главы, препятствия и усиления",
                 onClick = onOpenMatch,
+            )
+        }
+        item {
+            GameModeRow(
+                icon = Icons.Default.AutoAwesome,
+                title = "Тропа духозверей",
+                subtitle = "Боевые комбинации и испытание памяти · работает без сети",
+                onClick = onOpenTraining,
             )
         }
         item {

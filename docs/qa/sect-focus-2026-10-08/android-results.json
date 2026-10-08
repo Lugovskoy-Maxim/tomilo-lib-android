@@ -1,0 +1,33 @@
+{
+  "emulator": "Android 36 arm64 / software rendering",
+  "fontScale": "1.3",
+  "wifi": "0",
+  "records": [
+    {
+      "stageId": 1,
+      "style": "guided",
+      "quality": 640,
+      "ticks": 2252,
+      "mistakes": 1
+    }
+  ],
+  "pauses": 0,
+  "frameMs": {
+    "median": 50,
+    "max": 200
+  },
+  "background": {
+    "before": "1:30",
+    "after": "1:30",
+    "paused": true
+  },
+  "passed": [
+    "offline full fight by touch events",
+    "repeated attacks",
+    "automatic victory",
+    "personal record",
+    "next stage",
+    "background pauses",
+    "native back closes settings"
+  ]
+}
