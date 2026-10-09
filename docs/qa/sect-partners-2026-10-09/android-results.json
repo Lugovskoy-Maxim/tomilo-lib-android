@@ -1,0 +1,45 @@
+{
+  "emulator": "Android 36 arm64, software SwiftShader",
+  "fontScale": "1.3",
+  "wifi": "0",
+  "mobileData": "0",
+  "records": [
+    {
+      "stageId": 1,
+      "style": "guided",
+      "quality": 730,
+      "ticks": 1335,
+      "mistakes": 1,
+      "companion": "shield"
+    }
+  ],
+  "presses": 30,
+  "pauses": 8,
+  "wallMs": 42092,
+  "errors": [],
+  "background": {
+    "before": "1:29",
+    "after": "1:29",
+    "paused": true
+  },
+  "dialog": {
+    "top": 16.119047164916992,
+    "bottom": 759.119047164917,
+    "height": 743,
+    "clientHeight": 741,
+    "scrollHeight": 1005,
+    "viewport": 775
+  },
+  "passed": [
+    "final APK shield button by Android touch",
+    "mistake absorbed without losing HP",
+    "full block feedback",
+    "profile, shield and charge restored in WebView",
+    "full fight and automatic assisted victory",
+    "solo records untouched",
+    "new stage replenishes charges",
+    "background freezes timer",
+    "native Back closes settings",
+    "settings fills viewport and scrolls at 130% text"
+  ]
+}

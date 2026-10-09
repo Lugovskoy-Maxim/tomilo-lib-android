@@ -7,7 +7,7 @@
   ],
   "rulesVersion": "sect-action/3",
   "contentVersion": "spirit-forest/2",
-  "sourceFingerprint": "231bdfde09a1b57715dba4e171c9d77b55f1f4a3c6b7a448d470e250b5f84e25",
+  "sourceFingerprint": "108cc68257ce0d4b03c342b18f9de9cd5addcbc7656fcbb3734b256161324645",
   "files": {
     "assets/environment/forest.jpeg": "e5e294c4eb3c88a271f89e893570fff544d213f5a632bf232d729290eebdc4df",
     "assets/fighters/azure-v1.webp": "87e9c9e8a653de3b8e41aaae1de2964d8e3f0aa6d0a0366d70a4a25716ef6be1",
@@ -16,10 +16,10 @@
     "assets/fighters/gold-v1.webp": "55684aa2c9b0395dfdbe2edb3d786d62de08f58abd33ab90a2a55a48a9c75592",
     "assets/fighters/jade-v1.webp": "589786213b13d0a4884c2265f78455655f5b191e5dd44c5af1ed6414c414a3e4",
     "assets/fighters/violet-v1.webp": "c7a00d6a722d0aaa26ab5464231507f8b6533e88f3800d24e88c0b60ff3247de",
-    "assets/runtime/arena-BeFjGJGh.js": "64cefa85e119a7b6865cfc0e33f1a8d1d2d3e0850e16172ddf2c7e1d409abe42",
-    "assets/runtime/index-D6d8yd_Z.css": "d699bd6d925312a05ae04910797d70622ccd0d305009c91b4e402c3024454ffb",
-    "assets/runtime/index-ZZmoVX1R.js": "077538ed7e9b9b5f56d6af1b9bedc8299428fac81df006ac63e740781dfce55c",
-    "index.html": "36874c79b70e847f966aa4ea574ba357eefa972f1c780e6081eba35f831b061b",
+    "assets/runtime/arena-BtDEk33H.js": "fddffa7684e049675650e49d417616130a6a41d9bb712a496f278d4b95e33a31",
+    "assets/runtime/index-D1Pa2wZs.css": "bfed8c1f1bbec00c2b334033b3f5cd86a0f11487b27f7b2cca83c8fe52e01c49",
+    "assets/runtime/index-KaozbiJD.js": "b8a6caff5dd4e8bbc89711bad3198c6c418314f45a368ee99d0e9ccabbb7b091",
+    "index.html": "ff0b2784c8b3f669e82be0ad5a37e53dc1e61b2e902ce456692f587eebfbc231",
     "licenses/eventemitter3.txt": "3aecc12b1cb28832b5f65ab64291de96568c3f236a74d646281b4491f7bcadbf",
     "licenses/phaser.txt": "c3123cd25de4eccf1fd5a5a0a6fc872299116d1dbbb48b00f2554a4c35220a65"
   }

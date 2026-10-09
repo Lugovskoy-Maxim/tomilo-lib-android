@@ -1,0 +1,10 @@
+{
+  "apkSha256": "07b0e9fbab8641f28ec0b04d91b294b24cbcc6083a70fbcc71c0db984c80a2b9",
+  "sourceFingerprint": "108cc68257ce0d4b03c342b18f9de9cd5addcbc7656fcbb3734b256161324645",
+  "verifiedApkFiles": 13,
+  "runtimeFiles": {
+    "assets/runtime/arena-BtDEk33H.js": "fddffa7684e049675650e49d417616130a6a41d9bb712a496f278d4b95e33a31",
+    "assets/runtime/index-D1Pa2wZs.css": "bfed8c1f1bbec00c2b334033b3f5cd86a0f11487b27f7b2cca83c8fe52e01c49",
+    "assets/runtime/index-KaozbiJD.js": "b8a6caff5dd4e8bbc89711bad3198c6c418314f45a368ee99d0e9ccabbb7b091"
+  }
+}

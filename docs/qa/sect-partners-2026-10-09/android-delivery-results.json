@@ -1,0 +1,18 @@
+{
+  "sourceFingerprint": "108cc68257ce0d4b03c342b18f9de9cd5addcbc7656fcbb3734b256161324645",
+  "restoredCompanion": "shield",
+  "scroll": {
+    "top": 16.119047164916992,
+    "bottom": 759.119047164917,
+    "height": 743,
+    "scrollTop": 263.23809814453125,
+    "saveVisible": true,
+    "viewport": 775,
+    "measured": "775px"
+  },
+  "passed": [
+    "final installed APK manifest matches delivery",
+    "saved companion survives update",
+    "settings scroll reaches final paragraph"
+  ]
+}
