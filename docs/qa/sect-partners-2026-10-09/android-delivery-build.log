@@ -1,0 +1,54 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build
+WARNING: The following problems were found when resolving the SDK location:
+Where: sdk.dir property in local.properties file. Problem: Directory does not exist
+
+> Task :app:verifySectTrainingBundle
+> Task :app:preBuild
+> Task :app:preRustoreDebugBuild
+> Task :app:mergeRustoreDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateRustoreDebugBuildConfig UP-TO-DATE
+> Task :app:checkRustoreDebugAarMetadata UP-TO-DATE
+> Task :app:generateRustoreDebugResValues UP-TO-DATE
+> Task :app:mapRustoreDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateRustoreDebugResources UP-TO-DATE
+> Task :app:mergeRustoreDebugResources UP-TO-DATE
+> Task :app:packageRustoreDebugResources UP-TO-DATE
+> Task :app:parseRustoreDebugLocalResources UP-TO-DATE
+> Task :app:createRustoreDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksRustoreDebug UP-TO-DATE
+> Task :app:processRustoreDebugMainManifest UP-TO-DATE
+> Task :app:processRustoreDebugManifest UP-TO-DATE
+> Task :app:processRustoreDebugManifestForPackage UP-TO-DATE
+> Task :app:processRustoreDebugResources UP-TO-DATE
+> Task :app:kspRustoreDebugKotlin UP-TO-DATE
+> Task :app:compileRustoreDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileRustoreDebug UP-TO-DATE
+> Task :app:compileRustoreDebugJavaWithJavac UP-TO-DATE
+> Task :app:mergeRustoreDebugShaders UP-TO-DATE
+> Task :app:compileRustoreDebugShaders NO-SOURCE
+> Task :app:generateRustoreDebugAssets UP-TO-DATE
+> Task :app:mergeRustoreDebugAssets
+> Task :app:compressRustoreDebugAssets
+> Task :app:checkRustoreDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarRustoreDebugFileDependencies UP-TO-DATE
+> Task :app:mergeExtDexRustoreDebug UP-TO-DATE
+> Task :app:mergeLibDexRustoreDebug UP-TO-DATE
+> Task :app:dexBuilderRustoreDebug UP-TO-DATE
+> Task :app:mergeProjectDexRustoreDebug UP-TO-DATE
+> Task :app:mergeRustoreDebugGlobalSynthetics UP-TO-DATE
+> Task :app:processRustoreDebugJavaRes UP-TO-DATE
+> Task :app:mergeRustoreDebugJavaResource UP-TO-DATE
+> Task :app:mergeRustoreDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeRustoreDebugNativeLibs UP-TO-DATE
+> Task :app:stripRustoreDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningRustoreDebug UP-TO-DATE
+> Task :app:writeRustoreDebugAppMetadata UP-TO-DATE
+> Task :app:writeRustoreDebugSigningConfigVersions UP-TO-DATE
+> Task :app:packageRustoreDebug
+> Task :app:createRustoreDebugApkListingFileRedirect UP-TO-DATE
+> Task :app:assembleRustoreDebug
+
+BUILD SUCCESSFUL in 10s
+39 actionable tasks: 4 executed, 35 up-to-date

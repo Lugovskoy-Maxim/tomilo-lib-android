@@ -94,9 +94,11 @@ fun TomiloTheme(
     accentColor: Color? = null,
     darkTheme: Boolean = isSystemInDarkTheme(),
     coffee: Boolean = false,
+    dragon: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val palette = when {
+        dragon -> TomiloDragonPalette
         coffee -> TomiloCoffeePalette
         darkTheme -> TomiloDarkPalette
         else -> TomiloLightPalette

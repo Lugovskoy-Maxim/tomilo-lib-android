@@ -191,6 +191,16 @@ fun LibraryScreen(
     var showGroupManager by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
     var newGroupName by remember { mutableStateOf("") }
+    var groupBusy by remember { mutableStateOf(false) }
+    var deletingGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
+
+    fun closeGroupEditor() {
+        if (groupBusy) return
+        showCreateGroup = false
+        editingGroup = null
+        newGroupName = ""
+    }
+
     var categoryPickerBookmark by remember { mutableStateOf<BookmarkEntryDto?>(null) }
     var updatingBookmarkCategory by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
@@ -375,7 +385,11 @@ fun LibraryScreen(
                         FilterChip(
                             selected = false,
                             onClick = {
-                                if (user == null) onLogin() else showCreateGroup = true
+                                if (user == null) onLogin() else {
+                                    editingGroup = null
+                                    newGroupName = ""
+                                    showCreateGroup = true
+                                }
                             },
                             label = { Text("Новая группа") },
                             leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -576,7 +590,7 @@ fun LibraryScreen(
 
     if (showCreateGroup) {
         AlertDialog(
-            onDismissRequest = { showCreateGroup = false },
+            onDismissRequest = { closeGroupEditor() },
             title = { Text(if (editingGroup == null) "Новая категория" else "Редактировать категорию") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -592,6 +606,9 @@ fun LibraryScreen(
             confirmButton = {
                 Button(
                     onClick = {
+                        if (groupBusy) return@Button
+                        groupBusy = true
+                        val wasEditing = editingGroup != null
                         scope.launch {
                             val action = editingGroup?.let { socialRepository.renameBookmarkGroup(it.id, newGroupName) }
                             (action ?: socialRepository.createBookmarkGroup(newGroupName)).onSuccess { group ->
@@ -602,16 +619,46 @@ fun LibraryScreen(
                                 newGroupName = ""
                                 editingGroup = null
                                 showCreateGroup = false
-                                snackbar.showSnackbar("Группа «${group.name}» создана")
-                            }.onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось создать группу.")) }
+                                groupBusy = false
+                                snackbar.showSnackbar(if (wasEditing) "Категория сохранена" else "Категория создана")
+                            }.onFailure {
+                                groupBusy = false
+                                snackbar.showSnackbar(it.toUserFacingError("Не удалось сохранить категорию."))
+                            }
                         }
                     },
-                    enabled = newGroupName.trim().isNotBlank(),
+                    enabled = !groupBusy && newGroupName.trim().isNotBlank(),
                 ) { Text("Сохранить") }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateGroup = false }) { Text("Отмена") }
+                TextButton(onClick = { closeGroupEditor() }, enabled = !groupBusy) { Text("Отмена") }
             },
+        )
+    }
+
+
+    deletingGroup?.let { group ->
+        AlertDialog(
+            onDismissRequest = { if (!groupBusy) deletingGroup = null },
+            title = { Text("Удалить категорию «${group.name}»?") },
+            text = { Text("Закладки из категории перейдут в «Читаю». Отменить удаление категории нельзя.") },
+            confirmButton = {
+                TextButton(enabled = !groupBusy, onClick = {
+                    groupBusy = true
+                    scope.launch {
+                        socialRepository.deleteBookmarkGroup(group.id)
+                            .onSuccess {
+                                customGroups = customGroups.filterNot { it.id == group.id }
+                                if (customGroup?.id == group.id) customGroup = null
+                                deletingGroup = null
+                                reload += 1
+                            }
+                            .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось удалить категорию.")) }
+                        groupBusy = false
+                    }
+                }) { Text("Удалить") }
+            },
+            dismissButton = { TextButton(enabled = !groupBusy, onClick = { deletingGroup = null; showGroupManager = true }) { Text("Отмена") } },
         )
     }
 
@@ -621,7 +668,8 @@ fun LibraryScreen(
             title = { Text("Мои категории") },
             text = {
                 Column {
-                    customGroups.forEach { group ->
+                    customGroups.forEachIndexed { index, group ->
+                        Column {
                         TextButton(
                             onClick = {
                                 editingGroup = group
@@ -631,6 +679,30 @@ fun LibraryScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(group.name, modifier = Modifier.weight(1f)) }
+                        Row {
+                        TextButton(enabled = !groupBusy && index > 0, onClick = {
+                            groupBusy = true
+                            val ordered = customGroups.toMutableList().apply { add(index - 1, removeAt(index)) }
+                            scope.launch {
+                                socialRepository.reorderBookmarkGroups(ordered.map { it.id })
+                                    .onSuccess { customGroups = it }
+                                    .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить порядок.")) }
+                                groupBusy = false
+                            }
+                        }) { Text("Выше") }
+                        TextButton(enabled = !groupBusy && index < customGroups.lastIndex, onClick = {
+                            groupBusy = true
+                            val ordered = customGroups.toMutableList().apply { add(index + 1, removeAt(index)) }
+                            scope.launch {
+                                socialRepository.reorderBookmarkGroups(ordered.map { it.id })
+                                    .onSuccess { customGroups = it }
+                                    .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить порядок.")) }
+                                groupBusy = false
+                            }
+                        }) { Text("Ниже") }
+                        TextButton(enabled = !groupBusy, onClick = { deletingGroup = group; showGroupManager = false }) { Text("Удалить") }
+                        }
+                        }
                     }
                 }
             },

@@ -1006,14 +1006,28 @@ data class GameAlchemyStatusDto(
 @Serializable data class PillMatchSessionDto(
     val level: Int = 1, val board: List<String> = emptyList(), val moves: Int = 0,
     val collected: Int = 0, val target: Int = 18, val targetColor: Int = 0,
-    val obstacles: List<Int> = emptyList(), val boosters: PillMatchBoostersDto = PillMatchBoostersDto(),
+    val obstacles: List<Int> = emptyList(), val obstacleHealth: List<Int> = emptyList(),
+    val specials: List<String?> = emptyList(), val boosters: PillMatchBoostersDto = PillMatchBoostersDto(),
     val version: Int = 0, val finished: Boolean = false,
+)
+@Serializable data class PillMatchFallDto(val from: Int? = null, val to: Int = 0)
+@Serializable data class PillMatchFlightDto(val from: Int = 0, val to: Int = 0)
+@Serializable data class PillMatchFrameDto(
+    val board: List<String> = emptyList(), val obstacles: List<Int> = emptyList(),
+    val obstacleHealth: List<Int> = emptyList(), val specials: List<String?> = emptyList(),
+    val clearedCells: List<Int> = emptyList(), val brokenCells: List<Int> = emptyList(),
+    val damagedCells: List<Int> = emptyList(), val falls: List<PillMatchFallDto> = emptyList(),
+    val afterBoard: List<String> = emptyList(), val afterObstacles: List<Int> = emptyList(),
+    val afterObstacleHealth: List<Int> = emptyList(), val afterSpecials: List<String?> = emptyList(),
+    val flights: List<PillMatchFlightDto> = emptyList(), val collected: Int = 0,
+    val reshuffled: Boolean = false, val combo: String? = null,
 )
 @Serializable data class PillMatchBoostersDto(val hammer: Int = 2, val shuffle: Int = 1, val rainbow: Int = 1)
 @Serializable data class PillMatchActionDto(
     val profileLevel: Int = 1, val experience: Int = 0, val experienceToNext: Int = 100,
     val completedLevels: List<Int> = emptyList(), val lives: PillMatchLivesDto = PillMatchLivesDto(),
     val session: PillMatchSessionDto = PillMatchSessionDto(), val validMove: Boolean = true,
+    val frames: List<PillMatchFrameDto> = emptyList(),
 )
 @Serializable data class PillMatchStateDto(
     val profileLevel: Int = 1,

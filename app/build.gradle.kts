@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.android.application)
@@ -48,8 +49,8 @@ android {
         // RuStore / production consumer release
         // Каждый production-релиз получает новый versionCode: магазины не
         // позволяют заменить уже загруженную сборку тем же кодом версии.
-        versionCode = 50
-        versionName = "1.4.5"
+        versionCode = 51
+        versionName = "1.4.6"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -219,3 +220,23 @@ dependencies {
     implementation(libs.rustore.appupdate)
     implementation(libs.rustore.review)
 }
+
+// The offline game must ship exactly the files recorded by its verified build.
+val verifySectTrainingBundle = tasks.register("verifySectTrainingBundle") {
+    val bundle = layout.projectDirectory.dir("src/main/assets/sect-training")
+    inputs.dir(bundle)
+    doLast {
+        val directory = bundle.asFile
+        val manifestFile = directory.resolve("bundle-manifest.json")
+        val manifest = groovy.json.JsonSlurper().parse(manifestFile) as Map<*, *>
+        require(manifest["format"] == 2 && manifest["offlineTrainingOnly"] == true && manifest["hostModes"] == listOf("training", "campaign")) { "Invalid sect game manifest" }
+        val expected = manifest["files"] as Map<*, *>
+        val actual = fileTree(directory).files.filter { it != manifestFile }.associateBy { it.relativeTo(directory).invariantSeparatorsPath }
+        require(actual.keys == expected.keys) { "Sect training file list mismatch" }
+        actual.forEach { (name, file) ->
+            val hash = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+            require(hash == expected[name]) { "Sect training hash mismatch: $name" }
+        }
+    }
+}
+tasks.named("preBuild") { dependsOn(verifySectTrainingBundle) }

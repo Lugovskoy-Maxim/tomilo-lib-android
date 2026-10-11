@@ -69,6 +69,7 @@ import ru.tomilo.lib.mobile.ui.screens.friends.FriendsScreen
 import ru.tomilo.lib.mobile.ui.screens.home.HomeScreen
 import ru.tomilo.lib.mobile.ui.screens.games.GamesScreen
 import ru.tomilo.lib.mobile.ui.screens.games.MatchThreeScreen
+import ru.tomilo.lib.mobile.ui.screens.games.SectTrainingScreen
 import ru.tomilo.lib.mobile.ui.screens.leaders.LeadersScreen
 import ru.tomilo.lib.mobile.ui.screens.notifications.NotificationsScreen
 import ru.tomilo.lib.mobile.ui.screens.offline.OfflineLibraryScreen
@@ -112,6 +113,7 @@ object Routes {
     const val Wheel = "wheel"
     const val Shop = "shop"
     const val Games = "games"
+    const val SectTraining = "games/sect-training"
     const val MatchThree = "games/match-three"
     const val Title = "title/{key}"
     const val Reader = "reader/{chapterId}?offline={offline}&titleId={titleId}"
@@ -295,7 +297,7 @@ fun TomiloNavHost(container: AppContainer) {
             onRegister = {
                 scope.launch { container.contentPrefs.completeOnboarding() }
                 context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/register")),
+                    Intent(Intent.ACTION_VIEW, Uri.parse("${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/auth/register")),
                 )
             },
         )
@@ -473,6 +475,7 @@ fun TomiloNavHost(container: AppContainer) {
                     themePrefs = container.themePrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
+                    onOpenLibrary = { navController.navigate(Routes.Library) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
                     onOpenHistory = { navController.navigate(Routes.History) },
@@ -533,6 +536,7 @@ fun TomiloNavHost(container: AppContainer) {
                     onBack = { navController.popBackStack() },
                     onLogin = { goLogin() },
                     onOpenMatch = { navController.navigate(Routes.MatchThree) },
+                    onOpenTraining = { navController.navigate(Routes.SectTraining) },
                     onOpenQuests = { navController.navigate(Routes.Quests) },
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
                     onOpenWebTab = { tab ->
@@ -540,6 +544,9 @@ fun TomiloNavHost(container: AppContainer) {
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                     },
                 )
+            }
+            composable(Routes.SectTraining) {
+                SectTrainingScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.MatchThree) {
                 val user by container.authRepository.userFlow.collectAsState(initial = null)
@@ -655,7 +662,7 @@ fun TomiloNavHost(container: AppContainer) {
                     downloadManager = container.downloadManager,
                     rewardedAdManager = container.rewardedAdManager,
                     adRewardStore = container.adRewardStore,
-                    onOpenHome = { navigateHomeRoot() },
+                    onOpenHome = { if (!navController.popBackStack()) navigateHomeRoot() },
                     onLogin = { goLogin() },
                     onOpenChapter = { titleId, chapterId, offline ->
                         navController.navigate(

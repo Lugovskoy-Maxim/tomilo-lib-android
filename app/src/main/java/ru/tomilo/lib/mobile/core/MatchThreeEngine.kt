@@ -20,6 +20,26 @@ object MatchThreeEngine {
         val steps: List<CascadeStep> = emptyList(),
     )
 
+    /** Hints for authoritative server games also recognize rune swaps and 2x2 squares. */
+    fun serverHint(board: List<Int>, obstacles: Map<Int, Obstacle>, specials: List<String?>): Pair<Int, Int>? {
+        if (board.size != 64) return null
+        for (from in 0 until 64) for (to in listOf(from + 1, from + 8)) {
+            if (!adjacent(from, to) || from in obstacles || to in obstacles) continue
+            if (specials.getOrNull(from) != null || specials.getOrNull(to) != null) return from to to
+            val swapped = board.toMutableList().also { it[from] = board[to]; it[to] = board[from] }
+            for (changed in listOf(from, to)) {
+                for (row in (changed / 8 - 1).coerceAtLeast(0)..(changed / 8).coerceAtMost(6)) {
+                    for (col in (changed % 8 - 1).coerceAtLeast(0)..(changed % 8).coerceAtMost(6)) {
+                        val cell = row * 8 + col
+                        val square = listOf(cell, cell + 1, cell + 8, cell + 9)
+                        if (square.none { it in obstacles } && square.all { swapped[it] == swapped[cell] }) return from to to
+                    }
+                }
+            }
+        }
+        return hint(board, obstacles)
+    }
+
     fun createBoard(seed: Int, obstacles: Map<Int, Obstacle>): List<Int> {
         require(obstacles.keys.all { it in 0 until SIZE * SIZE }) { "Препятствие находится за пределами поля" }
         val safeObstacles = obstacles

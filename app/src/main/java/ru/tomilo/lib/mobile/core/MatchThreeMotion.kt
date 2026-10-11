@@ -92,6 +92,22 @@ object MatchThreeMotion {
         return Wave(popping + hold, landing)
     }
 
+    /** Server frames identify actual clears and fall origins, including equal-colored gems. */
+    fun remoteWave(before: List<Int>, cleared: Set<Int>, after: List<Int>, falls: List<Pair<Int?, Int>>, previous: List<Sprite>): Wave {
+        if (before.size != 64 || after.size != 64) return Wave(settle(before), settle(after))
+        val known = previous.filter { !it.pop }.associateBy { it.cell }
+        var nextId = (previous.maxOfOrNull { it.id } ?: 0L) + 1L
+        val byTarget = falls.filter { it.second in 0 until 64 && (it.first == null || it.first in 0 until 64) }.associate { it.second to it.first }
+        val landing = after.mapIndexed { cell, color ->
+            val falling = byTarget.containsKey(cell)
+            val source = if (falling) byTarget[cell] else cell
+            Sprite(if (source == null) nextId++ else known[source]?.id ?: nextId++, color, source ?: -1, cell, enter = source == null, spawnRows = if (source == null) cell / 8 + 1 else 0)
+        }
+        val popping = cleared.filter { it in 0 until 64 }.map { cell -> Sprite(known[cell]?.id ?: nextId++, before[cell], cell, cell, pop = true) }
+        val hold = landing.filter { !it.enter }.map { it.copy(cell = it.fromCell) }
+        return Wave(popping + hold, landing)
+    }
+
     /** Remote boards can differ after several cascades, so changed cells swap in place. */
     fun crossfade(before: List<Int>, after: List<Int>, previous: List<Sprite>): Wave {
         val known = previous.filter { !it.pop }.associateBy { it.cell }

@@ -56,6 +56,29 @@ val TomiloDarkPalette = TomiloPalette(
     ink = Color(0xFF121315),
 )
 
+val TomiloDragonPalette = TomiloPalette(
+    bg = Color(0xFF0B0D0C),
+    surface = Color(0xFF131715),
+    surface2 = Color(0xFF1D2520),
+    surface3 = Color(0xFF29352D),
+    primary = Color(0xFFFF6B00),
+    primaryDim = Color(0xFFD85900),
+    primarySoft = Color(0xFFFFD1B0),
+    onPrimary = Color(0xFFFFFFFF),
+    text = Color(0xFFECF2EE),
+    muted = Color(0xFF829488),
+    border = Color(0xFF354039),
+    danger = Color(0xFFFF6B00),
+    premium = Color(0xFFE6A100),
+    success = Color(0xFF00E676),
+    info = Color(0xFFD4A574),
+    pink = Color(0xFFE8A0B0),
+    glass = Color(0xF2131715),
+    glassBorder = Color(0x24FFFFFF),
+    paper = Color(0xFFF4F4F6),
+    ink = Color(0xFF121315),
+)
+
 /** Светлая тема по токенам Figma: light-950/900/850/800/750/400/100 + *-dark. */
 val TomiloLightPalette = TomiloPalette(
     bg = Color(0xFFF4F5F7),

@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
             val systemDark = isSystemInDarkTheme()
             val coffee = themeMode == ThemeMode.COFFEE
             val darkTheme = when (themeMode) {
-                ThemeMode.DARK -> true
+                ThemeMode.DARK, ThemeMode.DRAGON -> true
                 ThemeMode.LIGHT, ThemeMode.COFFEE -> false
                 ThemeMode.SYSTEM -> systemDark
             }
@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else null
             }
-            TomiloTheme(accentColor = activeAccent, darkTheme = darkTheme, coffee = coffee) {
+            TomiloTheme(accentColor = activeAccent, darkTheme = darkTheme, coffee = coffee, dragon = themeMode == ThemeMode.DRAGON) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TomiloNavHost(container = app.container)
                 }

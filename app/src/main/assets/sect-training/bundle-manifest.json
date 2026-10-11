@@ -1,0 +1,26 @@
+{
+  "format": 2,
+  "offlineTrainingOnly": true,
+  "hostModes": [
+    "training",
+    "campaign"
+  ],
+  "rulesVersion": "sect-action/3",
+  "contentVersion": "spirit-forest/2",
+  "sourceFingerprint": "108cc68257ce0d4b03c342b18f9de9cd5addcbc7656fcbb3734b256161324645",
+  "files": {
+    "assets/environment/forest.jpeg": "e5e294c4eb3c88a271f89e893570fff544d213f5a632bf232d729290eebdc4df",
+    "assets/fighters/azure-v1.webp": "87e9c9e8a653de3b8e41aaae1de2964d8e3f0aa6d0a0366d70a4a25716ef6be1",
+    "assets/fighters/beast-v1.webp": "0bb5eb3ce7089042e0eb9ae5fe7c266f8eb1db85d80197f562347dee12dfd86d",
+    "assets/fighters/coral-v1.webp": "95cced21f46f172cd3a2dab703325ddf6c905ff070c6783ff5a7ab3e700eeb05",
+    "assets/fighters/gold-v1.webp": "55684aa2c9b0395dfdbe2edb3d786d62de08f58abd33ab90a2a55a48a9c75592",
+    "assets/fighters/jade-v1.webp": "589786213b13d0a4884c2265f78455655f5b191e5dd44c5af1ed6414c414a3e4",
+    "assets/fighters/violet-v1.webp": "c7a00d6a722d0aaa26ab5464231507f8b6533e88f3800d24e88c0b60ff3247de",
+    "assets/runtime/arena-BtDEk33H.js": "fddffa7684e049675650e49d417616130a6a41d9bb712a496f278d4b95e33a31",
+    "assets/runtime/index-D1Pa2wZs.css": "bfed8c1f1bbec00c2b334033b3f5cd86a0f11487b27f7b2cca83c8fe52e01c49",
+    "assets/runtime/index-KaozbiJD.js": "b8a6caff5dd4e8bbc89711bad3198c6c418314f45a368ee99d0e9ccabbb7b091",
+    "index.html": "ff0b2784c8b3f669e82be0ad5a37e53dc1e61b2e902ce456692f587eebfbc231",
+    "licenses/eventemitter3.txt": "3aecc12b1cb28832b5f65ab64291de96568c3f236a74d646281b4491f7bcadbf",
+    "licenses/phaser.txt": "c3123cd25de4eccf1fd5a5a0a6fc872299116d1dbbb48b00f2554a4c35220a65"
+  }
+}

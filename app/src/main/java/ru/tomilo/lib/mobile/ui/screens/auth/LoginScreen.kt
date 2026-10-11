@@ -1,6 +1,10 @@
 package ru.tomilo.lib.mobile.ui.screens.auth
 
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.material3.TextButton
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +71,7 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
     var password by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -229,6 +234,21 @@ fun LoginScreen(
             ) {
                 Text(if (loading) "Входим…" else "Войти", fontWeight = FontWeight.Bold)
             }
+            TextButton(onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/auth/register")))
+            }, enabled = !loading) { Text("Регистрация на сайте") }
+            TextButton(onClick = {
+                loading = true
+                error = null
+                resetMessage = null
+                scope.launch {
+                    authRepository.requestPasswordReset(email)
+                        .onSuccess { resetMessage = "Проверьте почту: ссылка из письма откроет восстановление пароля." }
+                        .onFailure { error = it.toUserFacingError("Не удалось отправить письмо.") }
+                    loading = false
+                }
+            }, enabled = !loading && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()) { Text("Восстановить пароль") }
+            resetMessage?.let { Text(it, color = TomiloMuted) }
             Spacer(Modifier.height(24.dp))
         }
     }

@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "64 visible cells at font scale 1.3",
+    "Goal and all boosters fit the screen",
+    "Menu explains squares, runes and obstacles",
+    "Swipe sends exactly one move",
+    "Victory auto-saves once after confirmed cascades",
+    "Save failure retains victory and exposes explicit retry",
+    "Manual retry completes successfully without request loop",
+    "Restored won session at zero moves auto-saves exactly once with disabled animations"
+  ],
+  "fixture": "Real Android screen and repository; isolated proxy returns frames produced by the real server engine."
+}

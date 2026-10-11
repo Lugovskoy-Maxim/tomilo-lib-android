@@ -1,0 +1,35 @@
+{
+  "emulator": "Android 36 arm64 / SwiftShader",
+  "fontScale": "1.3",
+  "wifi": "0",
+  "records": [
+    {
+      "stageId": 1,
+      "style": "guided",
+      "quality": 855,
+      "ticks": 1108,
+      "mistakes": 0
+    }
+  ],
+  "presses": 28,
+  "pauses": 1,
+  "wallMs": 27383,
+  "frameMs": {
+    "median": 66.59999999999127,
+    "max": 200
+  },
+  "background": {
+    "before": "1:30",
+    "after": "1:30",
+    "paused": true
+  },
+  "passed": [
+    "final APK offline full fight by touch",
+    "repeated attack presses",
+    "automatic victory and record",
+    "next stage",
+    "large text HUD fits",
+    "background timer frozen",
+    "native Back closes settings"
+  ]
+}
