@@ -13,6 +13,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -76,7 +78,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
+import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -129,6 +131,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
@@ -822,14 +825,14 @@ fun ReaderScreen(
         if (idx >= 0) chaptersListState.scrollToItem((idx - 2).coerceAtLeast(0))
     }
 
-    LaunchedEffect(autoScroll, speed, pages, layout) {
+    LaunchedEffect(autoScroll, speed, pages, layout, storedSettings, currentChapterId) {
         if (!autoScroll || pages.isEmpty() || layout != ReaderLayout.WEBTOON) return@LaunchedEffect
         while (isActive && autoScroll) {
             val delta = (speed * 2.2f).toInt().coerceAtLeast(1)
             if (!listState.canScrollForward) {
                 autoScroll = false
                 hasScrolledThisChapter = true
-                if (settings.autoAdvanceChapters && autoAdvanceFromChapter != currentChapterId) {
+                if (storedSettings != null && settings.autoAdvanceChapters && autoAdvanceFromChapter != currentChapterId) {
                     autoAdvanceFromChapter = currentChapterId
                     goNext()
                 }
@@ -862,19 +865,21 @@ fun ReaderScreen(
         }
     }
 
-    LaunchedEffect(currentChapterId, pages.size, loading, layout) {
-        if (pages.isEmpty() || loading || layout != ReaderLayout.WEBTOON) return@LaunchedEffect
+    LaunchedEffect(currentChapterId, pages.size, loading, layout, storedSettings?.autoAdvanceChapters) {
+        if (storedSettings == null || !settings.autoAdvanceChapters || pages.isEmpty() || loading ||
+            layout != ReaderLayout.WEBTOON
+        ) return@LaunchedEffect
         snapshotFlow {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
             Triple(listState.isScrollInProgress, lastVisible, listState.canScrollForward)
-        }.collect { (scrolling, lastVisible, canScrollForward) ->
+        }.collectLatest { (scrolling, lastVisible, canScrollForward) ->
             if (scrolling) hasScrolledThisChapter = true
             val reachedChapterFooter = lastVisible >= pages.size && !canScrollForward
             if (settings.autoAdvanceChapters && !scrolling && hasScrolledThisChapter && reachedChapterFooter &&
                 autoAdvanceFromChapter != currentChapterId
             ) {
-                autoAdvanceFromChapter = currentChapterId
                 delay(350)
+                autoAdvanceFromChapter = currentChapterId
                 goNext()
             }
         }
@@ -1450,7 +1455,7 @@ fun ReaderScreen(
             containerColor = TomiloSurface,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
                 Text("Режим чтения", color = TomiloText, style = MaterialTheme.typography.titleLarge)
                 Text("Настройте читалку под этот тайтл", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(14.dp))
@@ -1516,10 +1521,27 @@ fun ReaderScreen(
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
+                        Text("Следующая глава автоматически", color = TomiloText)
+                        Text(
+                            "Открывать после прокрутки до конца главы",
+                            color = TomiloMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    TomiloSwitch(
+                        checked = settings.autoAdvanceChapters,
+                        enabled = storedSettings != null,
+                        onCheckedChange = { value ->
+                            scope.launch { readingPrefs.setAutoAdvanceChapters(value) }
+                        },
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
                         Text("Не выключать экран", color = TomiloText)
                         Text("Пока открыта читалка", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = settings.keepScreenOn,
                         onCheckedChange = { value -> scope.launch { readingPrefs.setKeepScreenOn(value) } },
                     )
@@ -1529,7 +1551,7 @@ fun ReaderScreen(
                         Text("Сразу без панелей", color = TomiloText)
                         Text("Полный экран при открытии", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = settings.startFullscreen,
                         onCheckedChange = { value ->
                             scope.launch { readingPrefs.setStartFullscreen(value) }

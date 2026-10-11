@@ -49,6 +49,7 @@ enum class ThemeMode(val storageValue: String) {
     DARK("dark"),
     LIGHT("light"),
     COFFEE("coffee"),
+    DRAGON("dragon"),
     ;
 
     companion object {

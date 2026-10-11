@@ -27,6 +27,11 @@ class AuthRepository(
     val tokenFlow: Flow<String?> = authStore.tokenFlow
     val userFlow: Flow<UserDto?> = authStore.userFlow
 
+    suspend fun requestPasswordReset(email: String): Result<Unit> = runCatchingCancellable {
+        val response = api.forgotPassword(mapOf("email" to email.trim()))
+        if (!response.success) error(response.message ?: "Не удалось отправить письмо")
+    }
+
     suspend fun login(email: String, password: String): Result<UserDto> = runCatchingCancellable {
         persist(api.login(LoginRequest(email.trim(), password)))
     }

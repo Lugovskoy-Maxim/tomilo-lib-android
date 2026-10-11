@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -86,7 +87,7 @@ import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -175,6 +176,7 @@ fun ProfileScreen(
     themePrefs: ru.tomilo.lib.mobile.data.local.AppThemePrefs,
     onLogin: () -> Unit,
     onOpenOffline: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenLeaders: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -212,6 +214,9 @@ fun ProfileScreen(
     var cacheMsg by remember { mutableStateOf<String?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
     var selectedProfileTab by rememberSaveable { mutableIntStateOf(0) }
+    BackHandler(enabled = selectedProfileTab != 0 && !confirmLogout) {
+        selectedProfileTab = 0
+    }
     LaunchedEffect(user?.stableId()) {
         if (user != null) {
             authRepository.refreshProfile()
@@ -283,6 +288,18 @@ fun ProfileScreen(
                         Toast.makeText(context, "ID скопирован в буфер обмена", Toast.LENGTH_SHORT).show()
                     },
                 )
+
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip(selected = selectedProfileTab == 0, onClick = { selectedProfileTab = 0 }, label = { Text("Обзор") })
+                    FilterChip(selected = false, onClick = onOpenLibrary, label = { Text("Библиотека") })
+                    FilterChip(selected = false, onClick = onOpenQuests, label = { Text("Задания") })
+                    FilterChip(selected = false, onClick = onOpenPremium, label = { Text("Премиум") })
+                    FilterChip(selected = selectedProfileTab == 1, onClick = { selectedProfileTab = 1 }, label = { Text("Оформление") })
+                    FilterChip(selected = selectedProfileTab == 2, onClick = { selectedProfileTab = 2 }, label = { Text("Настройки") })
+                }
 
                 Box(Modifier.padding(horizontal = 12.dp)) {
                     Column {
@@ -1367,6 +1384,16 @@ private fun ProfileSettingsTab(
                 modifier = Modifier.weight(1f),
             )
         }
+        SchemePreviewCard(
+            label = "Драконья",
+            selected = themeMode == ThemeMode.DRAGON,
+            background = Color(0xFF0B0D0C),
+            foreground = Color(0xFFECF2EE),
+            bar = Color(0xFF829488),
+            accent = Color(0xFFFF6B00),
+            onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.DRAGON) } },
+            modifier = Modifier.width(84.dp),
+        )
         TextButton(
             onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.SYSTEM) } },
             modifier = Modifier.fillMaxWidth(),
@@ -1397,10 +1424,9 @@ private fun ProfileSettingsTab(
                         Text("Не гасить экран при чтении", style = MaterialTheme.typography.titleSmall, color = TomiloText)
                         Text("Экран остаётся включённым в читалке", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = readingSettings.keepScreenOn,
                         onCheckedChange = onKeepScreenOn,
-                        colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
                     )
                 }
 
@@ -1415,10 +1441,9 @@ private fun ProfileSettingsTab(
                         Text("Полноэкранный режим", style = MaterialTheme.typography.titleSmall, color = TomiloText)
                         Text("Скрывать системные панели при старте", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = readingSettings.startFullscreen,
                         onCheckedChange = onStartFullscreen,
-                        colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
                     )
                 }
 
@@ -1432,10 +1457,9 @@ private fun ProfileSettingsTab(
                         Text("Следующая глава автоматически", style = MaterialTheme.typography.titleSmall, color = TomiloText)
                         Text("Открывать её после конца текущей главы", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = readingSettings.autoAdvanceChapters,
                         onCheckedChange = onAutoAdvanceChapters,
-                        colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
                     )
                 }
 
@@ -1450,8 +1474,8 @@ private fun ProfileSettingsTab(
                     Slider(
                         value = readingSettings.autoScrollSpeed,
                         onValueChange = onAutoScrollSpeed,
-                        valueRange = 0.5f..4.0f,
-                        steps = 6,
+                        valueRange = 0.4f..5.0f,
+                        steps = 22,
                         colors = SliderDefaults.colors(
                             thumbColor = TomiloPrimary,
                             activeTrackColor = TomiloPrimary,
@@ -1775,11 +1799,10 @@ private fun AdultToggleRow(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        Switch(
+        TomiloSwitch(
             checked = contentSettings.showAdultContent && canEnable,
             onCheckedChange = { if (canEnable) onToggle(it) },
             enabled = canEnable,
-            colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
         )
     }
 }

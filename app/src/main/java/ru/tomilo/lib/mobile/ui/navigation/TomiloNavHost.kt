@@ -297,7 +297,7 @@ fun TomiloNavHost(container: AppContainer) {
             onRegister = {
                 scope.launch { container.contentPrefs.completeOnboarding() }
                 context.startActivity(
-                    Intent(Intent.ACTION_VIEW, Uri.parse("${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/register")),
+                    Intent(Intent.ACTION_VIEW, Uri.parse("${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/auth/register")),
                 )
             },
         )
@@ -475,6 +475,7 @@ fun TomiloNavHost(container: AppContainer) {
                     themePrefs = container.themePrefs,
                     onLogin = { goLogin() },
                     onOpenOffline = { navController.navigate(Routes.Offline) },
+                    onOpenLibrary = { navController.navigate(Routes.Library) },
                     onOpenNotifications = { navController.navigate(Routes.Notifications) },
                     onOpenLeaders = { navController.navigate(Routes.Leaders) },
                     onOpenHistory = { navController.navigate(Routes.History) },
@@ -661,7 +662,7 @@ fun TomiloNavHost(container: AppContainer) {
                     downloadManager = container.downloadManager,
                     rewardedAdManager = container.rewardedAdManager,
                     adRewardStore = container.adRewardStore,
-                    onOpenHome = { navigateHomeRoot() },
+                    onOpenHome = { if (!navController.popBackStack()) navigateHomeRoot() },
                     onLogin = { goLogin() },
                     onOpenChapter = { titleId, chapterId, offline ->
                         navController.navigate(

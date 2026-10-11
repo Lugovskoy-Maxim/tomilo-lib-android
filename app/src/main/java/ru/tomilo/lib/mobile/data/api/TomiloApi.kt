@@ -13,6 +13,9 @@ import retrofit2.http.Query
 
 interface TomiloApi {
     // ── Auth / profile ──────────────────────────────────────────
+    @POST("auth/forgot-password")
+    suspend fun forgotPassword(@Body body: Map<String, String>): ApiResponse<JsonElement>
+
     @POST("auth/login")
     suspend fun login(@Body body: LoginRequest): ApiResponse<AuthPayload>
 
