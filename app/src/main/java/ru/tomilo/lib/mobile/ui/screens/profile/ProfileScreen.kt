@@ -86,8 +86,6 @@ import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -138,6 +136,7 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.ActionRow
+import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import ru.tomilo.lib.mobile.ui.components.ProfileScreenSkeleton
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
@@ -1397,10 +1396,9 @@ private fun ProfileSettingsTab(
                         Text("Не гасить экран при чтении", style = MaterialTheme.typography.titleSmall, color = TomiloText)
                         Text("Экран остаётся включённым в читалке", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = readingSettings.keepScreenOn,
                         onCheckedChange = onKeepScreenOn,
-                        colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
                     )
                 }
 
@@ -1415,10 +1413,9 @@ private fun ProfileSettingsTab(
                         Text("Полноэкранный режим", style = MaterialTheme.typography.titleSmall, color = TomiloText)
                         Text("Скрывать системные панели при старте", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = readingSettings.startFullscreen,
                         onCheckedChange = onStartFullscreen,
-                        colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
                     )
                 }
 
@@ -1432,10 +1429,9 @@ private fun ProfileSettingsTab(
                         Text("Следующая глава автоматически", style = MaterialTheme.typography.titleSmall, color = TomiloText)
                         Text("Открывать её после конца текущей главы", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = readingSettings.autoAdvanceChapters,
                         onCheckedChange = onAutoAdvanceChapters,
-                        colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
                     )
                 }
 
@@ -1775,11 +1771,10 @@ private fun AdultToggleRow(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        Switch(
+        TomiloSwitch(
             checked = contentSettings.showAdultContent && canEnable,
             onCheckedChange = { if (canEnable) onToggle(it) },
             enabled = canEnable,
-            colors = SwitchDefaults.colors(checkedThumbColor = TomiloPrimary),
         )
     }
 }

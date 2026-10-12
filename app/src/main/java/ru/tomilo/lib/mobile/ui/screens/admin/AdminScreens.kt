@@ -26,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -56,6 +55,7 @@ import ru.tomilo.lib.mobile.data.api.AutoParseJobDto
 import ru.tomilo.lib.mobile.data.api.SourceCandidateDto
 import ru.tomilo.lib.mobile.data.repo.AdminRepository
 import ru.tomilo.lib.mobile.ui.components.EmptyState
+import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.PageIntro
@@ -689,7 +689,7 @@ private fun ToggleRow(label: String, value: Boolean, onChange: (Boolean) -> Unit
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, modifier = Modifier.weight(1f))
-        Switch(checked = value, onCheckedChange = onChange)
+        TomiloSwitch(checked = value, onCheckedChange = onChange)
     }
 }
 

@@ -7,6 +7,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -33,6 +37,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -76,7 +81,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -115,6 +119,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -165,6 +172,7 @@ import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
+import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -1110,8 +1118,8 @@ fun ReaderScreen(
 
         AnimatedVisibility(
             visible = chromeVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(210)) + slideInVertically(tween(240)) { -it / 2 },
+            exit = fadeOut(tween(130)) + slideOutVertically(tween(150)) { -it / 2 },
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             Column(
@@ -1119,86 +1127,91 @@ fun ReaderScreen(
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Black.copy(alpha = 0.78f), Color.Transparent),
+                            listOf(Color.Black.copy(alpha = 0.48f), Color.Transparent),
                         ),
                     )
                     .statusBarsPadding()
-                    .padding(top = 8.dp, start = 10.dp, end = 10.dp, bottom = 22.dp),
+                    .padding(top = 10.dp, start = 16.dp, end = 16.dp, bottom = 18.dp),
             ) {
-                Surface(
-                    color = Color(0xEA15151A),
-                    shape = RoundedCornerShape(24.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
-                    shadowElevation = 10.dp,
-                ) {
-                    Column {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Surface(
+                            color = Color(0xD91C1E24),
+                            shape = CircleShape,
+                            shadowElevation = 6.dp,
                         ) {
                             IconButton(onClick = { openParentTitle() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "К странице тайтла", tint = Color.White)
                             }
-                            Column(
-                                Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable(enabled = canOpenTitle) { openParentTitle() }
-                                    .padding(horizontal = 4.dp, vertical = 3.dp),
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            color = Color(0xD91C1E24),
+                            shape = RoundedCornerShape(20.dp),
+                            shadowElevation = 6.dp,
+                        ) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    title,
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 1,
-                                )
-                                Text(
-                                    buildString {
-                                        append("Стр. ${(currentPage + 1).coerceAtMost(pages.size)} из ${pages.size}")
-                                        append(" · ")
-                                        append(ReaderMode.layoutLabel(layout))
-                                        if (offline) append(" · офлайн")
-                                    },
-                                    color = TomiloMuted,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                )
-                            }
-                            Text(
-                                "${(readProgress * 100).toInt().coerceIn(0, 100)}%",
-                                color = TomiloPrimary,
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(TomiloPrimary.copy(alpha = 0.13f))
-                                    .padding(horizontal = 9.dp, vertical = 6.dp),
-                            )
-                            IconButton(onClick = { showRating = true }) {
-                                Icon(
-                                    if (myChapterRating > 0) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                    "Оценить главу",
-                                    tint = if (myChapterRating > 0) Color(0xFFE4B85D) else Color.White,
-                                )
-                            }
-                            IconButton(onClick = { chapterQuery = ""; showChapters = true }) {
-                                Icon(Icons.AutoMirrored.Filled.List, "Главы", tint = Color.White)
+                                Column(
+                                    Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable(enabled = canOpenTitle) { openParentTitle() }
+                                        .padding(vertical = 3.dp),
+                                ) {
+                                    Text(
+                                        title,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                        maxLines = 1,
+                                    )
+                                    Text(
+                                        buildString {
+                                            append("Стр. ${(currentPage + 1).coerceAtMost(pages.size)} из ${pages.size}")
+                                            append(" · ")
+                                            append(ReaderMode.layoutLabel(layout))
+                                            if (offline) append(" · офлайн")
+                                        },
+                                        color = TomiloMuted,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                    )
+                                }
+                                IconButton(onClick = { showRating = true }) {
+                                    Icon(
+                                        if (myChapterRating > 0) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                        "Оценить главу",
+                                        tint = if (myChapterRating > 0) Color(0xFFE4B85D) else Color.White,
+                                    )
+                                }
+                                IconButton(onClick = { chapterQuery = ""; showChapters = true }) {
+                                    Icon(Icons.AutoMirrored.Filled.List, "Главы", tint = Color.White)
+                                }
                             }
                         }
-                        LinearProgressIndicator(
-                            progress = { readProgress.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth().height(3.dp),
-                            color = TomiloPrimary,
-                            trackColor = Color.White.copy(alpha = 0.08f),
-                        )
                     }
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { readProgress.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 56.dp).height(2.dp).clip(CircleShape),
+                        color = TomiloPrimary,
+                        trackColor = Color.White.copy(alpha = 0.24f),
+                    )
                 }
             }
         }
 
         AnimatedVisibility(
             visible = chromeVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(210)) + slideInVertically(tween(240)) { it / 2 },
+            exit = fadeOut(tween(130)) + slideOutVertically(tween(150)) { it / 2 },
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             Column(
@@ -1206,27 +1219,30 @@ fun ReaderScreen(
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.82f)),
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.56f)),
                         ),
                     )
                     .navigationBarsPadding()
-                    .padding(start = 10.dp, end = 10.dp, top = 26.dp, bottom = 8.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 10.dp),
             ) {
                 Surface(
-                    color = Color(0xF216161B),
-                    shape = RoundedCornerShape(26.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
-                    shadowElevation = 14.dp,
+                    color = Color(0xDE1C1E24),
+                    shape = RoundedCornerShape(22.dp),
+                    shadowElevation = 8.dp,
                 ) {
-                    Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                         Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 7.dp),
+                            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "Страница ${(currentPage + 1).coerceAtMost(pages.size)}",
+                                buildString {
+                                    if (pageSliderActive) append("Перейти · ")
+                                    append("${((if (pageSliderActive) pageSliderValue.toInt() else currentPage) + 1).coerceAtMost(pages.size)} / ${pages.size} стр.")
+                                },
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                             )
                             Spacer(Modifier.weight(1f))
                             Text(
@@ -1245,15 +1261,29 @@ fun ReaderScreen(
                                 onValueChangeFinished = {
                                     val target = pageSliderValue.toInt().coerceIn(0, pages.lastIndex)
                                     scope.launch {
-                                        if (layout == ReaderLayout.PAGER) pagerState.animateScrollToPage(target)
-                                        else listState.animateScrollToItem(target)
+                                        if (layout == ReaderLayout.PAGER) {
+                                            if (kotlin.math.abs(target - pagerState.currentPage) > 3) pagerState.scrollToPage(target)
+                                            else pagerState.animateScrollToPage(target)
+                                        } else {
+                                            if (kotlin.math.abs(target - listState.firstVisibleItemIndex) > 3) listState.scrollToItem(target)
+                                            else listState.animateScrollToItem(target)
+                                        }
                                     }
                                     pageSliderActive = false
                                 },
                                 valueRange = 0f..pages.lastIndex.toFloat(),
-                                modifier = Modifier.height(34.dp),
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
                             )
                         }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    color = Color(0xE81C1E24),
+                    shape = RoundedCornerShape(22.dp),
+                    shadowElevation = 8.dp,
+                ) {
+                    Column(Modifier.padding(horizontal = 7.dp, vertical = 5.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             ReaderDockAction(
                                 icon = Icons.AutoMirrored.Filled.NavigateBefore,
@@ -1519,7 +1549,7 @@ fun ReaderScreen(
                         Text("Не выключать экран", color = TomiloText)
                         Text("Пока открыта читалка", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = settings.keepScreenOn,
                         onCheckedChange = { value -> scope.launch { readingPrefs.setKeepScreenOn(value) } },
                     )
@@ -1529,7 +1559,7 @@ fun ReaderScreen(
                         Text("Сразу без панелей", color = TomiloText)
                         Text("Полный экран при открытии", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                     }
-                    Switch(
+                    TomiloSwitch(
                         checked = settings.startFullscreen,
                         onCheckedChange = { value ->
                             scope.launch { readingPrefs.setStartFullscreen(value) }
@@ -1674,20 +1704,28 @@ private fun ReaderDockAction(
     active: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val tint = when {
+    val targetTint = when {
         !enabled -> Color.White.copy(alpha = 0.28f)
         active -> TomiloPrimary
         else -> Color.White.copy(alpha = 0.88f)
     }
+    val tint by animateColorAsState(targetTint, label = "reader action tint")
+    val background by animateColorAsState(
+        if (active) TomiloPrimary.copy(alpha = 0.14f) else Color.Transparent,
+        label = "reader action background",
+    )
     Column(
         modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (active) TomiloPrimary.copy(alpha = 0.13f) else Color.Transparent)
+            .background(background)
             .clickable(enabled = enabled, onClick = onClick)
+            .semantics { role = Role.Button }
+            .heightIn(min = 56.dp)
             .padding(vertical = 7.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
         Spacer(Modifier.height(3.dp))
         Text(label, color = tint, style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
