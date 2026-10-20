@@ -204,17 +204,21 @@ private fun CultivationDiscipleCard(
             Text("Опыт культивации: ${disciple.cultivationExp}", fontWeight = FontWeight.SemiBold)
 
             Text("Путь Дао", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            cultivationPaths.forEach { path ->
-                val selected = disciple.path.equals(path.id, ignoreCase = true)
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clickable(enabled = !anyBusy && !selected) { onSetPath(path) },
-                    color = if (selected) TomiloPrimary.copy(alpha = 0.12f) else Color.Transparent,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, if (selected) TomiloPrimary.copy(alpha = 0.45f) else TomiloBorder),
-                ) {
-                    Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("${if (selected) "✓ " else ""}${path.label}", fontWeight = FontWeight.Medium)
-                        Text(path.hint, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            if (disciple.cultivationStageKey == "body_tempering") {
+                Text("Путь Дао откроется после прорыва в «Сгущение ци».", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            } else {
+                cultivationPaths.forEach { path ->
+                    val selected = disciple.path.equals(path.id, ignoreCase = true)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable(enabled = !anyBusy && !selected) { onSetPath(path) },
+                        color = if (selected) TomiloPrimary.copy(alpha = 0.12f) else Color.Transparent,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, if (selected) TomiloPrimary.copy(alpha = 0.45f) else TomiloBorder),
+                    ) {
+                        Row(Modifier.padding(horizontal = 11.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("${if (selected) "✓ " else ""}${path.label}", fontWeight = FontWeight.Medium)
+                            Text(path.hint, color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
