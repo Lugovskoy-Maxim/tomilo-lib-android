@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MilitaryTech
@@ -70,7 +71,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS, CULTIVATION, ARENA, INVENTORY }
+private enum class GamesPage { HUB, CARDS, CULTIVATION, ARENA, INVENTORY, EXPEDITION }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +104,7 @@ fun GamesScreen(
                                 GamesPage.CULTIVATION -> "Путь культивации"
                                 GamesPage.ARENA -> "Арена секты"
                                 GamesPage.INVENTORY -> "Хранилище"
+                                GamesPage.EXPEDITION -> "Вылазка секты"
                             },
                         )
                         Text(
@@ -112,6 +114,7 @@ fun GamesScreen(
                                 GamesPage.CULTIVATION -> "Медитация, путь Дао и прорыв"
                                 GamesPage.ARENA -> "Состав отряда и серверные бои"
                                 GamesPage.INVENTORY -> "Предметы и серверные действия"
+                                GamesPage.EXPEDITION -> "Тайные миры, риск и серверные награды"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -146,6 +149,7 @@ fun GamesScreen(
                 onOpenCultivation = { page = GamesPage.CULTIVATION },
                 onOpenArena = { page = GamesPage.ARENA },
                 onOpenInventory = { page = GamesPage.INVENTORY },
+                onOpenExpedition = { page = GamesPage.EXPEDITION },
                 modifier = Modifier.padding(padding),
             )
             page == GamesPage.CARDS -> key(user?.stableId()) {
@@ -167,6 +171,13 @@ fun GamesScreen(
             }
             page == GamesPage.INVENTORY -> key(user?.stableId()) {
                 InventoryNativeScreen(
+                    gamesRepository = gamesRepository,
+                    authRepository = authRepository,
+                    modifier = Modifier.padding(padding),
+                )
+            }
+            page == GamesPage.EXPEDITION -> key(user?.stableId()) {
+                ExpeditionNativeScreen(
                     gamesRepository = gamesRepository,
                     authRepository = authRepository,
                     modifier = Modifier.padding(padding),
@@ -235,6 +246,7 @@ private fun GamesContent(
     onOpenCultivation: () -> Unit,
     onOpenArena: () -> Unit,
     onOpenInventory: () -> Unit,
+    onOpenExpedition: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -291,6 +303,14 @@ private fun GamesContent(
                 title = "Хранилище",
                 subtitle = "Инвентарь и применение разрешённых предметов",
                 onClick = onOpenInventory,
+            )
+        }
+        item {
+            GameModeRow(
+                icon = Icons.Default.Explore,
+                title = "Вылазка секты",
+                subtitle = "Отправляйте учеников за опытом и добычей",
+                onClick = onOpenExpedition,
             )
         }
         item {

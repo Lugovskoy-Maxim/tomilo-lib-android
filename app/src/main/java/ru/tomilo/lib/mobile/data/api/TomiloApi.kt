@@ -62,6 +62,18 @@ interface TomiloApi {
     @POST("users/profile/inventory/use")
     suspend fun useGameInventoryItem(@Body body: GameInventoryUseRequest): ApiResponse<GameInventoryUseResultDto>
 
+    @GET("users/profile/disciples/realm-maps")
+    suspend fun realmMapsCatalog(): ApiResponse<RealmMapsCatalogDto>
+
+    @POST("users/profile/disciples/realm-enter")
+    suspend fun enterRealm(@Body body: RealmEnterRequest): ApiResponse<RealmEnterResultDto>
+
+    @GET("users/profile/disciples/expedition")
+    suspend fun expeditionStatus(): ApiResponse<ExpeditionStatusDto>
+
+    @POST("users/profile/disciples/expedition/start")
+    suspend fun startExpedition(@Body body: StartExpeditionRequest): ApiResponse<StartExpeditionResultDto>
+
     @GET("users/profile/disciples")
     suspend fun gameDisciples(): ApiResponse<GameDisciplesDto>
 

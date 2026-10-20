@@ -26,6 +26,12 @@ import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryUseDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryUseRequest
 import ru.tomilo.lib.mobile.data.api.GameInventoryUseResultDto
+import ru.tomilo.lib.mobile.data.api.ExpeditionStatusDto
+import ru.tomilo.lib.mobile.data.api.RealmEnterRequest
+import ru.tomilo.lib.mobile.data.api.RealmEnterResultDto
+import ru.tomilo.lib.mobile.data.api.RealmMapsCatalogDto
+import ru.tomilo.lib.mobile.data.api.StartExpeditionRequest
+import ru.tomilo.lib.mobile.data.api.StartExpeditionResultDto
 import ru.tomilo.lib.mobile.data.api.GameTrainResultDto
 import ru.tomilo.lib.mobile.data.api.GameWarehouseRequest
 import ru.tomilo.lib.mobile.data.api.PillMatchCompleteDto
@@ -202,6 +208,30 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.useGameInventoryItem(GameInventoryUseRequest(itemId, count.coerceAtLeast(1)))
         if (!response.success) error(response.message ?: "Не удалось использовать предмет")
         response.data ?: error("Сервер не вернул результат использования предмета")
+    }
+
+    suspend fun realmMapsCatalog(): Result<RealmMapsCatalogDto> = runCatchingCancellable {
+        val response = api.realmMapsCatalog()
+        if (!response.success) error(response.message ?: "Не удалось загрузить карты тайных миров")
+        response.data ?: error("Сервер не вернул каталог тайных миров")
+    }
+
+    suspend fun enterRealm(keyItemId: String): Result<RealmEnterResultDto> = runCatchingCancellable {
+        val response = api.enterRealm(RealmEnterRequest(keyItemId))
+        if (!response.success) error(response.message ?: "Не удалось активировать ключ тайного мира")
+        response.data ?: error("Сервер не вернул состояние ключа")
+    }
+
+    suspend fun expeditionStatus(): Result<ExpeditionStatusDto> = runCatchingCancellable {
+        val response = api.expeditionStatus()
+        if (!response.success) error(response.message ?: "Не удалось загрузить статус вылазки")
+        response.data ?: error("Сервер не вернул статус вылазки")
+    }
+
+    suspend fun startExpedition(difficulty: String): Result<StartExpeditionResultDto> = runCatchingCancellable {
+        val response = api.startExpedition(StartExpeditionRequest(difficulty))
+        if (!response.success) error(response.message ?: "Не удалось отправить вылазку")
+        response.data ?: error("Сервер не подтвердил отправку вылазки")
     }
 
     suspend fun startMeditation(characterId: String): Result<Unit> = runCatchingCancellable {

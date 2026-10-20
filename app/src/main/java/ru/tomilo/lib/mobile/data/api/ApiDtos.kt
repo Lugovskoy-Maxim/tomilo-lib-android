@@ -777,6 +777,87 @@ data class GameInventoryUseResultDto(
 )
 
 @Serializable
+data class RealmMapCategoryDto(
+    val id: String = "",
+    val label: String = "",
+    val description: String = "",
+    val entryItemId: String = "",
+)
+
+@Serializable
+data class RealmMapsCatalogDto(
+    val categories: List<RealmMapCategoryDto> = emptyList(),
+)
+
+@Serializable
+data class RealmEnterRequest(val keyItemId: String)
+
+@Serializable
+data class RealmEnterResultDto(
+    val ok: Boolean = false,
+    val categoryId: String = "",
+    val categoryLabel: String = "",
+    val message: String = "",
+    val arenaBonusGranted: Boolean = false,
+)
+
+@Serializable
+data class ExpeditionCostsDto(val easy: Int = 0, val normal: Int = 25, val hard: Int = 60)
+
+@Serializable
+data class ExpeditionLootItemDto(
+    val itemId: String = "",
+    val count: Int = 0,
+    val name: String? = null,
+    val icon: String? = null,
+)
+
+@Serializable
+data class ExpeditionAmbushDto(
+    val happened: Boolean = false,
+    val preventedByTalisman: Boolean = false,
+)
+
+@Serializable
+data class ExpeditionResultDto(
+    val at: String = "",
+    val difficulty: String = "easy",
+    val success: Boolean = false,
+    val coinsGained: Int = 0,
+    val expGained: Int = 0,
+    val itemsGained: List<ExpeditionLootItemDto> = emptyList(),
+    val log: List<String> = emptyList(),
+    val ambush: ExpeditionAmbushDto? = null,
+)
+
+@Serializable
+data class ExpeditionStatusDto(
+    val canStart: Boolean = false,
+    val actionBattleInProgress: Boolean = false,
+    val inProgress: Boolean = false,
+    val completesAt: String? = null,
+    val nextExpeditionAt: String? = null,
+    val costs: ExpeditionCostsDto = ExpeditionCostsDto(),
+    val lastResult: ExpeditionResultDto? = null,
+    val hasDisciples: Boolean = false,
+    val balance: Int = 0,
+    val ambushRiskPercent: Int? = null,
+    val pendingRealmCategoryId: String? = null,
+    val arenaStatBonusBattlesRemaining: Int = 0,
+    val realmCategories: List<RealmMapCategoryDto> = emptyList(),
+)
+
+@Serializable
+data class StartExpeditionRequest(val difficulty: String)
+
+@Serializable
+data class StartExpeditionResultDto(
+    val started: Boolean = false,
+    val completesAt: String = "",
+    val balance: Int = 0,
+)
+
+@Serializable
 data class GameDiscipleDto(
     val characterId: String = "",
     val titleId: String? = null,
