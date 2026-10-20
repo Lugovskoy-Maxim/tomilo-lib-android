@@ -226,7 +226,7 @@ private fun GamesGuest(
         Spacer(Modifier.height(22.dp))
         Button(onClick = onExploreCards, modifier = Modifier.fillMaxWidth()) { Text("Открыть каталог карт") }
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onExploreMatch, modifier = Modifier.fillMaxWidth()) { Text("Играть в сад созвездий") }
+        OutlinedButton(onClick = onExploreMatch, modifier = Modifier.fillMaxWidth()) { Text("Пилюли · играть без входа") }
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onExploreTraining, modifier = Modifier.fillMaxWidth()) { Text("Тропа духозверей · тренировка") }
         Spacer(Modifier.height(8.dp))
@@ -292,7 +292,7 @@ private fun GamesContent(
         item {
             GameModeRow(
                 icon = Icons.Default.AutoAwesome,
-                title = "Сад созвездий",
+                title = "Пилюли",
                 subtitle = if (isAdmin) "Три в ряд с серверным прогрессом и наградами" else "Три в ряд · локальная тренировка без наград",
                 onClick = onOpenMatch,
             )
