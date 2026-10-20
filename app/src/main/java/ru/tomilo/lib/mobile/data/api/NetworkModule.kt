@@ -40,6 +40,9 @@ object NetworkModule {
             request.header("Authorization").isNullOrBlank() &&
             isPublicCachePath(request.url.encodedPath) &&
             request.url.queryParameter("includeAdult") != "true"
+
+    internal fun shouldBypassHttpCache(request: Request): Boolean =
+        !request.header("Authorization").isNullOrBlank() || !shouldUsePublicHttpCache(request)
     @Volatile private var mediaClient: OkHttpClient? = null
     val json = Json {
         ignoreUnknownKeys = true
@@ -132,9 +135,6 @@ object NetworkModule {
         val cacheInterceptor = Interceptor { chain ->
             val request = chain.request()
             val response = chain.proceed(request)
-            val isAccountCatalog = request.method == "GET" &&
-                !request.header("Authorization").isNullOrBlank() &&
-                request.url.encodedPath.removePrefix("/api") == "/titles"
             val isPublicGet = shouldUsePublicHttpCache(request)
             if (isPublicGet && response.isSuccessful &&
                 response.header("Cache-Control").isNullOrBlank() && response.header("Pragma").isNullOrBlank() &&
@@ -143,9 +143,6 @@ object NetworkModule {
                     .header("Cache-Control", "public, max-age=120")
                     .removeHeader("Pragma")
                     .build()
-            } else if ((isPublicGet || isAccountCatalog) && response.isSuccessful &&
-                response.header("Set-Cookie").isNullOrBlank()) {
-                response
             } else {
                 response.newBuilder()
                     .header("Cache-Control", "no-store")
@@ -155,17 +152,10 @@ object NetworkModule {
 
         val offlineCacheInterceptor = Interceptor { chain ->
             var request = chain.request()
-            val isAuthenticated = !request.header("Authorization").isNullOrBlank()
-            val isAccountCatalog = isAuthenticated && request.method == "GET" &&
-                request.url.encodedPath.removePrefix("/api") == "/titles"
             val isPublicGet = shouldUsePublicHttpCache(request)
-            if (isAuthenticated && !isAccountCatalog) {
-                // Bypass cache lookup as well as writes: a previous anonymous public
-                // response for the same URL must never satisfy an account request.
-                request = request.newBuilder()
-                    .header("Cache-Control", "no-cache, no-store")
-                    .build()
-            } else if (!isPublicGet && !isAccountCatalog) {
+            if (shouldBypassHttpCache(request)) {
+                // Cache entries are shared by URL within this app, not partitioned
+                // by login session. Never reuse or store responses for token requests.
                 request = request.newBuilder()
                     .header("Cache-Control", "no-cache, no-store")
                     .build()

@@ -62,4 +62,26 @@ class NetworkModuleCachePolicyTest {
 
         assertTrue(NetworkModule.shouldUsePublicHttpCache(request))
     }
+
+    @Test
+    fun `authenticated catalog requests bypass cache even with adult filter disabled`() {
+        val request = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles?includeAdult=false&page=1")
+            .header("Authorization", "Bearer user-token")
+            .get()
+            .build()
+
+        assertFalse(NetworkModule.shouldUsePublicHttpCache(request))
+        assertTrue(NetworkModule.shouldBypassHttpCache(request))
+    }
+
+    @Test
+    fun `anonymous public discovery can still use cache`() {
+        val request = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
+            .get()
+            .build()
+
+        assertFalse(NetworkModule.shouldBypassHttpCache(request))
+    }
 }
