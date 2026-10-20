@@ -21,6 +21,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.TimeUnit
 
 @Serializable
 data class PageDimensions(
@@ -80,6 +81,8 @@ object WebtoonTiles {
     private const val CACHE_TRIM_AT = 600L * 1024L * 1024L
     private const val CACHE_TARGET = 450L * 1024L * 1024L
     private const val DOWNLOAD_PERMITS = 2
+    // Переключаемся на запасной адрес, если тело страницы зависло на одном хосте.
+    private const val SOURCE_CALL_TIMEOUT_SECONDS = 25L
 
     private val sourceLocks = ConcurrentHashMap<String, Mutex>()
     private val downloads = Semaphore(DOWNLOAD_PERMITS)
@@ -342,7 +345,10 @@ object WebtoonTiles {
                             .header("Accept", "image/avif,image/webp,image/*,*/*;q=0.8")
                             .get()
                             .build()
-                        client(context).newCall(request).execute().use { response ->
+                        val call = client(context).newCall(request).apply {
+                            timeout().timeout(SOURCE_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        }
+                        call.execute().use { response ->
                             if (!response.isSuccessful) error("HTTP ${response.code}")
                             val body = response.body ?: error("Пустой ответ изображения")
                             body.byteStream().use { input ->

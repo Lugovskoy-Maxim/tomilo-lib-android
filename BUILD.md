@@ -12,11 +12,11 @@ APK: `app/build/outputs/apk/rustore/debug/`
 
 ## Релиз GitHub
 
-Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.4.5** (`versionCode 50`).
+Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.5.0** (`versionCode 52`).
 
 ```bash
-git tag v1.4.5
-git push origin v1.4.5
+git tag v1.5.0
+git push origin v1.5.0
 ```
 
 Либо Actions → **Release**. Подробности: [`.github/RELEASE.md`](.github/RELEASE.md).
