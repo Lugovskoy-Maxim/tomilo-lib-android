@@ -31,18 +31,43 @@ object NetworkModule {
     private fun isPublicCachePath(path: String): Boolean {
         val publicPath = path.removePrefix("/api")
         return publicPath == "/titles" ||
-            publicPath in setOf("/titles/filters/options", "/titles/latest-updates", "/titles/popular", "/users/leaderboard") ||
+            publicPath in setOf(
+                "/titles/filters/options",
+                "/titles/latest-updates",
+                "/titles/popular",
+                "/titles/random",
+                "/users/leaderboard",
+            ) ||
             publicPath == "/search" || publicPath == "/search/autocomplete"
     }
 
-    internal fun shouldUsePublicHttpCache(request: Request): Boolean =
-        request.method == "GET" &&
+    internal fun shouldUsePublicHttpCache(request: Request): Boolean {
+        val path = request.url.encodedPath.removePrefix("/api")
+        val randomList = path == "/titles/random" &&
+            request.url.queryParameter("limit")?.toIntOrNull()?.let { it > 1 } == true
+        return request.method == "GET" &&
             request.header("Authorization").isNullOrBlank() &&
             isPublicCachePath(request.url.encodedPath) &&
+            (path != "/titles/random" || randomList) &&
             request.url.queryParameter("includeAdult") != "true"
+    }
 
     internal fun shouldBypassHttpCache(request: Request): Boolean =
         !request.header("Authorization").isNullOrBlank() || !shouldUsePublicHttpCache(request)
+
+    /** Null means keep the server's explicit Cache-Control unchanged. */
+    internal fun cacheControlForNetworkResponse(request: Request, response: Response): String? {
+        if (!shouldUsePublicHttpCache(request)) return "no-store"
+        // A 304 refreshes an existing entry and must keep its cache policy so
+        // OkHttp can merge the validator response with the stored body.
+        if (!response.isSuccessful && response.code != 304) return "no-store"
+        if (!response.header("Cache-Control").isNullOrBlank()) return null
+        if (!response.header("Pragma").isNullOrBlank() || !response.header("Set-Cookie").isNullOrBlank()) {
+            return "no-store"
+        }
+        return "public, max-age=120"
+    }
+
     @Volatile private var mediaClient: OkHttpClient? = null
     val json = Json {
         ignoreUnknownKeys = true
@@ -135,19 +160,9 @@ object NetworkModule {
         val cacheInterceptor = Interceptor { chain ->
             val request = chain.request()
             val response = chain.proceed(request)
-            val isPublicGet = shouldUsePublicHttpCache(request)
-            if (isPublicGet && response.isSuccessful &&
-                response.header("Cache-Control").isNullOrBlank() && response.header("Pragma").isNullOrBlank() &&
-                response.header("Set-Cookie").isNullOrBlank()) {
-                response.newBuilder()
-                    .header("Cache-Control", "public, max-age=120")
-                    .removeHeader("Pragma")
-                    .build()
-            } else {
-                response.newBuilder()
-                    .header("Cache-Control", "no-store")
-                    .build()
-            }
+            val localCacheControl = cacheControlForNetworkResponse(request, response)
+            if (localCacheControl == null) response
+            else response.newBuilder().header("Cache-Control", localCacheControl).build()
         }
 
         val offlineCacheInterceptor = Interceptor { chain ->
