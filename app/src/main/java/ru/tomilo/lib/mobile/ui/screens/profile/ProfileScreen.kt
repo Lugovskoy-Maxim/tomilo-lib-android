@@ -128,6 +128,7 @@ import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.DEFAULT_ACCENT_HEX
 import ru.tomilo.lib.mobile.data.local.FREE_ACCENT_COUNT
 import ru.tomilo.lib.mobile.data.local.ThemeMode
+import ru.tomilo.lib.mobile.data.local.SeasonalThemeMode
 import ru.tomilo.lib.mobile.data.local.accentUnlocked
 import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
@@ -1319,9 +1320,11 @@ private fun ProfileSettingsTab(
     onLogout: () -> Unit,
 ) {
     val themeMode by themePrefs.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+    val seasonalThemeMode by themePrefs.seasonalThemeModeFlow.collectAsState(initial = SeasonalThemeMode.AUTO)
     val accentHex by themePrefs.accentHexFlow.collectAsState(initial = null)
     val settingsScope = rememberCoroutineScope()
     val settingsContext = LocalContext.current
+    var seasonalMenuOpen by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ProfileSectionHeader("Настройка тем", "Акцент и цветовая схема")
         ThemeAccentRow(
@@ -1376,6 +1379,42 @@ private fun ProfileSettingsTab(
                 fontWeight = if (themeMode == ThemeMode.SYSTEM) FontWeight.Bold else FontWeight.Medium,
             )
         }
+
+        ProfileSectionHeader("Сезонные эффекты", "Автоматически по календарю или вручную")
+        Box {
+            OutlinedButton(
+                onClick = { seasonalMenuOpen = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(seasonalThemeMode.label)
+            }
+            DropdownMenu(
+                expanded = seasonalMenuOpen,
+                onDismissRequest = { seasonalMenuOpen = false },
+            ) {
+                SeasonalThemeMode.entries.forEach { mode ->
+                    DropdownMenuItem(
+                        text = { Text(mode.label) },
+                        leadingIcon = {
+                            if (seasonalThemeMode == mode) {
+                                Icon(Icons.Filled.Check, contentDescription = null)
+                            }
+                        },
+                        onClick = {
+                            seasonalMenuOpen = false
+                            settingsScope.launch { themePrefs.setSeasonalThemeMode(mode) }
+                        },
+                    )
+                }
+            }
+        }
+        Text(
+            "В режиме «Авто» хэллоуинские украшения включаются с 1 по 31 октября. Их также можно включить вручную или выключить.",
+            color = TomiloMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
 
         // 1. Reader Settings
         ProfileSectionHeader("Настройки читалки", "Параметры отображения и комфорта")

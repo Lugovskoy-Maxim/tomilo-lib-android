@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import ru.tomilo.lib.mobile.data.local.SeasonalTheme
 
 private fun darkScheme(p: TomiloPalette, accent: Color) = darkColorScheme(
     primary = accent,
@@ -83,6 +84,7 @@ private val TomiloShapes = Shapes(
 )
 
 val LocalTomiloAccent = compositionLocalOf { TomiloDarkPalette.primary }
+val LocalSeasonalTheme = compositionLocalOf { SeasonalTheme.NONE }
 
 /**
  * Корневая тема приложения.
@@ -94,6 +96,7 @@ fun TomiloTheme(
     accentColor: Color? = null,
     darkTheme: Boolean = isSystemInDarkTheme(),
     coffee: Boolean = false,
+    seasonalTheme: SeasonalTheme = SeasonalTheme.NONE,
     content: @Composable () -> Unit,
 ) {
     val palette = when {
@@ -115,6 +118,7 @@ fun TomiloTheme(
     CompositionLocalProvider(
         LocalTomiloPalette provides palette,
         LocalTomiloAccent provides activePrimary,
+        LocalSeasonalTheme provides seasonalTheme,
         LocalDensity provides appDensity,
     ) {
         MaterialTheme(

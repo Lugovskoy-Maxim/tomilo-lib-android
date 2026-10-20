@@ -60,6 +60,7 @@ enum class ThemeMode(val storageValue: String) {
 class AppThemePrefs(private val context: Context) {
     private val accentKey = stringPreferencesKey("accent_color_hex")
     private val themeModeKey = stringPreferencesKey("theme_mode")
+    private val seasonalThemeModeKey = stringPreferencesKey("seasonal_theme_mode")
     private val shelfNotificationsKey = booleanPreferencesKey("shelf_notifications_enabled")
 
     val accentHexFlow: Flow<String?> = context.themeDataStore.data.map { prefs ->
@@ -70,6 +71,10 @@ class AppThemePrefs(private val context: Context) {
         ThemeMode.fromStorage(prefs[themeModeKey])
     }
 
+    val seasonalThemeModeFlow: Flow<SeasonalThemeMode> = context.themeDataStore.data.map { prefs ->
+        SeasonalThemeMode.fromStorage(prefs[seasonalThemeModeKey])
+    }
+
     val shelfNotificationsFlow: Flow<Boolean> = context.themeDataStore.data.map { prefs ->
         prefs[shelfNotificationsKey] ?: true
     }
@@ -77,6 +82,16 @@ class AppThemePrefs(private val context: Context) {
     suspend fun accentHex(): String? = accentHexFlow.first()
 
     suspend fun themeMode(): ThemeMode = themeModeFlow.first()
+
+    suspend fun setSeasonalThemeMode(mode: SeasonalThemeMode) {
+        context.themeDataStore.edit { prefs ->
+            if (mode == SeasonalThemeMode.AUTO) {
+                prefs.remove(seasonalThemeModeKey)
+            } else {
+                prefs[seasonalThemeModeKey] = mode.storageValue
+            }
+        }
+    }
 
     suspend fun shelfNotificationsEnabled(): Boolean = shelfNotificationsFlow.first()
 

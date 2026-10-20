@@ -97,6 +97,7 @@ import ru.tomilo.lib.mobile.data.api.HistoryEntryDto
 import ru.tomilo.lib.mobile.data.api.ReadingProgressDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
 import ru.tomilo.lib.mobile.data.local.ContentSettings
+import ru.tomilo.lib.mobile.data.local.SeasonalTheme
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
@@ -112,8 +113,8 @@ import ru.tomilo.lib.mobile.ui.components.TomiloBottomBarContentGap
 import ru.tomilo.lib.mobile.ui.components.formatRating
 import ru.tomilo.lib.mobile.ui.components.statusColor
 import ru.tomilo.lib.mobile.ui.components.statusLabel
-import ru.tomilo.lib.mobile.ui.components.isHalloweenSeason
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
+import ru.tomilo.lib.mobile.ui.theme.LocalSeasonalTheme
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
@@ -453,6 +454,7 @@ private fun HomeHeroCarousel(
     onLuckyRandom: () -> Unit,
     onOpenProfile: () -> Unit,
 ) {
+    val halloweenActive = LocalSeasonalTheme.current == SeasonalTheme.HALLOWEEN
     val pagerState = rememberPagerState(
         initialPage = infinitePagerStart(items.size),
         pageCount = { if (items.isEmpty()) 0 else Int.MAX_VALUE },
@@ -499,7 +501,7 @@ private fun HomeHeroCarousel(
             }
         }
 
-        if (isHalloweenSeason()) {
+        if (halloweenActive) {
             HalloweenCornerWeb(
                 Modifier
                     .align(Alignment.TopStart)
@@ -540,7 +542,7 @@ private fun HomeHeroCarousel(
                             fontSize = 13.sp,
                             letterSpacing = 1.1.sp,
                         )
-                        if (isHalloweenSeason()) {
+                        if (halloweenActive) {
                             HalloweenPumpkin(Modifier.padding(start = 4.dp))
                         }
                     }

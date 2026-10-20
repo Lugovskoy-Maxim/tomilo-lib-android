@@ -19,10 +19,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import ru.tomilo.lib.mobile.R
-import java.util.Calendar
 import kotlin.math.roundToInt
-
-fun isHalloweenSeason(): Boolean = Calendar.getInstance().get(Calendar.MONTH) == Calendar.OCTOBER
 
 @Composable
 fun HalloweenPumpkin(modifier: Modifier = Modifier) {

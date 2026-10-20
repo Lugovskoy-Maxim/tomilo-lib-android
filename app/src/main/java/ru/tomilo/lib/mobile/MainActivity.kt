@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -23,7 +26,13 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
 import ru.tomilo.lib.mobile.data.local.ThemeMode
+import ru.tomilo.lib.mobile.data.local.SeasonalThemeMode
 import ru.tomilo.lib.mobile.data.local.accentUnlocked
+import ru.tomilo.lib.mobile.data.local.resolveSeasonalTheme
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +43,19 @@ class MainActivity : ComponentActivity() {
             val themePrefs = app.container.themePrefs
             val accentHex by themePrefs.accentHexFlow.collectAsState(initial = null)
             val themeMode by themePrefs.themeModeFlow.collectAsState(initial = ThemeMode.SYSTEM)
+            val seasonalThemeMode by themePrefs.seasonalThemeModeFlow.collectAsState(initial = SeasonalThemeMode.AUTO)
+            var currentDate by remember { mutableStateOf(LocalDate.now()) }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    val now = LocalDateTime.now()
+                    val nextDay = now.toLocalDate().plusDays(1).atStartOfDay()
+                    delay(Duration.between(now, nextDay).toMillis().coerceAtLeast(1_000L))
+                    currentDate = LocalDate.now()
+                }
+            }
+            val seasonalTheme = remember(seasonalThemeMode, currentDate) {
+                resolveSeasonalTheme(seasonalThemeMode, currentDate)
+            }
             val systemDark = isSystemInDarkTheme()
             val coffee = themeMode == ThemeMode.COFFEE
             val darkTheme = when (themeMode) {
@@ -66,7 +88,12 @@ class MainActivity : ComponentActivity() {
                     }
                 } else null
             }
-            TomiloTheme(accentColor = activeAccent, darkTheme = darkTheme, coffee = coffee) {
+            TomiloTheme(
+                accentColor = activeAccent,
+                darkTheme = darkTheme,
+                coffee = coffee,
+                seasonalTheme = seasonalTheme,
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TomiloNavHost(container = app.container)
                 }
