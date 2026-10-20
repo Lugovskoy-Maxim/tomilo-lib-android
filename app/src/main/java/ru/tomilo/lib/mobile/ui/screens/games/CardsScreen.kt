@@ -1642,11 +1642,12 @@ private fun CardCatalogItem(
         border = BorderStroke(1.dp, rarityColor(entry.rarity, entry.rank).copy(alpha = if (ownedCard != null) .72f else .3f)),
     ) {
         Column(Modifier.padding(7.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Box(Modifier.fillMaxWidth().height(164.dp).clip(RoundedCornerShape(10.dp)).background(TomiloBg)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(RoundedCornerShape(10.dp)).background(TomiloBg)) {
                 CardArtwork(
                     imageUrl = entry.imageUrl,
                     contentDescription = entry.characterName?.takeIf(String::isNotBlank) ?: entry.name,
                     modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
                 )
                 if (ownedCard == null) {
                     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .32f)))

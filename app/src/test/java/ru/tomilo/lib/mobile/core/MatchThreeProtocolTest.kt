@@ -6,6 +6,36 @@ import org.junit.Test
 import ru.tomilo.lib.mobile.data.api.PillMatchActionDto
 
 class MatchThreeProtocolTest {
+    @Test fun settledSpritesIgnoreGravityListOrder() {
+        val board = List(64) { it % 5 }
+        val resting = MatchThreeMotion.settle(board)
+        val byColumn = resting.sortedWith(compareBy({ it.cell % 8 }, { it.cell / 8 }))
+        assertTrue(MatchThreeMotion.sameSettledSprites(byColumn, resting))
+        assertFalse(MatchThreeMotion.sameSettledSprites(byColumn.map { if (it.cell == 1) it.copy(pop = true) else it }, resting))
+    }
+
+    @Test fun localCascadeLeavesOtherColumnsStillUntilClearedGemsDisappear() {
+        val before = List(64) { it % 5 }
+        val previous = MatchThreeMotion.settle(before)
+        val wave = MatchThreeMotion.wave(before, setOf(40, 48, 56), before, emptyMap(), previous)
+        assertEquals(setOf(40, 48, 56), wave.popping.filter { it.pop }.map { it.cell }.toSet())
+        val static = wave.landing.single { it.cell == 1 }
+        assertEquals(1, static.fromCell)
+        assertEquals(previous.single { it.cell == 1 }.id, static.id)
+        assertFalse(static.enter)
+        assertFalse(static.pop)
+        assertEquals(24, wave.landing.single { it.fromCell == 0 }.cell)
+    }
+
+    @Test fun legacyResultSnapsWithoutAnimatingUnconfirmedClears() {
+        val before = List(64) { it % 5 }
+        val previous = MatchThreeMotion.settle(before)
+        val after = before.toMutableList().also { it[8] = (it[8] + 1) % 5 }
+        val snapped = MatchThreeMotion.settle(after, previous)
+        assertTrue(snapped.all { !it.pop && !it.enter && it.fromCell == it.cell })
+        assertEquals(previous.single { it.cell == 1 }.id, snapped.single { it.cell == 1 }.id)
+    }
+
     @Test fun equalColoredReplacementsStillPopOnlyConfirmedCells() {
         val before = List(64) { it % 5 }
         val previous = MatchThreeMotion.settle(before)

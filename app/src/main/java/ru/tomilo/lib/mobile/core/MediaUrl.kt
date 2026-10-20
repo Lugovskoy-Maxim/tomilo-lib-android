@@ -13,6 +13,7 @@ object MediaUrl {
         if (raw.startsWith("http://") || raw.startsWith("https://")) {
             return rewriteToCdn(raw)
         }
+        if (isSiteAssetPath(raw)) return "$site${if (raw.startsWith('/')) raw else "/$raw"}"
         val key = normalizeKey(raw)
         return "$cdn$key"
     }
@@ -30,6 +31,7 @@ object MediaUrl {
         if (raw.startsWith("http://") || raw.startsWith("https://")) {
             return try {
                 val uri = java.net.URI(raw)
+                if (isSiteAssetPath(uri.path.orEmpty())) return listOf(raw)
                 if (!isTomiloMediaHost(uri.host.orEmpty())) return listOf(raw)
                 val key = normalizeKey(uri.path.orEmpty())
                 listOf("$s3$key", "$cdn$key", raw).distinct()
@@ -37,6 +39,7 @@ object MediaUrl {
                 listOf(raw)
             }
         }
+        if (isSiteAssetPath(raw)) return listOf(resolve(raw))
         val key = normalizeKey(raw)
         return listOf("$s3$key", "$cdn$key").distinct()
     }
@@ -52,6 +55,7 @@ object MediaUrl {
             val u = java.net.URI(url)
             val host = u.host.orEmpty()
             val path = u.path.orEmpty()
+            if (isSiteAssetPath(path)) return url
             if (isTomiloMediaHost(host)) {
                 val key = normalizeKey(path)
                 if (key.isNotBlank()) "$cdn$key" else url
@@ -69,6 +73,11 @@ object MediaUrl {
             host.contains("tomilo-lib.ru") ||
             host == "localhost" ||
             host == "127.0.0.1"
+
+    // Эти файлы обслуживает сайт/API. В S3 и CDN таких путей нет.
+    private fun isSiteAssetPath(path: String): Boolean =
+        path.startsWith("/assets/") || path.startsWith("assets/") ||
+            path.startsWith("/api/shop/images/asset/") || path.startsWith("api/shop/images/asset/")
 
     private fun normalizeKey(p: String): String {
         var path = if (p.startsWith("/")) p else "/$p"

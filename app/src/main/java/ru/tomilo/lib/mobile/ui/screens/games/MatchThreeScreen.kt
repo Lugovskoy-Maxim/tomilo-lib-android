@@ -347,7 +347,7 @@ fun MatchThreeScreen(
     LaunchedEffect(Unit) {
         saved = store.read().normalized(capacity)
         store.write(saved)
-        if (user?.stableId().isNullOrBlank()) {
+        if (!admin) {
             selectedLevel = (saved.records.maxOfOrNull { it.level } ?: 0) + 1
             saved.activeSession?.takeIf { it.board.size == 64 && it.obstacles.size == 64 && it.level > 0 && (it.moves > 0 || it.collected >= it.target) }?.let { session ->
                 selectedLevel = session.level
@@ -369,7 +369,7 @@ fun MatchThreeScreen(
         }
     }
     LaunchedEffect(user?.stableId(), capacity) {
-        if (!user?.stableId().isNullOrBlank()) {
+        if (admin) {
             playing = false
             remoteMode = false
             gamesRepository.pillMatchState().onSuccess { state ->
@@ -409,11 +409,11 @@ fun MatchThreeScreen(
     LaunchedEffect(rejectionSequence) {
         if (rejectedCells.isNotEmpty()) { delay(450); rejectedCells = emptySet() }
     }
-    LaunchedEffect(Unit) {
-        gamesRepository.pillMatchPublishedLevels().onSuccess { publishedLevels = it }
+    LaunchedEffect(admin) {
+        if (admin) gamesRepository.pillMatchPublishedLevels().onSuccess { publishedLevels = it }
     }
     LaunchedEffect(selectedTab, rankPeriod, user?.stableId()) {
-        if (selectedTab == MatchThreeTab.RANK && !user?.stableId().isNullOrBlank()) {
+        if (selectedTab == MatchThreeTab.RANK && admin) {
             rankLoading = true
             rankError = null
             gamesRepository.pillMatchLeaderboard(rankPeriod.apiValue)
@@ -439,7 +439,7 @@ fun MatchThreeScreen(
             now = System.currentTimeMillis()
             val latest = store.read().refreshed(capacity, now)
             if (latest != saved) { saved = latest; store.write(latest) }
-            if (!user?.stableId().isNullOrBlank()) {
+            if (admin) {
                 gamesRepository.pillMatchState().onSuccess { state ->
                     remoteLives = state.lives.current
                     remoteCapacity = state.lives.capacity
@@ -486,8 +486,8 @@ fun MatchThreeScreen(
     fun startLevel(number: Int) {
         val spec = levelSpec(number)
         val refreshed = saved.refreshed(capacity, System.currentTimeMillis())
-        if (user?.stableId().isNullOrBlank() && refreshed.lives <= 0 && saved.activeSession?.level != number) { notice = "Сердца восстановятся через ${refreshed.nextLifeMinutes(capacity)} мин."; return }
-        if (user?.stableId().isNullOrBlank() && saved.activeSession?.level == number) {
+        if (!admin && refreshed.lives <= 0 && saved.activeSession?.level != number) { notice = "Сердца восстановятся через ${refreshed.nextLifeMinutes(capacity)} мин."; return }
+        if (!admin && saved.activeSession?.level == number) {
             saved.activeSession?.let { session ->
                 visualGems = emptyList()
                 hintCells = emptySet()
@@ -514,7 +514,7 @@ fun MatchThreeScreen(
         activeBooster = ""
         finished = false
         won = false
-        if (!user?.stableId().isNullOrBlank()) {
+        if (admin) {
             saving = true
             scope.launch {
                 try {
@@ -740,9 +740,9 @@ fun MatchThreeScreen(
             if (busy) return@LaunchedEffect
         }
         val resting = settled.map { it.copy(fromCell = it.cell, pop = false, enter = false, spawnRows = 0) }
-        val same = current.isNotEmpty() && current.size == resting.size && current.zip(resting).all { (sprite, rest) ->
-            sprite.id == rest.id && sprite.cell == rest.cell && sprite.color == rest.color && sprite.fromCell == rest.cell && !sprite.pop && !sprite.enter
-        }
+        // Gravity stores sprites by column, while settle returns row order. Compare
+        // positions instead of list order so untouched gems keep their composition.
+        val same = MatchThreeMotion.sameSettledSprites(current, resting)
         if (!same) {
             visualGems = resting
             motionKind = MotionKind.SETTLE
@@ -817,10 +817,12 @@ fun MatchThreeScreen(
         motionKind = MotionKind.SETTLE
     }
 
-    suspend fun playRemoteFrames(action: ru.tomilo.lib.mobile.data.api.PillMatchActionDto, fallback: List<Int>, shuffle: Boolean = false) {
+    suspend fun playRemoteFrames(action: ru.tomilo.lib.mobile.data.api.PillMatchActionDto, shuffle: Boolean = false) {
         if (action.frames.isEmpty()) {
-            // Older servers do not identify actual clears. Update without inventing an explosion.
-            playCrossfade(fallback, decodeBoard(action.session.board), burst = false)
+            // Without cleared cells and fall paths a changed color does not identify
+            // a disappearing gem. Keep the board still instead of animating every diff.
+            visualGems = MatchThreeMotion.settle(decodeBoard(action.session.board), visualGems)
+            motionKind = MotionKind.SETTLE
             return
         }
         for (frame in action.frames) {
@@ -942,7 +944,7 @@ fun MatchThreeScreen(
                     saving = true
                     notice = "Применяем бустер…"
                     gamesRepository.pillMatchBooster(booster, index).onSuccess { action ->
-                        playRemoteFrames(action, startBoard)
+                        playRemoteFrames(action)
                         applyRemoteState(action)
                         if (notice == "Применяем бустер…") notice = null
                         noteIfStuck()
@@ -1024,7 +1026,7 @@ fun MatchThreeScreen(
                             playSwap(to, from)
                             rejectSwipe(from, to, "Нужно собрать три или больше самоцветов.", wiggle = false)
                         } else {
-                            playRemoteFrames(action, swapped)
+                            playRemoteFrames(action)
                             applyRemoteState(action)
                             if (notice == "Считаем ход…") notice = null
                             noteIfStuck()
@@ -1057,7 +1059,7 @@ fun MatchThreeScreen(
                     saving = true
                     notice = "Перемешиваем…"
                     gamesRepository.pillMatchBooster("shuffle").onSuccess { action ->
-                        playRemoteFrames(action, startBoard, shuffle = true)
+                        playRemoteFrames(action, shuffle = true)
                         applyRemoteState(action)
                         notice = "Самоцветы перемешаны"
                         noteIfStuck()
@@ -1267,7 +1269,7 @@ fun MatchThreeScreen(
         won = false
         visualGems = emptyList()
         activeBooster = ""
-        remoteMode = !user?.stableId().isNullOrBlank()
+        remoteMode = admin
         selectedTab = MatchThreeTab.EDITOR
         notice = "Черновик главы $editorLevelNumber на месте"
     }
@@ -1613,6 +1615,13 @@ fun MatchThreeScreen(
                             completed = (saved.records.map { it.level } + remoteCompleted).distinct().size, onPremium = onOpenPremium,
                         )
                     }
+                    if (!admin) item {
+                        Text(
+                            "Локальная тренировка: главы сохраняются на этом устройстве, награды и общий рейтинг пока недоступны.",
+                            color = Color(0xFFBAC5D6),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     if (!playing) item {
                         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF20263A).copy(alpha = .92f)), shape = RoundedCornerShape(24.dp), border = BorderStroke(1.dp, Color(0xFFB7C5EF).copy(alpha = .15f))) {
                             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -1649,18 +1658,18 @@ fun MatchThreeScreen(
                             RankPeriod.entries.forEach { period -> FilterChip(selected = period == rankPeriod, onClick = { rankPeriod = period }, label = { Text(period.title) }, modifier = Modifier.weight(1f)) }
                         }
                     }
-                    if (user?.stableId().isNullOrBlank()) item {
+                    if (!admin) item {
                         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF20263A).copy(alpha = .96f)), shape = RoundedCornerShape(20.dp)) {
                             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Рейтинг исследователей", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                Text("Войдите, чтобы сохранять прохождения на сервере и участвовать в общем рейтинге.", color = Color(0xFFBAC5D6), style = MaterialTheme.typography.bodyMedium)
-                                Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
+                                Text("Здесь отображаются сетевые прохождения. Локальная тренировка остаётся на этом устройстве.", color = Color(0xFFBAC5D6), style = MaterialTheme.typography.bodyMedium)
+                                if (user == null) Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
                             }
                         }
                     }
-                    if (rankLoading && !user?.stableId().isNullOrBlank()) item { Text("Загружаем таблицу лидеров…", color = Color(0xFFBAC5D6)) }
+                    if (rankLoading && admin) item { Text("Загружаем таблицу лидеров…", color = Color(0xFFBAC5D6)) }
                     rankError?.let { message -> item { Text(message, color = Color(0xFFFF99A9)) } }
-                    if (!rankLoading && rankError == null && rankUsers.isEmpty() && !user?.stableId().isNullOrBlank()) item {
+                    if (!rankLoading && rankError == null && rankUsers.isEmpty() && admin) item {
                         Text("В этом периоде пока нет прохождений. Локально пройдено: ${saved.records.map { it.level }.distinct().size} глав.", color = Color(0xFFBAC5D6))
                     }
                     items(rankUsers, key = { "rank_${rankPeriod.apiValue}_${it.userId}" }) { entry ->
@@ -1675,7 +1684,7 @@ fun MatchThreeScreen(
                             }
                         }
                     }
-                    if (!user?.stableId().isNullOrBlank()) item { Text("Рейтинг синхронизируется с сервером. Период: ${rankPeriod.title.lowercase()}.", color = Color(0xFF909CB4), style = MaterialTheme.typography.bodySmall) }
+                    if (admin) item { Text("Рейтинг синхронизируется с сервером. Период: ${rankPeriod.title.lowercase()}.", color = Color(0xFF909CB4), style = MaterialTheme.typography.bodySmall) }
                 }
                 MatchThreeTab.EDITOR -> {
                     item { Text("Раздел доступен только администратору.", color = Color.White) }

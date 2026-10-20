@@ -21,6 +21,16 @@ object MatchThreeMotion {
 
     data class Wave(val popping: List<Sprite>, val landing: List<Sprite>)
 
+    fun sameSettledSprites(current: List<Sprite>, resting: List<Sprite>): Boolean {
+        if (current.isEmpty() || current.size != resting.size) return false
+        val byCell = current.associateBy { it.cell }
+        return byCell.size == resting.size && resting.all { rest ->
+            val sprite = byCell[rest.cell]
+            sprite != null && sprite.id == rest.id && sprite.color == rest.color &&
+                sprite.fromCell == rest.cell && !sprite.pop && !sprite.enter
+        }
+    }
+
     fun settle(board: List<Int>, previous: List<Sprite> = emptyList()): List<Sprite> {
         if (board.size != MatchThreeEngine.SIZE * MatchThreeEngine.SIZE) return emptyList()
         var nextId = (previous.maxOfOrNull { it.id } ?: 0L) + 1L

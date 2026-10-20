@@ -28,4 +28,20 @@ class MediaUrlTest {
         assertEquals(listOf(local), MediaUrl.candidates(local))
         assertTrue(MediaUrl.candidate(local, 2).startsWith("file:"))
     }
+
+    @Test
+    fun cardArtworkApiUrlStaysOnSite() {
+        val url = "https://tomilo-lib.ru/api/shop/images/asset/example"
+        assertEquals(url, MediaUrl.resolve(url))
+        assertEquals(listOf(url), MediaUrl.candidates(url))
+    }
+
+    @Test
+    fun profileBadgeAssetUsesSiteInsteadOfCdn() {
+        val path = "/assets/shop-badges/reader-spark.webp"
+        val url = "https://tomilo-lib.ru$path"
+        assertEquals(url, MediaUrl.resolve(path))
+        assertEquals(url, MediaUrl.resolve(url))
+        assertEquals(listOf(url), MediaUrl.candidates(path))
+    }
 }
