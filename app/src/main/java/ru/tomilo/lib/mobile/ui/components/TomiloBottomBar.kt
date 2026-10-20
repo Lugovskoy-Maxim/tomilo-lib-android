@@ -88,7 +88,6 @@ data class TomiloTabItem(
 )
 
 private val BarShape = RoundedCornerShape(44.dp)
-private val ItemShape = RoundedCornerShape(24.dp)
 private val MoreShape = RoundedCornerShape(38.dp)
 private val GlassBorder: Color @Composable get() = TomiloText.copy(alpha = 0.14f)
 
@@ -225,12 +224,9 @@ private fun NavTabItem(
         label = "tabBorder",
     )
 
-    Box(
+    Column(
         modifier = modifier
             .heightIn(min = 64.dp)
-            .clip(if (selected) RoundedCornerShape(29.dp) else ItemShape)
-            .background(bg)
-            .border(1.dp, border, if (selected) RoundedCornerShape(29.dp) else ItemShape)
             .clickable(
                 role = Role.Tab,
                 onClick = onClick,
@@ -238,12 +234,17 @@ private fun NavTabItem(
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
             .semantics { this.selected = isSelected }
-            .padding(horizontal = 2.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 2.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(0.dp),
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(bg)
+                .border(1.dp, border, CircleShape),
+            contentAlignment = Alignment.Center,
         ) {
             Box(contentAlignment = Alignment.TopEnd) {
                 Icon(
@@ -280,18 +281,17 @@ private fun NavTabItem(
                 }
             }
 
-            Text(
-                text = label,
-                modifier = Modifier.offset(y = (-5).dp),
-                color = if (selected) TomiloText else TomiloMuted,
-                fontSize = labelFontSize,
-                lineHeight = labelLineHeight,
-                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
+        Text(
+            text = label,
+            color = if (selected) TomiloText else TomiloMuted,
+            fontSize = labelFontSize,
+            lineHeight = labelLineHeight,
+            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

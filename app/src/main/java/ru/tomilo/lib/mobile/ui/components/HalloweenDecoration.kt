@@ -26,7 +26,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun HalloweenPumpkin(modifier: Modifier = Modifier) {
-    SeasonalSprite(R.drawable.halloween_pumpkin_glow, 600L, 22.dp, 29.dp, modifier)
+    SeasonalSprite(R.drawable.halloween_pumpkin_glow, 600L, 22.dp, 24.dp, modifier)
 }
 
 @Composable

@@ -529,7 +529,7 @@ private fun HomeHeroCarousel(
                         .background(Color.Black.copy(alpha = 0.62f))
                         .padding(horizontal = 14.dp, vertical = 8.dp),
                 ) {
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "TOMILO",
                             color = Color.White,
