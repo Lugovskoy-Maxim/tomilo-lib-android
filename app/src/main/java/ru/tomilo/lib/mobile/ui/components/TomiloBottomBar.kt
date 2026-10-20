@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -151,7 +152,7 @@ fun TomiloBottomBar(
                         }
                         onTabClick(tab.route)
                     },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.width(64.dp),
                 )
             }
         }
@@ -224,9 +225,12 @@ private fun NavTabItem(
         label = "tabBorder",
     )
 
-    Column(
+    Box(
         modifier = modifier
-            .heightIn(min = 64.dp)
+            .requiredSize(64.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .border(1.dp, border, CircleShape)
             .clickable(
                 role = Role.Tab,
                 onClick = onClick,
@@ -234,17 +238,12 @@ private fun NavTabItem(
                 indication = ripple(bounded = true, color = TomiloPrimary),
             )
             .semantics { this.selected = isSelected }
-            .padding(horizontal = 2.dp, vertical = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(bg)
-                .border(1.dp, border, CircleShape),
-            contentAlignment = Alignment.Center,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             Box(contentAlignment = Alignment.TopEnd) {
                 Icon(
@@ -281,17 +280,18 @@ private fun NavTabItem(
                 }
             }
 
+            Text(
+                text = label,
+                modifier = Modifier.offset(y = (-5).dp),
+                color = if (selected) TomiloText else TomiloMuted,
+                fontSize = labelFontSize,
+                lineHeight = labelLineHeight,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(
-            text = label,
-            color = if (selected) TomiloText else TomiloMuted,
-            fontSize = labelFontSize,
-            lineHeight = labelLineHeight,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 

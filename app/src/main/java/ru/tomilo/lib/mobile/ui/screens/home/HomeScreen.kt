@@ -527,7 +527,8 @@ private fun HomeHeroCarousel(
                     Modifier
                         .clip(RoundedCornerShape(22.dp))
                         .background(Color.Black.copy(alpha = 0.62f))
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                        .height(40.dp)
+                        .padding(horizontal = 14.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
