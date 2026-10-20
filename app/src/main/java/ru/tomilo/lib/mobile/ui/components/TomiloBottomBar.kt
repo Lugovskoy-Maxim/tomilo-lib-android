@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -70,7 +71,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Search
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
-import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloOnPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
@@ -90,6 +90,12 @@ data class TomiloTabItem(
 private val BarShape = RoundedCornerShape(44.dp)
 private val ItemShape = RoundedCornerShape(24.dp)
 private val MoreShape = RoundedCornerShape(38.dp)
+private val GlassBorder: Color @Composable get() = TomiloText.copy(alpha = 0.14f)
+
+@Composable
+private fun glassFill(): Brush = Brush.verticalGradient(
+    listOf(TomiloSurface.copy(alpha = 0.68f), TomiloSurface.copy(alpha = 0.54f)),
+)
 
 @Composable
 fun TomiloBottomBar(
@@ -116,19 +122,16 @@ fun TomiloBottomBar(
                 .weight(1f)
                 .selectableGroup()
                 .shadow(
-                    elevation = 10.dp,
+                    elevation = 6.dp,
                     shape = BarShape,
                     ambientColor = Color.Black.copy(alpha = 0.45f),
                     spotColor = Color.Black.copy(alpha = 0.35f),
                 )
                 .clip(BarShape)
-                .background(
-                    // Дизайн: Surface #111315 @ 80 %, без градиента.
-                    TomiloSurface.copy(alpha = 0.80f),
-                )
+                .background(glassFill())
                 .border(
                     width = 1.dp,
-                    color = TomiloBorder,
+                    color = GlassBorder,
                     shape = BarShape,
                 )
                 .padding(horizontal = 5.dp, vertical = 3.dp),
@@ -212,13 +215,12 @@ private fun NavTabItem(
         label = "tabColor",
     )
     val bg by animateColorAsState(
-        // Дизайн: pill активной вкладки — Primary @ 30 %.
-        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.30f) else Color.Transparent,
+        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.18f) else Color.Transparent,
         animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabBg",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.30f) else Color.Transparent,
+        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.24f) else Color.Transparent,
         animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabBorder",
     )
@@ -300,11 +302,10 @@ private fun MoreNavItem(onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 64.dp)
             .width(72.dp)
-            .shadow(10.dp, MoreShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.35f))
+            .shadow(6.dp, MoreShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.35f))
             .clip(MoreShape)
-            // В стиле основной панели: Surface @ 80 %, тонкая тёмная граница.
-            .background(TomiloSurface.copy(alpha = 0.80f))
-            .border(1.dp, TomiloBorder, MoreShape)
+            .background(glassFill())
+            .border(1.dp, GlassBorder, MoreShape)
             .clickable(
                 role = Role.Tab,
                 onClick = {

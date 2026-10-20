@@ -68,6 +68,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -103,12 +104,15 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
+import ru.tomilo.lib.mobile.ui.components.HalloweenCornerWeb
+import ru.tomilo.lib.mobile.ui.components.HalloweenPumpkin
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
 import ru.tomilo.lib.mobile.ui.components.TomiloBottomBarContentGap
 import ru.tomilo.lib.mobile.ui.components.formatRating
 import ru.tomilo.lib.mobile.ui.components.statusColor
 import ru.tomilo.lib.mobile.ui.components.statusLabel
+import ru.tomilo.lib.mobile.ui.components.isHalloweenSeason
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -495,6 +499,14 @@ private fun HomeHeroCarousel(
             }
         }
 
+        if (isHalloweenSeason()) {
+            HalloweenCornerWeb(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .alpha(0.32f),
+            )
+        }
+
         val current = items.getOrNull(pagerState.currentPage % items.size)
 
         Column(
@@ -528,6 +540,9 @@ private fun HomeHeroCarousel(
                             fontSize = 13.sp,
                             letterSpacing = 1.1.sp,
                         )
+                        if (isHalloweenSeason()) {
+                            HalloweenPumpkin(Modifier.padding(start = 4.dp))
+                        }
                     }
                 }
                 Spacer(Modifier.weight(1f))
