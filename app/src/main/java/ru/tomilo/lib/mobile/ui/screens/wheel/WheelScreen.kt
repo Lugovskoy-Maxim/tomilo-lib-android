@@ -289,10 +289,6 @@ fun WheelScreen(
                     return@launch
                 }
 
-                if (attempt != null) {
-                    runCatching { wheelAttemptStore.clear(ownerId, attempt.requestId) }
-                    pendingAttempt = null
-                }
                 val count = current.segments.size.coerceAtLeast(1)
                 val index = won.selectedSegmentIndex
                     ?.takeIf { it in 0 until count }
@@ -335,8 +331,23 @@ fun WheelScreen(
         }
     }
 
+    fun acknowledgeResult(won: WheelSpinResultDto) {
+        result = null
+        val attempt = pendingAttempt ?: return
+        if (won.requestId != attempt.requestId) return
+        val ownerId = accountId ?: return
+        scope.launch {
+            try {
+                wheelAttemptStore.clear(ownerId, attempt.requestId)
+                if (pendingAttempt?.requestId == attempt.requestId) pendingAttempt = null
+            } catch (_: Exception) {
+                snackbar.showSnackbar("Результат показан, но попытка не подтверждена. Её можно восстановить повторно.")
+            }
+        }
+    }
+
     result?.let { won ->
-        RewardDialog(won = won, onDismiss = { result = null })
+        RewardDialog(won = won, onDismiss = { acknowledgeResult(won) })
     }
 
     Scaffold(
