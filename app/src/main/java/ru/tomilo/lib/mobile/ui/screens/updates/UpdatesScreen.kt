@@ -70,10 +70,11 @@ fun UpdatesScreen(
     var paginationError by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
 
+    val includeAdult = settings.showAdultContent && settings.isAdultUser == true
     fun filterAdult(list: List<CatalogTitleDto>) =
-        if (settings.showAdultContent) list else list.filter { it.isAdult != true }
+        if (includeAdult) list else list.filter { it.isAdult != true }
 
-    LaunchedEffect(reload, settings.showAdultContent) {
+    LaunchedEffect(reload, includeAdult) {
         loading = true
         loadingMore = false
         error = null
@@ -81,7 +82,7 @@ fun UpdatesScreen(
         page = 1
         hasMore = true
         try {
-            catalogRepository.latestUpdatesPage(1, 24)
+            catalogRepository.latestUpdatesPage(1, 24, includeAdult)
                 .onSuccess {
                     items = filterAdult(it).distinctBy { title -> title.stableId() }
                     hasMore = it.size >= 24
@@ -108,7 +109,7 @@ fun UpdatesScreen(
                 loadingMore = true
                 val next = page + 1
                 try {
-                    catalogRepository.latestUpdatesPage(next, 24)
+                    catalogRepository.latestUpdatesPage(next, 24, includeAdult)
                         .onSuccess { batch ->
                             val filtered = filterAdult(batch)
                             items = (items + filtered).distinctBy { it.stableId() }

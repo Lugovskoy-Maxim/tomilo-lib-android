@@ -9,6 +9,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.logging.HttpLoggingInterceptor
@@ -20,10 +21,17 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
+    internal fun shouldOmitAuthorizationForAdultFilteredDiscovery(request: Request): Boolean {
+        val publicPath = request.url.encodedPath.removePrefix("/api")
+        return request.method == "GET" &&
+            request.url.queryParameter("includeAdult") == "false" &&
+            publicPath in setOf("/titles/latest-updates", "/titles/popular", "/titles/random")
+    }
+
     private fun isPublicCachePath(path: String): Boolean {
         val publicPath = path.removePrefix("/api")
         return publicPath == "/titles" ||
-            publicPath in setOf("/titles/filters/options", "/titles/latest-updates", "/titles/popular", "/titles/random", "/users/leaderboard") ||
+            publicPath in setOf("/titles/filters/options", "/titles/latest-updates", "/titles/popular", "/users/leaderboard") ||
             publicPath == "/search" || publicPath == "/search/autocomplete"
     }
     @Volatile private var mediaClient: OkHttpClient? = null
@@ -53,7 +61,7 @@ object NetworkModule {
                 .header("Accept", "application/json")
             val publicLeaderboard = original.method == "GET" &&
                 original.url.encodedPath.removePrefix("/api") == "/users/leaderboard"
-            if (publicLeaderboard) {
+            if (publicLeaderboard || shouldOmitAuthorizationForAdultFilteredDiscovery(original)) {
                 builder.removeHeader("Authorization")
             } else if (!token.isNullOrBlank()) {
                 builder.header("Authorization", "Bearer $token")

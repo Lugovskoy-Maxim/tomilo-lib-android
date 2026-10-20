@@ -197,11 +197,13 @@ interface TomiloApi {
     suspend fun latestUpdates(
         @Query("limit") limit: Int = 24,
         @Query("page") page: Int = 1,
+        @Query("includeAdult") includeAdult: Boolean? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
     @GET("titles/popular")
     suspend fun popular(
         @Query("limit") limit: Int = 24,
+        @Query("includeAdult") includeAdult: Boolean? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
     @GET("titles/random")

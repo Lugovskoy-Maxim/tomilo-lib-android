@@ -183,6 +183,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
+    val includeAdult = contentSettings.showAdultContent && contentSettings.isAdultUser == true
     val online by remember(context) { context.networkAvailabilityFlow() }.collectAsState(initial = true)
     val user by authRepository.userFlow.collectAsState(initial = null)
     var loading by remember { mutableStateOf(true) }
@@ -225,15 +226,15 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(reloadToken, contentSettings.showAdultContent) {
+    LaunchedEffect(reloadToken, includeAdult) {
         loading = true
         error = null
         try {
             val (u, p, random) = coroutineScope {
-                val updatesRequest = async { catalogRepository.latestUpdates() }
-                val popularRequest = async { catalogRepository.popular() }
+                val updatesRequest = async { catalogRepository.latestUpdates(includeAdult = includeAdult) }
+                val popularRequest = async { catalogRepository.popular(includeAdult = includeAdult) }
                 val randomRequest = async {
-                    catalogRepository.randomTitles(limit = 12, includeAdult = contentSettings.showAdultContent)
+                    catalogRepository.randomTitles(limit = 12, includeAdult = includeAdult)
                 }
                 Triple(updatesRequest.await(), popularRequest.await(), randomRequest.await())
             }
@@ -241,7 +242,7 @@ fun HomeScreen(
                 error = u.exceptionOrNull()?.message ?: "Не удалось загрузить данные"
                 return@LaunchedEffect
             }
-            val showAdult = contentSettings.showAdultContent
+            val showAdult = includeAdult
             fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
             updates = u.getOrDefault(emptyList()).filterAdult()
             popular = p.getOrDefault(emptyList()).filterAdult()

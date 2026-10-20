@@ -35,20 +35,30 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data ?: CatalogFilterOptionsDto()
     }
 
-    suspend fun latestUpdates(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.latestUpdates(limit = limit)
+    suspend fun latestUpdates(
+        limit: Int = 24,
+        includeAdult: Boolean = false,
+    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
+        val res = api.latestUpdates(limit = limit, includeAdult = includeAdult)
         if (!res.success) error(res.message ?: "Ошибка загрузки")
         res.data.orEmpty()
     }
 
-    suspend fun latestUpdatesPage(page: Int, limit: Int = 24): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.latestUpdates(limit = limit, page = page)
+    suspend fun latestUpdatesPage(
+        page: Int,
+        limit: Int = 24,
+        includeAdult: Boolean = false,
+    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
+        val res = api.latestUpdates(limit = limit, page = page, includeAdult = includeAdult)
         if (!res.success) error(res.message ?: "Не удалось загрузить обновления")
         res.data.orEmpty()
     }
 
-    suspend fun popular(limit: Int = 24): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.popular(limit = limit)
+    suspend fun popular(
+        limit: Int = 24,
+        includeAdult: Boolean? = null,
+    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
+        val res = api.popular(limit = limit, includeAdult = includeAdult)
         if (!res.success) error(res.message ?: "Ошибка загрузки")
         res.data.orEmpty()
     }
