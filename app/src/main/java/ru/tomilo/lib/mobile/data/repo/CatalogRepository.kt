@@ -11,6 +11,8 @@ import ru.tomilo.lib.mobile.data.api.TomiloApi
 import kotlinx.coroutines.CancellationException
 
 class CatalogRepository(private val api: TomiloApi) {
+    private val discoveryRequests = CatalogRequestCoalescer()
+
     suspend fun catalog(query: CatalogQuery): Result<CatalogPageDto> = runCatchingCancellable {
         val res = api.catalogTitles(
             page = query.page,
@@ -38,41 +40,59 @@ class CatalogRepository(private val api: TomiloApi) {
     suspend fun latestUpdates(
         limit: Int = 24,
         includeAdult: Boolean = false,
-    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.latestUpdates(limit = limit, includeAdult = includeAdult)
-        if (!res.success) error(res.message ?: "Ошибка загрузки")
-        res.data.orEmpty()
+    ): Result<List<CatalogTitleDto>> = discoveryRequests.run(
+        key = CatalogRequestKeys.latestUpdates(page = 1, limit = limit, includeAdult = includeAdult),
+    ) {
+        runCatchingCancellable {
+            val res = api.latestUpdates(limit = limit, includeAdult = includeAdult)
+            if (!res.success) error(res.message ?: "Ошибка загрузки")
+            res.data.orEmpty()
+        }
     }
 
     suspend fun latestUpdatesPage(
         page: Int,
         limit: Int = 24,
         includeAdult: Boolean = false,
-    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.latestUpdates(limit = limit, page = page, includeAdult = includeAdult)
-        if (!res.success) error(res.message ?: "Не удалось загрузить обновления")
-        res.data.orEmpty()
+    ): Result<List<CatalogTitleDto>> = discoveryRequests.run(
+        key = CatalogRequestKeys.latestUpdates(page = page, limit = limit, includeAdult = includeAdult),
+    ) {
+        runCatchingCancellable {
+            val res = api.latestUpdates(limit = limit, page = page, includeAdult = includeAdult)
+            if (!res.success) error(res.message ?: "Не удалось загрузить обновления")
+            res.data.orEmpty()
+        }
     }
 
     suspend fun popular(
         limit: Int = 24,
         includeAdult: Boolean? = null,
-    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.popular(limit = limit, includeAdult = includeAdult)
-        if (!res.success) error(res.message ?: "Ошибка загрузки")
-        res.data.orEmpty()
+    ): Result<List<CatalogTitleDto>> = discoveryRequests.run(
+        key = CatalogRequestKeys.popular(limit = limit, includeAdult = includeAdult),
+    ) {
+        runCatchingCancellable {
+            val res = api.popular(limit = limit, includeAdult = includeAdult)
+            if (!res.success) error(res.message ?: "Ошибка загрузки")
+            res.data.orEmpty()
+        }
     }
 
     suspend fun randomTitle(includeAdult: Boolean = false): Result<CatalogTitleDto> = runCatchingCancellable {
-        val res = api.randomTitles(limit = 1, includeAdult = includeAdult.takeIf { it })
+        val res = api.randomTitles(limit = 1, includeAdult = includeAdult)
         if (!res.success) error(res.message ?: "Не удалось выбрать случайный тайтл")
         res.data?.firstOrNull() ?: error("В каталоге пока нет подходящих тайтлов")
     }
 
-    suspend fun randomTitles(limit: Int = 12, includeAdult: Boolean = false): Result<List<CatalogTitleDto>> = runCatchingCancellable {
-        val res = api.randomTitles(limit = limit.coerceIn(1, 24), includeAdult = includeAdult.takeIf { it })
-        if (!res.success) error(res.message ?: "Не удалось выбрать случайные тайтлы")
-        res.data.orEmpty()
+    suspend fun randomTitles(limit: Int = 12, includeAdult: Boolean = false): Result<List<CatalogTitleDto>> {
+        val safeLimit = limit.coerceIn(1, 24)
+        val key = CatalogRequestKeys.randomTitles(limit = safeLimit, includeAdult = includeAdult)
+        return discoveryRequests.run(key) {
+            runCatchingCancellable {
+                val res = api.randomTitles(limit = safeLimit, includeAdult = includeAdult)
+                if (!res.success) error(res.message ?: "Не удалось выбрать случайные тайтлы")
+                res.data.orEmpty()
+            }
+        }
     }
 
     suspend fun title(idOrSlug: String): Result<TitleDetailDto> = runCatchingCancellable {
