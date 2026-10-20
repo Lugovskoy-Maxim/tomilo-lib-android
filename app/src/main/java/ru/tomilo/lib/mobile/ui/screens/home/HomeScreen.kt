@@ -105,8 +105,8 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
-import ru.tomilo.lib.mobile.ui.components.HalloweenCornerWeb
-import ru.tomilo.lib.mobile.ui.components.HalloweenPumpkin
+import ru.tomilo.lib.mobile.ui.components.SeasonalCornerDecoration
+import ru.tomilo.lib.mobile.ui.components.SeasonalLogoMark
 import ru.tomilo.lib.mobile.ui.components.TitlePosterCard
 import ru.tomilo.lib.mobile.ui.components.TomiloCoverImage
 import ru.tomilo.lib.mobile.ui.components.TomiloBottomBarContentGap
@@ -454,7 +454,7 @@ private fun HomeHeroCarousel(
     onLuckyRandom: () -> Unit,
     onOpenProfile: () -> Unit,
 ) {
-    val halloweenActive = LocalSeasonalTheme.current == SeasonalTheme.HALLOWEEN
+    val seasonalTheme = LocalSeasonalTheme.current
     val pagerState = rememberPagerState(
         initialPage = infinitePagerStart(items.size),
         pageCount = { if (items.isEmpty()) 0 else Int.MAX_VALUE },
@@ -501,8 +501,9 @@ private fun HomeHeroCarousel(
             }
         }
 
-        if (halloweenActive) {
-            HalloweenCornerWeb(
+        if (seasonalTheme != SeasonalTheme.NONE) {
+            SeasonalCornerDecoration(
+                theme = seasonalTheme,
                 Modifier
                     .align(Alignment.TopStart)
                     .alpha(0.32f),
@@ -542,8 +543,8 @@ private fun HomeHeroCarousel(
                             fontSize = 13.sp,
                             letterSpacing = 1.1.sp,
                         )
-                        if (halloweenActive) {
-                            HalloweenPumpkin(Modifier.padding(start = 4.dp))
+                        if (seasonalTheme != SeasonalTheme.NONE) {
+                            SeasonalLogoMark(seasonalTheme, Modifier.padding(start = 4.dp))
                         }
                     }
                 }
