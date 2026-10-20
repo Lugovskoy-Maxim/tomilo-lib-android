@@ -46,6 +46,9 @@ interface TomiloApi {
     @POST("users/profile/wheel/spin")
     suspend fun spinWheel(@Body body: WheelSpinRequest): ApiResponse<WheelSpinResultDto>
 
+    @GET("users/profile/wheel/spins/{requestId}")
+    suspend fun wheelSpinResult(@Path("requestId") requestId: String): ApiResponse<WheelSpinResultDto?>
+
     @GET("wheel/recent-wins")
     suspend fun wheelRecentWins(): ApiResponse<WheelRecentWinsDto>
 

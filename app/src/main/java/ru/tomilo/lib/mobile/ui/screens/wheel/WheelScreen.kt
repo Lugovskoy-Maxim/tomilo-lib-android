@@ -2,7 +2,6 @@ package ru.tomilo.lib.mobile.ui.screens.wheel
 
 import android.animation.ValueAnimator
 import android.graphics.Paint
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -87,6 +86,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,7 +102,10 @@ import ru.tomilo.lib.mobile.data.api.WheelDto
 import ru.tomilo.lib.mobile.data.api.WheelRecentWinDto
 import ru.tomilo.lib.mobile.data.api.WheelSegmentDto
 import ru.tomilo.lib.mobile.data.api.WheelSpinResultDto
+import ru.tomilo.lib.mobile.data.local.PendingWheelAttempt
+import ru.tomilo.lib.mobile.data.local.WheelAttemptStore
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
+import ru.tomilo.lib.mobile.data.repo.WheelAttemptRejectedException
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
@@ -119,6 +122,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 import java.time.Instant
+import java.util.UUID
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -135,6 +139,10 @@ private val CasinoWheelColors = listOf(
     Color(0xFFD81B60), // Vibrant Rose
 )
 
+private fun WheelDto.canPayForWheelSpin(): Boolean =
+    spinRequestIdSupported && paidSpinCostCoins > 0 && balance >= paidSpinCostCoins &&
+        paidSpinsUsed < paidSpinsLimit
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WheelScreen(
@@ -143,6 +151,9 @@ fun WheelScreen(
     onLogin: () -> Unit,
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
+    val context = LocalContext.current
+    val wheelAttemptStore = remember(context) { WheelAttemptStore(context) }
+    val accountId = user?.stableId()?.takeIf(String::isNotBlank)
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val haptics = LocalHapticFeedback.current
@@ -153,6 +164,8 @@ fun WheelScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var spinning by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<WheelSpinResultDto?>(null) }
+    var pendingAttempt by remember(accountId) { mutableStateOf<PendingWheelAttempt?>(null) }
+    var attemptStoreReady by remember(accountId) { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     val screenStarted = rememberScreenStarted()
@@ -160,11 +173,35 @@ fun WheelScreen(
     // Pointer flap animation during spinning
     var pointerFlap by remember { mutableStateOf(0f) }
 
+    LaunchedEffect(accountId) {
+        attemptStoreReady = false
+        pendingAttempt = null
+        if (accountId != null) {
+            runCatching { wheelAttemptStore.read(accountId) }
+                .onSuccess { pendingAttempt = it }
+                .onFailure {
+                    snackbar.showSnackbar("Не удалось проверить незавершённую попытку колеса.")
+                }
+        }
+        attemptStoreReady = true
+    }
+
     LaunchedEffect(screenStarted) {
         if (!screenStarted) return@LaunchedEffect
         while (true) {
             nowMs = System.currentTimeMillis()
             delay(1_000)
+        }
+    }
+
+    LaunchedEffect(user?.stableId(), wheel?.nextSpinAt, screenStarted) {
+        if (!screenStarted || user == null) return@LaunchedEffect
+        val next = wheel?.nextSpinAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+            ?: return@LaunchedEffect
+        val waitMs = next - System.currentTimeMillis()
+        if (waitMs > 0) {
+            delay(waitMs + 250L)
+            reload += 1
         }
     }
 
@@ -202,54 +239,96 @@ fun WheelScreen(
             }
     }
 
-    fun runSpin(skipCooldown: Boolean) {
+    fun runSpin(useCoins: Boolean) {
         val current = wheel ?: return
-        if (spinning) return
+        val ownerId = accountId ?: return
+        if (spinning || !attemptStoreReady) return
+        val previousAttempt = pendingAttempt
+        if (previousAttempt != null && previousAttempt.useCoins != useCoins) return
+        if (useCoins && previousAttempt == null && !current.canPayForWheelSpin()) return
         scope.launch {
             spinning = true
             try {
                 result = null
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                authRepository.spinWheel(skipCooldown)
-                    .onSuccess { won ->
-                        val count = current.segments.size.coerceAtLeast(1)
-                        val index = won.selectedSegmentIndex
-                            ?.takeIf { it in 0 until count }
-                            ?: current.segments.indexOfFirst { it.label == won.label }.coerceAtLeast(0)
-                        val slice = 360f / count
-                        val currentNormalized = ((rotation.value % 360f) + 360f) % 360f
-                        val landing = 360f - (index + 0.5f) * slice
-                        val target = rotation.value + 6f * 360f + (landing - currentNormalized + 360f) % 360f
-                        rotation.animateTo(
-                            target,
-                            tween(
-                                durationMillis = 6_200,
-                                easing = CubicBezierEasing(0.08f, 0.62f, 0.08f, 1f),
-                            ),
-                        )
-                        pointerFlap = 0f
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        RewardNotifications.show(
-                            experience = won.expGained ?: 0,
-                            coins = (won.coinsGained ?: 0) + (won.compensationCoins ?: 0),
-                            source = "Колесо судьбы",
-                        )
-                        authRepository.refreshProfile()
-                        result = won
-                        wheel = authRepository.wheel().getOrDefault(
-                            current.copy(
-                                balance = won.balance ?: current.balance,
-                                canSpin = false,
-                                nextSpinAt = won.nextSpinAt ?: current.nextSpinAt,
-                            ),
-                        )
-                        winners = authRepository.wheelRecentWins().getOrNull()?.let { data ->
-                            listOfNotNull(data.highlight) + data.recent
-                        }.orEmpty().distinctBy { it.username + it.wonAt + it.label }
+                val attempt = previousAttempt ?: if (current.spinRequestIdSupported) {
+                    PendingWheelAttempt(UUID.randomUUID().toString(), useCoins)
+                } else {
+                    null
+                }
+                if (useCoins && attempt == null) {
+                    snackbar.showSnackbar("Платная попытка недоступна: сервер не поддерживает безопасное восстановление.")
+                    return@launch
+                }
+                if (attempt != null && previousAttempt == null) {
+                    try {
+                        wheelAttemptStore.save(ownerId, attempt)
+                        pendingAttempt = attempt
+                    } catch (_: Exception) {
+                        snackbar.showSnackbar("Не удалось сохранить попытку. Спин не отправлен.")
+                        return@launch
                     }
-                    .onFailure {
-                        snackbar.showSnackbar(it.toUserFacingError("Не удалось запустить колесо."))
+                }
+
+                val recovered = attempt?.let { authRepository.wheelSpinResult(it.requestId).getOrNull() }
+                val spinResult = if (recovered != null) {
+                    Result.success(recovered)
+                } else {
+                    authRepository.spinWheel(
+                        useCoins = useCoins,
+                        requestId = attempt?.requestId,
+                        expectedUserId = ownerId,
+                    )
+                }
+                val won = spinResult.getOrElse { failure ->
+                    if (failure is WheelAttemptRejectedException && attempt != null) {
+                        runCatching { wheelAttemptStore.clear(ownerId, attempt.requestId) }
+                        pendingAttempt = null
                     }
+                    snackbar.showSnackbar(failure.toUserFacingError("Не удалось запустить колесо."))
+                    return@launch
+                }
+
+                if (attempt != null) {
+                    runCatching { wheelAttemptStore.clear(ownerId, attempt.requestId) }
+                    pendingAttempt = null
+                }
+                val count = current.segments.size.coerceAtLeast(1)
+                val index = won.selectedSegmentIndex
+                    ?.takeIf { it in 0 until count }
+                    ?: current.segments.indexOfFirst { it.label == won.label }.coerceAtLeast(0)
+                val slice = 360f / count
+                val currentNormalized = ((rotation.value % 360f) + 360f) % 360f
+                val landing = 360f - (index + 0.5f) * slice
+                val target = rotation.value + 6f * 360f + (landing - currentNormalized + 360f) % 360f
+                rotation.animateTo(
+                    target,
+                    tween(
+                        durationMillis = 6_200,
+                        easing = CubicBezierEasing(0.08f, 0.62f, 0.08f, 1f),
+                    ),
+                )
+                pointerFlap = 0f
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                if (!won.replayed) {
+                    RewardNotifications.show(
+                        experience = won.expGained ?: 0,
+                        coins = (won.coinsGained ?: 0) + (won.compensationCoins ?: 0),
+                        source = "Колесо судьбы",
+                    )
+                }
+                authRepository.refreshProfile()
+                result = won
+                wheel = authRepository.wheel().getOrDefault(
+                    current.copy(
+                        balance = won.balance ?: current.balance,
+                        canSpin = false,
+                        nextSpinAt = won.nextSpinAt ?: current.nextSpinAt,
+                    ),
+                )
+                winners = authRepository.wheelRecentWins().getOrNull()?.let { data ->
+                    listOfNotNull(data.highlight) + data.recent
+                }.orEmpty().distinctBy { it.username + it.wonAt + it.label }
             } finally {
                 spinning = false
             }
@@ -321,6 +400,34 @@ fun WheelScreen(
                             color = TomiloSurface,
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                         ) {
+                                pendingAttempt?.let { attempt ->
+                                    Surface(
+                                        color = TomiloPrimary.copy(alpha = 0.10f),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloPrimary.copy(alpha = 0.35f)),
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(12.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Text(
+                                                "Предыдущая попытка ${if (attempt.useCoins) "за монеты" else "бесплатная"} не подтверждена.",
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                            Text(
+                                                "Повтор с тем же номером безопасен: сервер вернёт прежний результат и не спишет монеты второй раз.",
+                                                color = TomiloMuted,
+                                                style = MaterialTheme.typography.bodySmall,
+                                            )
+                                            Button(
+                                                onClick = { runSpin(attempt.useCoins) },
+                                                enabled = !spinning && attemptStoreReady,
+                                                modifier = Modifier.fillMaxWidth(),
+                                            ) { Text("Восстановить результат") }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(12.dp))
+                                }
                             Row(
                                 modifier = Modifier
                                     .background(
@@ -362,8 +469,12 @@ fun WheelScreen(
                                 }
 
                                 StatusPill(
-                                    text = if (cooldown == null) "Бесплатный спин" else "Откат $cooldown",
-                                    color = if (cooldown == null) Color(0xFF54C798) else TomiloMuted,
+                                    text = when {
+                                        data.canSpin -> "Доступен спин"
+                                        cooldown != null -> "Пополнение через $cooldown"
+                                        else -> "Попытки закончились"
+                                    },
+                                    color = if (data.canSpin) Color(0xFF54C798) else TomiloMuted,
                                 )
                             }
                         }
@@ -402,13 +513,15 @@ fun WheelScreen(
                                 Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(
-                                        "Ежедневная серия спинов",
+                                        "Бесплатные попытки",
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.labelMedium,
                                         color = Color(0xFFFFDF70),
                                     )
                                     Text(
-                                        "Крутите каждый день для повышенного шанса на джекпот!",
+                                        if (data.freeSpinsAvailable != null && data.freeSpinsLimit != null)
+                                            "Осталось ${data.freeSpinsAvailable} из ${data.freeSpinsLimit}. Попытки пополняются со временем."
+                                        else "Попытки пополняются со временем.",
                                         color = TomiloMuted,
                                         style = MaterialTheme.typography.bodySmall,
                                         fontSize = 11.sp,
@@ -478,8 +591,8 @@ fun WheelScreen(
 
                                 // Main Spin Button
                                 Button(
-                                    onClick = { runSpin(false) },
-                                    enabled = data.canSpin && !spinning,
+                                    onClick = { runSpin(useCoins = false) },
+                                    enabled = data.canSpin && !spinning && attemptStoreReady && pendingAttempt == null,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(54.dp),
@@ -501,32 +614,31 @@ fun WheelScreen(
                                         Icon(Icons.Default.Casino, contentDescription = null, modifier = Modifier.size(22.dp))
                                         Spacer(Modifier.width(8.dp))
                                         Text(
-                                            if (cooldown == null) "Крутить колесо" else "Дождитесь отката",
+                                            if (data.canSpin) "Крутить колесо" else "Дождитесь пополнения",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 15.sp,
                                         )
                                     }
                                 }
 
-                                // Instant Spin option to skip timer
-                                AnimatedVisibility(visible = cooldown != null) {
-                                    Column {
-                                        Spacer(Modifier.height(10.dp))
-                                        OutlinedButton(
-                                            onClick = { runSpin(true) },
-                                            enabled = data.canInstantSpin && !spinning,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(48.dp),
-                                            shape = RoundedCornerShape(14.dp),
-                                        ) {
-                                            Icon(Icons.Default.Bolt, contentDescription = null, tint = TomiloPremium)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                "Крутить мгновенно · ${data.instantSpinCostCoins ?: (data.spinCostCoins * 2)} монет",
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
+                                if (data.spinRequestIdSupported) {
+                                    Spacer(Modifier.height(10.dp))
+                                    OutlinedButton(
+                                        onClick = { runSpin(useCoins = true) },
+                                        enabled = data.canPayForWheelSpin() && !spinning && attemptStoreReady && pendingAttempt == null,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(48.dp),
+                                        shape = RoundedCornerShape(14.dp),
+                                    ) {
+                                        Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = TomiloPremium)
+                                        Spacer(Modifier.width(8.dp))
+                                        val paidLabel = when {
+                                            data.paidSpinsUsed >= data.paidSpinsLimit -> "Платные попытки на сегодня закончились"
+                                            data.balance < data.paidSpinCostCoins -> "Не хватает ${data.paidSpinCostCoins - data.balance} монет"
+                                            else -> "Платный спин · ${data.paidSpinCostCoins} монет · ${data.paidSpinsLimit - data.paidSpinsUsed} в день"
                                         }
+                                        Text(paidLabel, fontWeight = FontWeight.SemiBold)
                                     }
                                 }
                             }

@@ -20,6 +20,8 @@ import ru.tomilo.lib.mobile.data.api.WheelSpinRequest
 import ru.tomilo.lib.mobile.data.api.WheelSpinResultDto
 import ru.tomilo.lib.mobile.data.local.AuthStore
 
+class WheelAttemptRejectedException(message: String) : Exception(message)
+
 class AuthRepository(
     private val api: TomiloApi,
     private val authStore: AuthStore,
@@ -119,12 +121,33 @@ class AuthRepository(
         res.data ?: error("Колесо временно недоступно")
     }
 
-    suspend fun spinWheel(skipCooldown: Boolean = false): Result<WheelSpinResultDto> = runCatchingCancellable {
-        val res = api.spinWheel(WheelSpinRequest(skipCooldown.takeIf { it }))
+    suspend fun wheelSpinResult(requestId: String): Result<WheelSpinResultDto?> = runCatchingCancellable {
+        val res = api.wheelSpinResult(requestId)
+        if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось восстановить попытку")
+        res.data
+    }
+
+    suspend fun spinWheel(
+        skipCooldown: Boolean = false,
+        useCoins: Boolean = false,
+        requestId: String? = null,
+        expectedUserId: String? = null,
+    ): Result<WheelSpinResultDto> = runCatchingCancellable {
+        val res = api.spinWheel(
+            WheelSpinRequest(
+                skipCooldown = skipCooldown.takeIf { it },
+                useCoins = useCoins.takeIf { it },
+                requestId = requestId,
+                expectedUserId = expectedUserId,
+            ),
+        )
+        if (!res.success && res.data?.attemptRejected == true) {
+            throw WheelAttemptRejectedException(
+                res.message ?: res.errors?.firstOrNull() ?: "Попытка отклонена сервером",
+            )
+        }
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Не удалось запустить колесо")
-        val result = res.data ?: error("Сервер не вернул награду")
-        refreshProfile()
-        result
+        res.data ?: error("Сервер не вернул награду")
     }
 
     suspend fun wheelRecentWins(): Result<WheelRecentWinsDto> = runCatchingCancellable {

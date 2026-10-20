@@ -225,10 +225,23 @@ data class WheelDto(
     val nextSpinAt: String? = null,
     val balance: Int = 0,
     val spinCooldownSeconds: Int? = null,
+    val freeSpinsAvailable: Int? = null,
+    val freeSpinsLimit: Int? = null,
+    val spinRequestIdSupported: Boolean = false,
+    val paidSpinCostCoins: Int = 250,
+    val paidSpinsUsed: Int = 0,
+    val paidSpinsLimit: Int = 2,
+    val canAdSpin: Boolean = false,
 )
 
 @Serializable
-data class WheelSpinRequest(val skipCooldown: Boolean? = null)
+data class WheelSpinRequest(
+    val skipCooldown: Boolean? = null,
+    val useCoins: Boolean? = null,
+    val useAd: Boolean? = null,
+    val requestId: String? = null,
+    val expectedUserId: String? = null,
+)
 
 @Serializable
 data class WheelItemGainDto(
@@ -259,6 +272,9 @@ data class WheelSpinResultDto(
     val selectedSegmentIndex: Int? = null,
     val nextSpinAt: String? = null,
     val rewardSummary: List<WheelRewardSummaryDto> = emptyList(),
+    val requestId: String? = null,
+    val replayed: Boolean = false,
+    val attemptRejected: Boolean = false,
 )
 
 @Serializable
