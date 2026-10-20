@@ -20,6 +20,12 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
+    private fun isPublicCachePath(path: String): Boolean {
+        val publicPath = path.removePrefix("/api")
+        return publicPath == "/titles" ||
+            publicPath in setOf("/titles/filters/options", "/titles/latest-updates", "/titles/popular", "/titles/random", "/users/leaderboard") ||
+            publicPath == "/search" || publicPath == "/search/autocomplete"
+    }
     @Volatile private var mediaClient: OkHttpClient? = null
     val json = Json {
         ignoreUnknownKeys = true
@@ -45,7 +51,11 @@ object NetworkModule {
             val builder = original.newBuilder()
                 .header("User-Agent", "tomilo-lib-android/${BuildConfig.VERSION_NAME}")
                 .header("Accept", "application/json")
-            if (!token.isNullOrBlank()) {
+            val publicLeaderboard = original.method == "GET" &&
+                original.url.encodedPath.removePrefix("/api") == "/users/leaderboard"
+            if (publicLeaderboard) {
+                builder.removeHeader("Authorization")
+            } else if (!token.isNullOrBlank()) {
                 builder.header("Authorization", "Bearer $token")
             }
             // Платные главы зависят от JWT — не отдавать устаревший кеш без/со старым токеном
@@ -104,17 +114,26 @@ object NetworkModule {
             lastResponse ?: throw lastFailure ?: java.io.IOException("API request failed")
         }
 
-        // Кеш только публичных GET без Authorization (иначе 401/пустые чаты залипают)
+        // Cache only known public resources; keep server no-store/private directives.
         val cacheInterceptor = Interceptor { chain ->
             val request = chain.request()
             val response = chain.proceed(request)
+            val isAccountCatalog = request.method == "GET" &&
+                !request.header("Authorization").isNullOrBlank() &&
+                request.url.encodedPath.removePrefix("/api") == "/titles"
             val isPublicGet = request.method == "GET" &&
-                request.header("Authorization").isNullOrBlank()
-            if (isPublicGet && response.isSuccessful) {
+                request.header("Authorization").isNullOrBlank() &&
+                isPublicCachePath(request.url.encodedPath)
+            if (isPublicGet && response.isSuccessful &&
+                response.header("Cache-Control").isNullOrBlank() && response.header("Pragma").isNullOrBlank() &&
+                response.header("Set-Cookie").isNullOrBlank()) {
                 response.newBuilder()
                     .header("Cache-Control", "public, max-age=120")
                     .removeHeader("Pragma")
                     .build()
+            } else if ((isPublicGet || isAccountCatalog) && response.isSuccessful &&
+                response.header("Set-Cookie").isNullOrBlank()) {
+                response
             } else {
                 response.newBuilder()
                     .header("Cache-Control", "no-store")
@@ -125,14 +144,19 @@ object NetworkModule {
         val offlineCacheInterceptor = Interceptor { chain ->
             var request = chain.request()
             val isAuthenticated = !request.header("Authorization").isNullOrBlank()
-            val isPublicGet = request.method == "GET" && !isAuthenticated
-            if (isAuthenticated) {
+            val isAccountCatalog = isAuthenticated && request.method == "GET" &&
+                request.url.encodedPath.removePrefix("/api") == "/titles"
+            val isPublicGet = request.method == "GET" && !isAuthenticated &&
+                isPublicCachePath(request.url.encodedPath)
+            if (isAuthenticated && !isAccountCatalog) {
                 // Bypass cache lookup as well as writes: a previous anonymous public
                 // response for the same URL must never satisfy an account request.
                 request = request.newBuilder()
                     .header("Cache-Control", "no-store")
                     .build()
-            } else if (isPublicGet && !isNetworkAvailable(context)) {
+            } else if (!isPublicGet && !isAccountCatalog) {
+                request = request.newBuilder().header("Cache-Control", "no-store").build()
+            } else if (!isNetworkAvailable(context)) {
                 request = request.newBuilder()
                     .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
                     .build()
