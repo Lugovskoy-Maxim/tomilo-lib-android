@@ -59,6 +59,27 @@ interface TomiloApi {
     @GET("users/profile/disciples")
     suspend fun gameDisciples(): ApiResponse<GameDisciplesDto>
 
+    @GET("users/profile/disciple-progression")
+    suspend fun discipleProgression(): ApiResponse<DiscipleProgressionOverviewDto>
+
+    @POST("users/profile/disciple-progression/{characterId}/meditation/start")
+    suspend fun startDiscipleMeditation(@Path("characterId") characterId: String): ApiResponse<CultivationMeditationResultDto>
+
+    @POST("users/profile/disciple-progression/{characterId}/meditation/claim")
+    suspend fun claimDiscipleMeditation(@Path("characterId") characterId: String): ApiResponse<CultivationMeditationResultDto>
+
+    @POST("users/profile/disciple-progression/{characterId}/meditation/stop")
+    suspend fun stopDiscipleMeditation(@Path("characterId") characterId: String): ApiResponse<CultivationMeditationResultDto>
+
+    @PUT("users/profile/disciple-progression/{characterId}/cultivation/path")
+    suspend fun setDiscipleCultivationPath(
+        @Path("characterId") characterId: String,
+        @Body body: CultivationPathRequest,
+    ): ApiResponse<GameSimpleResultDto>
+
+    @POST("users/profile/disciple-progression/{characterId}/cultivation/breakthrough")
+    suspend fun discipleCultivationBreakthrough(@Path("characterId") characterId: String): ApiResponse<CultivationBreakthroughResultDto>
+
     @POST("users/profile/disciples/train")
     suspend fun gameTrainDisciple(@Body body: GameCharacterRequest): ApiResponse<GameTrainResultDto>
 

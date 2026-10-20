@@ -811,6 +811,79 @@ data class GameDisciplesDto(
 )
 
 @Serializable
+data class CultivationItemCostDto(val itemId: String = "", val count: Int = 0)
+
+@Serializable
+data class CultivationStageDto(
+    val stageKey: String = "",
+    val order: Int = 0,
+    val displayName: String = "",
+    val breakthroughFromPrevious: CultivationBreakthroughRequirementDto? = null,
+)
+
+@Serializable
+data class CultivationBreakthroughRequirementDto(
+    val minDiscipleLevel: Int = 1,
+    val minCultivationExp: Int = 0,
+    val itemCosts: List<CultivationItemCostDto> = emptyList(),
+)
+
+@Serializable
+data class CultivationMeditationDto(
+    val startedAt: String? = null,
+    val lastClaimAt: String? = null,
+)
+
+@Serializable
+data class CultivationDiscipleDto(
+    val characterId: String = "",
+    val isInternal: Boolean? = false,
+    val internalSlot: Int? = null,
+    val displayName: String? = null,
+    val name: String? = null,
+    val avatar: String? = null,
+    val level: Int? = null,
+    val inWarehouse: Boolean? = false,
+    val cultivationStageKey: String = "",
+    val cultivationExp: Int = 0,
+    val starLevel: Int = 0,
+    val path: String? = null,
+    val meditation: CultivationMeditationDto = CultivationMeditationDto(),
+) {
+    fun displayName(): String = displayName?.takeIf(String::isNotBlank)
+        ?: name?.takeIf(String::isNotBlank)
+        ?: "Ученик"
+}
+
+@Serializable
+data class DiscipleProgressionOverviewDto(
+    val cultivationStages: List<CultivationStageDto> = emptyList(),
+    val disciples: List<CultivationDiscipleDto> = emptyList(),
+)
+
+@Serializable
+data class CultivationPathRequest(val path: String)
+
+@Serializable
+data class CultivationMeditationResultDto(
+    val characterId: String = "",
+    val ticks: Int = 0,
+    val characterExpGained: Int = 0,
+    val cultivationExpGained: Int = 0,
+    val ended: Boolean? = null,
+)
+
+@Serializable
+data class CultivationBreakthroughResultDto(
+    val characterId: String = "",
+    val success: Boolean = false,
+    val chance: Double = 0.0,
+    val cultivationStageKey: String = "",
+    val cultivationExpLost: Int? = null,
+    val message: String? = null,
+)
+
+@Serializable
 data class GameCharacterRequest(val characterId: String)
 
 @Serializable

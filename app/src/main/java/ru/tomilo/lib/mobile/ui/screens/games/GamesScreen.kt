@@ -108,7 +108,7 @@ fun GamesScreen(
                             when (page) {
                                 GamesPage.HUB -> "Колесо и коллекция"
                                 GamesPage.CARDS -> "Декоративная коллекция"
-                                GamesPage.CULTIVATION -> "Развитие учеников и отряда"
+                                GamesPage.CULTIVATION -> "Медитация, путь Дао и прорыв"
                                 GamesPage.ARENA -> "Состав отряда и серверные бои"
                             },
                             color = TomiloMuted,
@@ -156,7 +156,13 @@ fun GamesScreen(
                     onOpenWebTab = onOpenWebTab,
                 )
             }
-            page == GamesPage.CULTIVATION || page == GamesPage.ARENA -> key(user?.stableId()) {
+            page == GamesPage.CULTIVATION -> key(user?.stableId()) {
+                CultivationProgressionScreen(
+                    gamesRepository = gamesRepository,
+                    modifier = Modifier.padding(padding),
+                )
+            }
+            page == GamesPage.ARENA -> key(user?.stableId()) {
                 NativeDisciplesPage(
                     page = page,
                     gamesRepository = gamesRepository,
@@ -280,7 +286,7 @@ private fun GamesContent(
             GameModeRow(
                 icon = Icons.Default.Groups,
                 title = "Путь культивации",
-                subtitle = "Тренируйте учеников, формируйте отряд и развивайте секту",
+                subtitle = "Медитация, путь Дао, прорывы стадий и развитие учеников",
                 onClick = onOpenCultivation,
             )
         }

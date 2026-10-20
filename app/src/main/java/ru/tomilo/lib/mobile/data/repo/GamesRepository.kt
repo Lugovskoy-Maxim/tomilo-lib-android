@@ -21,6 +21,7 @@ import ru.tomilo.lib.mobile.data.api.GameCardSellRequest
 import ru.tomilo.lib.mobile.data.api.GameCardSellResultDto
 import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
+import ru.tomilo.lib.mobile.data.api.DiscipleProgressionOverviewDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
 import ru.tomilo.lib.mobile.data.api.GameTrainResultDto
 import ru.tomilo.lib.mobile.data.api.GameWarehouseRequest
@@ -174,6 +175,45 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.gameDisciples()
         if (!response.success) error(response.message ?: "Не удалось обновить секту")
         response.data ?: error("Сервер не вернул данные секты")
+    }
+
+    suspend fun discipleProgression(): Result<DiscipleProgressionOverviewDto> = runCatchingCancellable {
+        val response = api.discipleProgression()
+        if (!response.success) error(response.message ?: "Не удалось загрузить культивацию")
+        response.data ?: error("Сервер не вернул прогресс культивации")
+    }
+
+    suspend fun gameInventory(): Result<List<GameInventoryItemDto>> = runCatchingCancellable {
+        val response = api.gameInventory()
+        if (!response.success) error(response.message ?: "Не удалось загрузить инвентарь")
+        response.data.orEmpty().filter { it.itemId.isNotBlank() && it.count > 0 }
+    }
+
+    suspend fun startMeditation(characterId: String): Result<Unit> = runCatchingCancellable {
+        val response = api.startDiscipleMeditation(characterId)
+        if (!response.success) error(response.message ?: "Не удалось начать медитацию")
+    }
+
+    suspend fun claimMeditation(characterId: String): Result<Int> = runCatchingCancellable {
+        val response = api.claimDiscipleMeditation(characterId)
+        if (!response.success) error(response.message ?: "Не удалось собрать результат медитации")
+        response.data?.cultivationExpGained ?: 0
+    }
+
+    suspend fun stopMeditation(characterId: String): Result<Unit> = runCatchingCancellable {
+        val response = api.stopDiscipleMeditation(characterId)
+        if (!response.success) error(response.message ?: "Не удалось остановить медитацию")
+    }
+
+    suspend fun setCultivationPath(characterId: String, path: String): Result<Unit> = runCatchingCancellable {
+        val response = api.setDiscipleCultivationPath(characterId, ru.tomilo.lib.mobile.data.api.CultivationPathRequest(path))
+        if (!response.success) error(response.message ?: "Не удалось сменить путь культивации")
+    }
+
+    suspend fun breakthrough(characterId: String): Result<ru.tomilo.lib.mobile.data.api.CultivationBreakthroughResultDto> = runCatchingCancellable {
+        val response = api.discipleCultivationBreakthrough(characterId)
+        if (!response.success) error(response.message ?: "Прорыв не удался")
+        response.data ?: error("Сервер не вернул результат прорыва")
     }
 
     suspend fun train(characterId: String): Result<GameTrainResultDto> = runCatchingCancellable {
