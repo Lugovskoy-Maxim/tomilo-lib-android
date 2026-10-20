@@ -282,6 +282,22 @@ object NetworkModule {
                     .build()
                 chain.proceed(request)
             }
+            .addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                val isImage = response.header("Content-Type")
+                    ?.substringBefore(';')
+                    ?.startsWith("image/", ignoreCase = true) == true
+                if (response.isSuccessful && isImage &&
+                    response.header("Cache-Control").isNullOrBlank() &&
+                    response.header("Pragma").isNullOrBlank() &&
+                    response.header("Set-Cookie").isNullOrBlank()) {
+                    response.newBuilder()
+                        .header("Cache-Control", "public, max-age=300")
+                        .build()
+                } else {
+                    response
+                }
+            }
             .build().also { mediaClient = it }
     }
 

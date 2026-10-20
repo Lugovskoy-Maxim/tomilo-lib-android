@@ -188,7 +188,7 @@ class TomiloApp : Application(), ImageLoaderFactory {
                     .maxSizeBytes(250L * 1024L * 1024L)
                     .build()
             }
-            .respectCacheHeaders(false)
+            .respectCacheHeaders(true)
             .diskCachePolicy(CachePolicy.ENABLED)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .crossfade(true)
