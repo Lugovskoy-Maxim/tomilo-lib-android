@@ -34,6 +34,12 @@ object NetworkModule {
             publicPath in setOf("/titles/filters/options", "/titles/latest-updates", "/titles/popular", "/users/leaderboard") ||
             publicPath == "/search" || publicPath == "/search/autocomplete"
     }
+
+    internal fun shouldUsePublicHttpCache(request: Request): Boolean =
+        request.method == "GET" &&
+            request.header("Authorization").isNullOrBlank() &&
+            isPublicCachePath(request.url.encodedPath) &&
+            request.url.queryParameter("includeAdult") != "true"
     @Volatile private var mediaClient: OkHttpClient? = null
     val json = Json {
         ignoreUnknownKeys = true
@@ -129,9 +135,7 @@ object NetworkModule {
             val isAccountCatalog = request.method == "GET" &&
                 !request.header("Authorization").isNullOrBlank() &&
                 request.url.encodedPath.removePrefix("/api") == "/titles"
-            val isPublicGet = request.method == "GET" &&
-                request.header("Authorization").isNullOrBlank() &&
-                isPublicCachePath(request.url.encodedPath)
+            val isPublicGet = shouldUsePublicHttpCache(request)
             if (isPublicGet && response.isSuccessful &&
                 response.header("Cache-Control").isNullOrBlank() && response.header("Pragma").isNullOrBlank() &&
                 response.header("Set-Cookie").isNullOrBlank()) {
@@ -154,16 +158,17 @@ object NetworkModule {
             val isAuthenticated = !request.header("Authorization").isNullOrBlank()
             val isAccountCatalog = isAuthenticated && request.method == "GET" &&
                 request.url.encodedPath.removePrefix("/api") == "/titles"
-            val isPublicGet = request.method == "GET" && !isAuthenticated &&
-                isPublicCachePath(request.url.encodedPath)
+            val isPublicGet = shouldUsePublicHttpCache(request)
             if (isAuthenticated && !isAccountCatalog) {
                 // Bypass cache lookup as well as writes: a previous anonymous public
                 // response for the same URL must never satisfy an account request.
                 request = request.newBuilder()
-                    .header("Cache-Control", "no-store")
+                    .header("Cache-Control", "no-cache, no-store")
                     .build()
             } else if (!isPublicGet && !isAccountCatalog) {
-                request = request.newBuilder().header("Cache-Control", "no-store").build()
+                request = request.newBuilder()
+                    .header("Cache-Control", "no-cache, no-store")
+                    .build()
             } else if (!isNetworkAvailable(context)) {
                 request = request.newBuilder()
                     .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")

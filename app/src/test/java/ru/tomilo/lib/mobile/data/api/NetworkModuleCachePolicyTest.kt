@@ -40,4 +40,26 @@ class NetworkModuleCachePolicyTest {
 
         assertFalse(NetworkModule.shouldOmitAuthorizationForAdultFilteredDiscovery(request))
     }
+
+    @Test
+    fun `explicit adult discovery bypasses the public http cache`() {
+        listOf("titles/latest-updates", "titles/popular", "titles").forEach { path ->
+            val request = Request.Builder()
+                .url("https://tomilo-lib.ru/api/$path?includeAdult=true")
+                .get()
+                .build()
+
+            assertFalse(NetworkModule.shouldUsePublicHttpCache(request))
+        }
+    }
+
+    @Test
+    fun `adult filtered discovery remains eligible for public cache`() {
+        val request = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
+            .get()
+            .build()
+
+        assertTrue(NetworkModule.shouldUsePublicHttpCache(request))
+    }
 }
