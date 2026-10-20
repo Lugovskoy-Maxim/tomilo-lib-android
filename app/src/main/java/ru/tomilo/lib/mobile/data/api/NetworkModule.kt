@@ -55,6 +55,16 @@ object NetworkModule {
     internal fun shouldBypassHttpCache(request: Request): Boolean =
         !request.header("Authorization").isNullOrBlank() || !shouldUsePublicHttpCache(request)
 
+    internal fun requestWithHttpCachePolicy(request: Request, networkAvailable: Boolean): Request = when {
+        shouldBypassHttpCache(request) -> request.newBuilder()
+            .header("Cache-Control", "no-cache, no-store")
+            .build()
+        !networkAvailable -> request.newBuilder()
+            .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
+            .build()
+        else -> request
+    }
+
     /** Null means keep the server's explicit Cache-Control unchanged. */
     internal fun cacheControlForNetworkResponse(request: Request, response: Response): String? {
         if (!shouldUsePublicHttpCache(request)) return "no-store"
@@ -166,19 +176,7 @@ object NetworkModule {
         }
 
         val offlineCacheInterceptor = Interceptor { chain ->
-            var request = chain.request()
-            val isPublicGet = shouldUsePublicHttpCache(request)
-            if (shouldBypassHttpCache(request)) {
-                // Cache entries are shared by URL within this app, not partitioned
-                // by login session. Never reuse or store responses for token requests.
-                request = request.newBuilder()
-                    .header("Cache-Control", "no-cache, no-store")
-                    .build()
-            } else if (!isNetworkAvailable(context)) {
-                request = request.newBuilder()
-                    .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
-                    .build()
-            }
+            val request = requestWithHttpCachePolicy(chain.request(), isNetworkAvailable(context))
             chain.proceed(request)
         }
 

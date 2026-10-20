@@ -82,6 +82,31 @@ class NetworkModuleCachePolicyTest {
     }
 
     @Test
+    fun `cache policy disables lookup and writes for authenticated and adult requests`() {
+        val authenticated = Request.Builder()
+            .url("https://tomilo-lib.ru/api/users/leaderboard?period=weekly")
+            .header("Authorization", "Bearer user-token")
+            .get()
+            .build()
+        val adult = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=true")
+            .get()
+            .build()
+        val public = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
+            .get()
+            .build()
+
+        assertEquals("no-cache, no-store", NetworkModule.requestWithHttpCachePolicy(authenticated, true).header("Cache-Control"))
+        assertEquals("no-cache, no-store", NetworkModule.requestWithHttpCachePolicy(adult, true).header("Cache-Control"))
+        assertNull(NetworkModule.requestWithHttpCachePolicy(public, true).header("Cache-Control"))
+        assertEquals(
+            "public, only-if-cached, max-stale=604800",
+            NetworkModule.requestWithHttpCachePolicy(public, false).header("Cache-Control"),
+        )
+    }
+
+    @Test
     fun `anonymous public discovery can still use cache`() {
         val request = Request.Builder()
             .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
