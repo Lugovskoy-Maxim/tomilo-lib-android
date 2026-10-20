@@ -23,9 +23,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,8 +41,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,6 +57,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
@@ -62,7 +70,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS }
+private enum class GamesPage { HUB, CARDS, CULTIVATION, ARENA }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,12 +100,16 @@ fun GamesScreen(
                             when (page) {
                                 GamesPage.HUB -> "Игры и награды"
                                 GamesPage.CARDS -> "Карточки"
+                                GamesPage.CULTIVATION -> "Путь культивации"
+                                GamesPage.ARENA -> "Арена секты"
                             },
                         )
                         Text(
                             when (page) {
                                 GamesPage.HUB -> "Колесо и коллекция"
                                 GamesPage.CARDS -> "Декоративная коллекция"
+                                GamesPage.CULTIVATION -> "Развитие учеников и отряда"
+                                GamesPage.ARENA -> "Состав отряда и серверные бои"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -114,7 +126,7 @@ fun GamesScreen(
         },
     ) { padding ->
         when {
-            user == null && page == GamesPage.HUB -> GamesGuest(
+            user == null && page != GamesPage.CARDS -> GamesGuest(
                 modifier = Modifier.padding(padding),
                 onLogin = onLogin,
                 onExploreCards = { page = GamesPage.CARDS },
@@ -123,22 +135,36 @@ fun GamesScreen(
             )
             page == GamesPage.HUB -> GamesContent(
                 balance = user?.balance ?: 0,
+                isAdmin = user?.isAdmin() == true,
                 onOpenQuests = onOpenQuests,
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
                 onOpenMatch = onOpenMatch,
                 onOpenTraining = onOpenTraining,
+                onOpenCultivation = { page = GamesPage.CULTIVATION },
+                onOpenArena = { page = GamesPage.ARENA },
                 modifier = Modifier.padding(padding),
             )
-            page == GamesPage.CARDS -> CardsScreen(
-                gamesRepository = gamesRepository,
-                authRepository = authRepository,
-                isAuthenticated = user != null,
-                onBack = { page = GamesPage.HUB },
-                onLogin = onLogin,
-                onOpenSubmit = { onOpenWebTab("cards/submit") },
-                onOpenWebTab = onOpenWebTab,
-            )
+            page == GamesPage.CARDS -> key(user?.stableId()) {
+                CardsScreen(
+                    gamesRepository = gamesRepository,
+                    authRepository = authRepository,
+                    isAuthenticated = user != null,
+                    onBack = { page = GamesPage.HUB },
+                    onLogin = onLogin,
+                    onOpenSubmit = { onOpenWebTab("cards/submit") },
+                    onOpenWebTab = onOpenWebTab,
+                )
+            }
+            page == GamesPage.CULTIVATION || page == GamesPage.ARENA -> key(user?.stableId()) {
+                NativeDisciplesPage(
+                    page = page,
+                    gamesRepository = gamesRepository,
+                    modifier = Modifier.padding(padding),
+                    onOpenCultivation = { page = GamesPage.CULTIVATION },
+                    onOpenArena = { page = GamesPage.ARENA },
+                )
+            }
         }
     }
 }
@@ -184,11 +210,14 @@ private fun GamesGuest(
 @Composable
 private fun GamesContent(
     balance: Int,
+    isAdmin: Boolean,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
     onOpenMatch: () -> Unit,
     onOpenTraining: () -> Unit,
+    onOpenCultivation: () -> Unit,
+    onOpenArena: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -235,7 +264,7 @@ private fun GamesContent(
             GameModeRow(
                 icon = Icons.Default.AutoAwesome,
                 title = "Сад созвездий",
-                subtitle = "Три в ряд, новые главы, препятствия и усиления",
+                subtitle = if (isAdmin) "Три в ряд с серверным прогрессом и наградами" else "Три в ряд · локальная тренировка без наград",
                 onClick = onOpenMatch,
             )
         }
@@ -245,6 +274,22 @@ private fun GamesContent(
                 title = "Тропа духозверей",
                 subtitle = "Боевые комбинации и испытание памяти · работает без сети",
                 onClick = onOpenTraining,
+            )
+        }
+        item {
+            GameModeRow(
+                icon = Icons.Default.Groups,
+                title = "Путь культивации",
+                subtitle = "Тренируйте учеников, формируйте отряд и развивайте секту",
+                onClick = onOpenCultivation,
+            )
+        }
+        item {
+            GameModeRow(
+                icon = Icons.Default.MilitaryTech,
+                title = "Арена секты",
+                subtitle = "Подберите состав и проведите бой с серверной наградой",
+                onClick = onOpenArena,
             )
         }
         item {
@@ -262,6 +307,68 @@ private fun GamesContent(
                     subtitle = "Задания, опыт и монеты активности",
                     onClick = onOpenQuests,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NativeDisciplesPage(
+    page: GamesPage,
+    gamesRepository: GamesRepository,
+    modifier: Modifier = Modifier,
+    onOpenCultivation: () -> Unit,
+    onOpenArena: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var disciples by remember { mutableStateOf<GameDisciplesDto?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val refresh: () -> Unit = {
+        scope.launch {
+            loading = true
+            gamesRepository.disciples()
+                .onSuccess {
+                    disciples = it
+                    error = null
+                }
+                .onFailure {
+                    error = it.message?.takeIf(String::isNotBlank)
+                        ?: "Не удалось загрузить данные секты"
+                }
+            loading = false
+        }
+    }
+    LaunchedEffect(page) { refresh() }
+
+    val state = disciples
+    Box(modifier.fillMaxSize()) {
+        when {
+            state != null && page == GamesPage.CULTIVATION -> SectContent(
+                disciples = state,
+                gamesRepository = gamesRepository,
+                onOpenArena = onOpenArena,
+                onChanged = refresh,
+            )
+            state != null && page == GamesPage.ARENA -> ArenaContent(
+                disciples = state,
+                gamesRepository = gamesRepository,
+                onOpenSect = onOpenCultivation,
+                onChanged = refresh,
+            )
+            else -> Column(
+                Modifier.align(Alignment.Center).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (loading) {
+                    CircularProgressIndicator()
+                    Text("Загружаем состояние секты…", color = TomiloMuted)
+                } else {
+                    Text(error ?: "Данные секты пока недоступны", color = TomiloMuted)
+                    Button(onClick = refresh) { Text("Повторить") }
+                }
             }
         }
     }
