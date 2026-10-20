@@ -1337,37 +1337,8 @@ private fun ProfileSettingsTab(
             },
         )
         Text("Цветовая схема", color = TomiloMuted, fontSize = 13.sp)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SchemePreviewCard(
-                label = "Тёмная",
-                selected = themeMode == ThemeMode.DARK,
-                background = Color(0xFF1C1E22),
-                foreground = Color.White,
-                bar = Color(0xFF9AA0A8),
-                accent = TomiloPrimary,
-                onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.DARK) } },
-                modifier = Modifier.weight(1f),
-            )
-            SchemePreviewCard(
-                label = "Светлая",
-                selected = themeMode == ThemeMode.LIGHT,
-                background = Color(0xFFF2F3F5),
-                foreground = Color(0xFF1A1C20),
-                bar = Color(0xFF2A2E35),
-                accent = TomiloPrimary,
-                onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.LIGHT) } },
-                modifier = Modifier.weight(1f),
-            )
-            SchemePreviewCard(
-                label = "Кофейная",
-                selected = themeMode == ThemeMode.COFFEE,
-                background = Color(0xFFF6F0E6),
-                foreground = Color(0xFF2A2118),
-                bar = Color(0xFF6B5A48),
-                accent = TomiloPrimary,
-                onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.COFFEE) } },
-                modifier = Modifier.weight(1f),
-            )
+        ThemeSchemeGallery(themeMode) { mode ->
+            settingsScope.launch { themePrefs.setThemeMode(mode) }
         }
         TextButton(
             onClick = { settingsScope.launch { themePrefs.setThemeMode(ThemeMode.SYSTEM) } },
@@ -1912,6 +1883,50 @@ private fun AccentSwatch(
                 tint = lockTint,
                 modifier = Modifier.size(16.dp),
             )
+        }
+    }
+}
+
+private data class ThemeSchemeOption(
+    val mode: ThemeMode,
+    val label: String,
+    val background: Color,
+    val foreground: Color,
+    val bar: Color,
+)
+
+private val themeSchemeOptions = listOf(
+    ThemeSchemeOption(ThemeMode.DARK, "Тёмная", Color(0xFF1C1E22), Color.White, Color(0xFF9AA0A8)),
+    ThemeSchemeOption(ThemeMode.LIGHT, "Светлая", Color(0xFFF2F3F5), Color(0xFF1A1C20), Color(0xFF2A2E35)),
+    ThemeSchemeOption(ThemeMode.COFFEE, "Кофейная", Color(0xFFF6F0E6), Color(0xFF2A2118), Color(0xFF6B5A48)),
+)
+
+@Composable
+private fun ThemeSchemeGallery(themeMode: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val rows = if (maxWidth < 400.dp) {
+            listOf(themeSchemeOptions.take(2), themeSchemeOptions.drop(2))
+        } else {
+            listOf(themeSchemeOptions)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            rows.forEach { options ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    options.forEach { option ->
+                        SchemePreviewCard(
+                            label = option.label,
+                            selected = themeMode == option.mode,
+                            background = option.background,
+                            foreground = option.foreground,
+                            bar = option.bar,
+                            accent = TomiloPrimary,
+                            onClick = { onSelect(option.mode) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (options.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
         }
     }
 }
