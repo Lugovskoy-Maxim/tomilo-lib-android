@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -128,20 +129,24 @@ fun LeadersScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var users by remember { mutableStateOf<List<LeaderboardUserDto>>(emptyList()) }
+    var loadedKey by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
 
     val category = leaderCategories()[categoryIndex]
     val period = periods[periodIndex]
+    val requestKey = "${category.id}:${period.id}"
+    val hasCurrentResults = loadedKey == requestKey
 
-    LaunchedEffect(category.id, period.id, reload) {
+    LaunchedEffect(requestKey, reload) {
         loading = true
         error = null
+        if (loadedKey != requestKey) users = emptyList()
         socialRepository.leaderboard(category = category.id, period = period.id)
-            .onSuccess { users = it.distinctBy(LeaderboardUserDto::stableId) }
-            .onFailure {
-                users = emptyList()
-                error = it.message
+            .onSuccess {
+                users = it.distinctBy(LeaderboardUserDto::stableId)
+                loadedKey = requestKey
             }
+            .onFailure { error = it.message }
         loading = false
     }
 
@@ -187,7 +192,16 @@ fun LeadersScreen(
                 icon = Icons.Default.EmojiEvents,
                 accent = Gold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                trailing = { if (!loading) StatusPill("${users.size} мест", Gold) },
+                trailing = {
+                    when {
+                        loading && hasCurrentResults -> CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                        )
+                        hasCurrentResults && error != null -> StatusPill("Последние данные", Gold)
+                        hasCurrentResults -> StatusPill("${users.size} мест", Gold)
+                    }
+                },
             )
             PeriodSelector(
                 selectedIndex = periodIndex,
@@ -200,8 +214,9 @@ fun LeadersScreen(
             CategorySummary(category = category, period = period)
 
             when {
-                loading -> LeaderboardSkeleton()
-                error != null -> ErrorBox(error ?: "Не удалось загрузить рейтинг") { reload += 1 }
+                !hasCurrentResults && error != null -> ErrorBox(error ?: "Не удалось загрузить рейтинг") { reload += 1 }
+                !hasCurrentResults -> LeaderboardSkeleton()
+                error != null && users.isEmpty() -> ErrorBox(error ?: "Не удалось загрузить рейтинг") { reload += 1 }
                 users.isEmpty() -> EmptyState(
                     title = "Рейтинг пока пуст",
                     message = "За выбранный период ещё нет результатов. Попробуйте другой период или категорию.",
