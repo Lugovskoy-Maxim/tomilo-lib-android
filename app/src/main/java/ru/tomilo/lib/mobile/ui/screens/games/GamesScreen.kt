@@ -70,7 +70,7 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
 
-private enum class GamesPage { HUB, CARDS, CULTIVATION, ARENA }
+private enum class GamesPage { HUB, CARDS, CULTIVATION, ARENA, INVENTORY }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,6 +102,7 @@ fun GamesScreen(
                                 GamesPage.CARDS -> "Карточки"
                                 GamesPage.CULTIVATION -> "Путь культивации"
                                 GamesPage.ARENA -> "Арена секты"
+                                GamesPage.INVENTORY -> "Хранилище"
                             },
                         )
                         Text(
@@ -110,6 +111,7 @@ fun GamesScreen(
                                 GamesPage.CARDS -> "Декоративная коллекция"
                                 GamesPage.CULTIVATION -> "Медитация, путь Дао и прорыв"
                                 GamesPage.ARENA -> "Состав отряда и серверные бои"
+                                GamesPage.INVENTORY -> "Предметы и серверные действия"
                             },
                             color = TomiloMuted,
                             style = MaterialTheme.typography.labelSmall,
@@ -143,6 +145,7 @@ fun GamesScreen(
                 onOpenTraining = onOpenTraining,
                 onOpenCultivation = { page = GamesPage.CULTIVATION },
                 onOpenArena = { page = GamesPage.ARENA },
+                onOpenInventory = { page = GamesPage.INVENTORY },
                 modifier = Modifier.padding(padding),
             )
             page == GamesPage.CARDS -> key(user?.stableId()) {
@@ -159,6 +162,13 @@ fun GamesScreen(
             page == GamesPage.CULTIVATION -> key(user?.stableId()) {
                 CultivationProgressionScreen(
                     gamesRepository = gamesRepository,
+                    modifier = Modifier.padding(padding),
+                )
+            }
+            page == GamesPage.INVENTORY -> key(user?.stableId()) {
+                InventoryNativeScreen(
+                    gamesRepository = gamesRepository,
+                    authRepository = authRepository,
                     modifier = Modifier.padding(padding),
                 )
             }
@@ -224,6 +234,7 @@ private fun GamesContent(
     onOpenTraining: () -> Unit,
     onOpenCultivation: () -> Unit,
     onOpenArena: () -> Unit,
+    onOpenInventory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -272,6 +283,14 @@ private fun GamesContent(
                 title = "Сад созвездий",
                 subtitle = if (isAdmin) "Три в ряд с серверным прогрессом и наградами" else "Три в ряд · локальная тренировка без наград",
                 onClick = onOpenMatch,
+            )
+        }
+        item {
+            GameModeRow(
+                icon = Icons.Default.Collections,
+                title = "Хранилище",
+                subtitle = "Инвентарь и применение разрешённых предметов",
+                onClick = onOpenInventory,
             )
         }
         item {

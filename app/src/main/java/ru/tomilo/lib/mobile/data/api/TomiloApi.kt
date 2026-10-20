@@ -56,6 +56,12 @@ interface TomiloApi {
     @GET("users/profile/inventory")
     suspend fun gameInventory(): ApiResponse<List<GameInventoryItemDto>>
 
+    @GET("users/profile/inventory/uses")
+    suspend fun gameInventoryUses(): ApiResponse<List<GameInventoryUseDto>>
+
+    @POST("users/profile/inventory/use")
+    suspend fun useGameInventoryItem(@Body body: GameInventoryUseRequest): ApiResponse<GameInventoryUseResultDto>
+
     @GET("users/profile/disciples")
     suspend fun gameDisciples(): ApiResponse<GameDisciplesDto>
 

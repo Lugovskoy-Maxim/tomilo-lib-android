@@ -23,6 +23,9 @@ import ru.tomilo.lib.mobile.data.api.GameCharacterRequest
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.api.DiscipleProgressionOverviewDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
+import ru.tomilo.lib.mobile.data.api.GameInventoryUseDto
+import ru.tomilo.lib.mobile.data.api.GameInventoryUseRequest
+import ru.tomilo.lib.mobile.data.api.GameInventoryUseResultDto
 import ru.tomilo.lib.mobile.data.api.GameTrainResultDto
 import ru.tomilo.lib.mobile.data.api.GameWarehouseRequest
 import ru.tomilo.lib.mobile.data.api.PillMatchCompleteDto
@@ -187,6 +190,18 @@ class GamesRepository(private val api: TomiloApi) {
         val response = api.gameInventory()
         if (!response.success) error(response.message ?: "Не удалось загрузить инвентарь")
         response.data.orEmpty().filter { it.itemId.isNotBlank() && it.count > 0 }
+    }
+
+    suspend fun gameInventoryUses(): Result<List<GameInventoryUseDto>> = runCatchingCancellable {
+        val response = api.gameInventoryUses()
+        if (!response.success) error(response.message ?: "Не удалось загрузить способы использования предметов")
+        response.data.orEmpty()
+    }
+
+    suspend fun useGameInventoryItem(itemId: String, count: Int = 1): Result<GameInventoryUseResultDto> = runCatchingCancellable {
+        val response = api.useGameInventoryItem(GameInventoryUseRequest(itemId, count.coerceAtLeast(1)))
+        if (!response.success) error(response.message ?: "Не удалось использовать предмет")
+        response.data ?: error("Сервер не вернул результат использования предмета")
     }
 
     suspend fun startMeditation(characterId: String): Result<Unit> = runCatchingCancellable {

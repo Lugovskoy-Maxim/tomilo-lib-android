@@ -753,6 +753,30 @@ data class GameInventoryItemDto(
 )
 
 @Serializable
+data class GameInventoryUseDto(
+    val itemId: String = "",
+    val contexts: List<String> = emptyList(),
+    val canUseFromInventory: Boolean = false,
+    val canUseInBattle: Boolean = false,
+)
+
+@Serializable
+data class GameInventoryUseRequest(val itemId: String, val count: Int = 1)
+
+@Serializable
+data class GameInventoryUseResultDto(
+    val ok: Boolean = false,
+    val itemId: String = "",
+    val count: Int = 0,
+    val name: String = "",
+    val message: String = "",
+    val cultivationExpGained: Int = 0,
+    val characterExpGained: Int = 0,
+    val coinsGained: Int = 0,
+    val balance: Int = 0,
+)
+
+@Serializable
 data class GameDiscipleDto(
     val characterId: String = "",
     val titleId: String? = null,
