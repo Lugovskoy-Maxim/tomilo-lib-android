@@ -204,7 +204,7 @@ private fun CultivationDiscipleCard(
             Text("Опыт культивации: ${disciple.cultivationExp}", fontWeight = FontWeight.SemiBold)
 
             Text("Путь Дао", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            if (disciple.cultivationStageKey == "body_tempering") {
+            if (disciple.cultivationStageKey.isBlank() || disciple.cultivationStageKey == "body_tempering") {
                 Text("Путь Дао откроется после прорыва в «Сгущение ци».", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             } else {
                 cultivationPaths.forEach { path ->
