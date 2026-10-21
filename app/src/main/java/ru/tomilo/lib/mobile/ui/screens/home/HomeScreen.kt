@@ -1,6 +1,7 @@
 package ru.tomilo.lib.mobile.ui.screens.home
 
 import android.text.Html
+import android.os.SystemClock
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -61,6 +62,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -199,11 +201,19 @@ fun HomeScreen(
     var showCarousel by remember { mutableStateOf(false) }
     var observedInitialResume by remember { mutableStateOf(false) }
     var previousOnline by remember { mutableStateOf(online) }
+    var lastDiscoveryLoadAt by remember { mutableLongStateOf(0L) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                if (observedInitialResume) reloadToken += 1 else observedInitialResume = true
+                if (observedInitialResume) {
+                    val elapsed = SystemClock.elapsedRealtime() - lastDiscoveryLoadAt
+                    if (!loading && (lastDiscoveryLoadAt == 0L || elapsed >= DISCOVERY_RESUME_REFRESH_INTERVAL_MS)) {
+                        reloadToken += 1
+                    }
+                } else {
+                    observedInitialResume = true
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -227,6 +237,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(reloadToken, includeAdult) {
+        lastDiscoveryLoadAt = SystemClock.elapsedRealtime()
         loading = true
         error = null
         try {
@@ -442,6 +453,8 @@ fun HomeScreen(
     }
     }
 }
+
+private const val DISCOVERY_RESUME_REFRESH_INTERVAL_MS = 60_000L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
