@@ -49,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -131,6 +132,7 @@ fun LeadersScreen(
     var users by remember { mutableStateOf<List<LeaderboardUserDto>>(emptyList()) }
     var loadedKey by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
+    val leaderboardSnapshots = remember { mutableStateMapOf<String, List<LeaderboardUserDto>>() }
 
     val category = leaderCategories()[categoryIndex]
     val period = periods[periodIndex]
@@ -140,10 +142,17 @@ fun LeadersScreen(
     LaunchedEffect(requestKey, reload) {
         loading = true
         error = null
-        if (loadedKey != requestKey) users = emptyList()
+        val snapshot = leaderboardSnapshots[requestKey]
+        if (snapshot != null) {
+            users = snapshot
+            loadedKey = requestKey
+        } else if (loadedKey != requestKey) {
+            users = emptyList()
+        }
         socialRepository.leaderboard(category = category.id, period = period.id)
             .onSuccess {
                 users = it.distinctBy(LeaderboardUserDto::stableId)
+                leaderboardSnapshots[requestKey] = users
                 loadedKey = requestKey
             }
             .onFailure { error = it.message }

@@ -114,7 +114,13 @@ data class BookmarkEntryDto(
             ?: "Тайтл"
     }
 
-    fun coverPath(): String? = resolvedTitle()?.coverImage ?: resolvedTitle()?.cover
+    fun coverPath(): String? {
+        val populated = (titleId as? JsonObject)?.let {
+            runCatching { NetworkModule.json.decodeFromJsonElement<BookmarkTitleDto>(it) }.getOrNull()
+        }
+        return listOf(title?.coverImage, title?.cover, populated?.coverImage, populated?.cover)
+            .firstOrNull { !it.isNullOrBlank() }
+    }
 }
 
 @Serializable
@@ -160,6 +166,9 @@ data class CreateBookmarkGroupRequest(val name: String)
 
 @kotlinx.serialization.Serializable
 data class ReorderBookmarkGroupsRequest(val groupIds: List<String>)
+
+@kotlinx.serialization.Serializable
+data class ReorderBookmarkCategoriesRequest(val categoryIds: List<String>)
 
 @Serializable
 data class CreateCommentRequest(

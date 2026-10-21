@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
 import androidx.compose.material3.AlertDialog
@@ -551,18 +552,7 @@ fun TitleScreen(
                                     onLogin()
                                     return@TitleHero
                                 }
-                                scope.launch {
-                                    if (bookmarked) {
-                                        showBookmarkCategories = true
-                                    } else {
-                                        socialRepository.addBookmark(tid, "reading")
-                                            .onSuccess {
-                                                bookmarked = true
-                                                bookmarkCategory = "reading"
-                                                snackbar.showSnackbar("В закладках")
-                                            }
-                                    }
-                                }
+                                showBookmarkCategories = true
                             },
                             onRead = {
                                 val chapterId = continueChapterId ?: return@TitleHero
@@ -1038,9 +1028,9 @@ fun TitleScreen(
     if (showBookmarkCategories) {
         AlertDialog(
             onDismissRequest = { showBookmarkCategories = false },
-            title = { Text("Закладка") },
+            title = { Text(if (bookmarked) "Категория закладки" else "Добавить в закладки") },
             text = {
-                Column {
+                Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
                     listOf(
                         "reading" to "Читаю",
                         "planned" to "В планах",
@@ -1053,8 +1043,10 @@ fun TitleScreen(
                             onClick = {
                                 val tid = title?.stableId().orEmpty()
                                 scope.launch {
-                                    socialRepository.updateBookmarkCategory(tid, value)
+                                    (if (bookmarked) socialRepository.updateBookmarkCategory(tid, value)
+                                    else socialRepository.addBookmark(tid, value))
                                         .onSuccess {
+                                            bookmarked = true
                                             bookmarkCategory = value
                                             showBookmarkCategories = false
                                             snackbar.showSnackbar("Категория: $label")
@@ -1079,8 +1071,10 @@ fun TitleScreen(
                                 onClick = {
                                     val tid = title?.stableId().orEmpty()
                                     scope.launch {
-                                        socialRepository.updateBookmarkCategory(tid, group.id)
+                                        (if (bookmarked) socialRepository.updateBookmarkCategory(tid, group.id)
+                                        else socialRepository.addBookmark(tid, group.id))
                                             .onSuccess {
+                                                bookmarked = true
                                                 bookmarkCategory = group.id
                                                 showBookmarkCategories = false
                                                 snackbar.showSnackbar("Группа: ${group.name}")
@@ -1097,7 +1091,7 @@ fun TitleScreen(
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(
+                if (bookmarked) TextButton(
                     onClick = {
                         val tid = title?.stableId().orEmpty()
                         scope.launch {
@@ -1112,6 +1106,7 @@ fun TitleScreen(
                         }
                     },
                 ) { Text("Удалить") }
+                else TextButton(onClick = { showBookmarkCategories = false }) { Text("Отмена") }
             },
         )
     }

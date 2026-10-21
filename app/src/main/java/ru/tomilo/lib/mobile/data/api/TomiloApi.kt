@@ -196,7 +196,7 @@ interface TomiloApi {
     suspend fun shopDecorations(@Path("type") type: String): ApiResponse<List<ShopDecorationDto>>
 
     @GET("shop/profile/decorations")
-    suspend fun ownedDecorations(): ApiResponse<List<ShopDecorationDto>>
+    suspend fun ownedDecorations(): ApiResponse<kotlinx.serialization.json.JsonElement>
 
     @POST("shop/purchase/{type}/{id}")
     suspend fun purchaseDecoration(
@@ -312,6 +312,12 @@ interface TomiloApi {
 
     @PUT("users/profile/bookmark-groups/order")
     suspend fun reorderBookmarkGroups(@Body body: ReorderBookmarkGroupsRequest): ApiResponse<List<BookmarkGroupDto>>
+
+    @GET("users/profile/bookmark-categories/order")
+    suspend fun bookmarkCategoryOrder(): ApiResponse<List<String>>
+
+    @PUT("users/profile/bookmark-categories/order")
+    suspend fun reorderBookmarkCategories(@Body body: ReorderBookmarkCategoriesRequest): ApiResponse<List<String>>
 
     @DELETE("users/profile/bookmark-groups/{groupId}")
     suspend fun deleteBookmarkGroup(@Path("groupId") groupId: String): ApiResponse<kotlinx.serialization.json.JsonElement>

@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -184,9 +186,12 @@ fun LibraryScreen(
 ) {
     val user by authRepository.userFlow.collectAsState(initial = null)
     var tab by remember { mutableStateOf(ShelfTab.Reading) }
+    var showBookmarkOverview by remember { mutableStateOf(true) }
     var lastBookmarkTab by remember { mutableStateOf(ShelfTab.Reading) }
     var customGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
     var customGroups by remember { mutableStateOf<List<BookmarkGroupDto>>(emptyList()) }
+    var categoryOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+    var reorderingCategories by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
     var showGroupManager by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<BookmarkGroupDto?>(null) }
@@ -211,14 +216,20 @@ fun LibraryScreen(
         configuration.screenWidthDp < 400
     ) 240.dp else 380.dp
 
-    val bookmarkCategory = customGroup?.id ?: tab.bookmarkCategory
+    val isBookmarksTab = tab != ShelfTab.History && tab != ShelfTab.Offline
+    val bookmarkCategory = if (isBookmarksTab && showBookmarkOverview) null else customGroup?.id ?: tab.bookmarkCategory
     val bookmarkLabel = customGroup?.name ?: tab.label
-
-    LaunchedEffect(user?.stableId()) {
-        customGroups = if (user == null) emptyList() else socialRepository.bookmarkGroups().getOrDefault(emptyList())
+    val orderedCategories = remember(customGroups, categoryOrder) {
+        (BookmarkCategoryOptions + customGroups.map { it.id to it.name })
+            .sortedWith(compareBy { (id, _) -> categoryOrder.indexOf(id).let { if (it < 0) Int.MAX_VALUE else it } })
     }
 
-    LaunchedEffect(user?.stableId(), reload, tab, customGroup) {
+    LaunchedEffect(user?.stableId(), reload) {
+        customGroups = if (user == null) emptyList() else socialRepository.bookmarkGroups().getOrDefault(emptyList())
+        categoryOrder = if (user == null) emptyList() else socialRepository.bookmarkCategoryOrder().getOrDefault(emptyList())
+    }
+
+    LaunchedEffect(user?.stableId(), reload, tab, customGroup, showBookmarkOverview) {
         if (user == null) {
             loading = false
             error = null
@@ -321,10 +332,11 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     FilterChip(
-                        selected = bookmarkCategory != null,
+                        selected = isBookmarksTab,
                         onClick = {
                             customGroup = null
                             tab = lastBookmarkTab
+                            showBookmarkOverview = true
                         },
                         label = { Text("Закладки") },
                         modifier = Modifier.weight(1f),
@@ -343,8 +355,51 @@ fun LibraryScreen(
                     )
                 }
             }
+            if (isBookmarksTab && showBookmarkOverview) {
+                item(key = "library_category_cards") {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("Категории", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { if (user == null) onLogin() else showCreateGroup = true }) { Text("Создать") }
+                            TextButton(onClick = { showGroupManager = true }, enabled = user != null) { Text("Порядок") }
+                        }
+                        if (!loading && error == null && user != null) {
+                            val visibleCategories = orderedCategories.filter { (category, label) ->
+                                needle.isBlank() || label.contains(needle, ignoreCase = true) ||
+                                    bookmarks.any { it.category == category && it.displayName().contains(needle, ignoreCase = true) }
+                            }
+                            if (visibleCategories.isEmpty()) Text("Категории не найдены", color = TomiloMuted)
+                            visibleCategories.forEach { (category, label) ->
+                                val categoryItems = bookmarks.filter { it.category == category }
+                                Surface(
+                                    onClick = {
+                                        customGroup = customGroups.firstOrNull { it.id == category }
+                                        ShelfTab.entries.firstOrNull { it.bookmarkCategory == category }?.let { tab = it; lastBookmarkTab = it }
+                                        showBookmarkOverview = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = TomiloSurface2,
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
+                                ) {
+                                    Row(Modifier.padding(16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Icon(Icons.Outlined.BookmarkBorder, contentDescription = null, tint = TomiloPrimary, modifier = Modifier.size(28.dp))
+                                        Spacer(Modifier.size(14.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                            Text("${categoryItems.size} ${categoryItems.size.libraryItemsLabel()}", style = MaterialTheme.typography.bodySmall, color = TomiloMuted)
+                                        }
+                                        Text("Открыть", style = MaterialTheme.typography.labelMedium, color = TomiloPrimary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if (bookmarkCategory != null) {
                 item(key = "library_bookmark_categories") {
+                    TextButton(onClick = { showBookmarkOverview = true; customGroup = null }, modifier = Modifier.padding(start = 12.dp)) { Text("Все категории") }
                     Row(
                         Modifier
                             .horizontalScroll(rememberScrollState())
@@ -386,7 +441,7 @@ fun LibraryScreen(
                     }
                 }
             }
-            item(key = "library_summary_${tab.name}") {
+            if (!isBookmarksTab || !showBookmarkOverview) item(key = "library_summary_${tab.name}") {
                 val count = when (tab) {
                     ShelfTab.History -> filteredHistory.size
                     ShelfTab.Offline -> offlineGroups.size
@@ -420,6 +475,7 @@ fun LibraryScreen(
                         modifier = Modifier.fillMaxWidth().height(libraryStateHeight),
                     ) { reload += 1 }
                 }
+                isBookmarksTab && showBookmarkOverview -> Unit
                 bookmarkCategory != null && filteredBookmarks.isEmpty() -> item(key = "library_empty_bookmarks") {
                     EmptyState(
                         title = if (needle.isBlank()) "Пока пусто" else "Нет совпадений",
@@ -483,9 +539,7 @@ fun LibraryScreen(
                                     secondaryActionIcon = Icons.Default.Edit,
                                     secondaryActionDescription = "Изменить категорию",
                                     onSecondaryAction = {
-                                        if (customGroup == null && tab.bookmarkCategory != null) {
-                                            categoryPickerBookmark = item
-                                        }
+                                        categoryPickerBookmark = item
                                     },
                                     onClick = {
                                         onOpenTitle(titleId, item.resolvedTitle()?.slug)
@@ -621,16 +675,36 @@ fun LibraryScreen(
             title = { Text("Мои категории") },
             text = {
                 Column {
-                    customGroups.forEach { group ->
-                        TextButton(
-                            onClick = {
+                    orderedCategories.forEachIndexed { index, (category, label) ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(label, modifier = Modifier.weight(1f))
+                            IconButton(enabled = index > 0 && !reorderingCategories, onClick = {
+                                val ordered = orderedCategories.map { it.first }.toMutableList().also { it.add(index - 1, it.removeAt(index)) }
+                                scope.launch {
+                                    reorderingCategories = true
+                                    socialRepository.reorderBookmarkCategories(ordered)
+                                        .onSuccess { categoryOrder = it }
+                                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить порядок.")) }
+                                    reorderingCategories = false
+                                }
+                            }) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Выше") }
+                            IconButton(enabled = index < orderedCategories.lastIndex && !reorderingCategories, onClick = {
+                                val ordered = orderedCategories.map { it.first }.toMutableList().also { it.add(index + 1, it.removeAt(index)) }
+                                scope.launch {
+                                    reorderingCategories = true
+                                    socialRepository.reorderBookmarkCategories(ordered)
+                                        .onSuccess { categoryOrder = it }
+                                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить порядок.")) }
+                                    reorderingCategories = false
+                                }
+                            }) { Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Ниже") }
+                            customGroups.firstOrNull { it.id == category }?.let { group -> IconButton(onClick = {
                                 editingGroup = group
                                 newGroupName = group.name
                                 showGroupManager = false
                                 showCreateGroup = true
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(group.name, modifier = Modifier.weight(1f)) }
+                            }) { Icon(Icons.Default.Edit, contentDescription = "Переименовать") } }
+                        }
                     }
                 }
             },
@@ -694,6 +768,28 @@ fun LibraryScreen(
                             Text(label, modifier = Modifier.weight(1f), fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
                             if (selected) Icon(Icons.Default.Check, contentDescription = "Текущая категория", tint = TomiloPrimary)
                         }
+                    }
+                }
+                customGroups.forEach { group ->
+                    val selected = bookmark.category == group.id
+                    Surface(
+                        onClick = {
+                            if (!selected && !updatingBookmarkCategory) {
+                                val titleId = bookmark.resolvedTitleId()
+                                scope.launch {
+                                    updatingBookmarkCategory = true
+                                    socialRepository.updateBookmarkCategory(titleId, group.id)
+                                        .onSuccess { reload += 1; categoryPickerBookmark = null; snackbar.showSnackbar("Перемещено в «${group.name}»") }
+                                        .onFailure { snackbar.showSnackbar(it.toUserFacingError("Не удалось изменить категорию.")) }
+                                    updatingBookmarkCategory = false
+                                }
+                            }
+                        },
+                        enabled = !updatingBookmarkCategory,
+                        color = if (selected) TomiloPrimary.copy(alpha = 0.13f) else TomiloSurface2,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Text(group.name, Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp))
                     }
                 }
             }

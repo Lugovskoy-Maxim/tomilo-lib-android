@@ -515,11 +515,14 @@ fun TomiloNavHost(container: AppContainer) {
                 )
             }
             composable(Routes.Wheel) {
-                WheelScreen(
-                    authRepository = container.authRepository,
-                    onBack = { navController.popBackStack() },
-                    onLogin = { goLogin() },
-                )
+                val user by container.authRepository.userFlow.collectAsState(initial = null)
+                androidx.compose.runtime.key(user?.stableId()) {
+                    WheelScreen(
+                        authRepository = container.authRepository,
+                        onBack = { navController.popBackStack() },
+                        onLogin = { goLogin() },
+                    )
+                }
             }
             composable(Routes.Hub) {
                 TomiloHubScreen(
@@ -549,13 +552,15 @@ fun TomiloNavHost(container: AppContainer) {
             }
             composable(Routes.MatchThree) {
                 val user by container.authRepository.userFlow.collectAsState(initial = null)
-                MatchThreeScreen(
-                    user = user,
-                    gamesRepository = container.gamesRepository,
-                    onBack = { navController.popBackStack() },
-                    onLogin = { goLogin() },
-                    onOpenPremium = { navController.navigate(Routes.Premium) },
-                )
+                androidx.compose.runtime.key(user?.stableId()) {
+                    MatchThreeScreen(
+                        user = user,
+                        gamesRepository = container.gamesRepository,
+                        onBack = { navController.popBackStack() },
+                        onLogin = { goLogin() },
+                        onOpenPremium = { navController.navigate(Routes.Premium) },
+                    )
+                }
             }
             composable(Routes.Shop) {
                 ShopScreen(

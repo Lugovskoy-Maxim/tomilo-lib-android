@@ -27,6 +27,7 @@ import ru.tomilo.lib.mobile.data.api.TomiloApi
 import ru.tomilo.lib.mobile.data.api.UpdateBookmarkRequest
 import ru.tomilo.lib.mobile.data.api.CreateBookmarkGroupRequest
 import ru.tomilo.lib.mobile.data.api.ReorderBookmarkGroupsRequest
+import ru.tomilo.lib.mobile.data.api.ReorderBookmarkCategoriesRequest
 import ru.tomilo.lib.mobile.data.api.UpdateCommentRequest
 
 class SocialRepository(private val api: TomiloApi) {
@@ -42,7 +43,7 @@ class SocialRepository(private val api: TomiloApi) {
     suspend fun ownedDecorations(): Result<List<ShopDecorationDto>> = runCatchingCancellable {
         val res = api.ownedDecorations()
         if (!res.success) error(res.message ?: "Не удалось загрузить инвентарь")
-        res.data.orEmpty()
+        parseShopInventory(res.data, json)
     }
 
     suspend fun purchaseDecoration(type: String, id: String): Result<Unit> = runCatchingCancellable {
@@ -93,6 +94,18 @@ class SocialRepository(private val api: TomiloApi) {
     suspend fun reorderBookmarkGroups(groupIds: List<String>): Result<List<BookmarkGroupDto>> = runCatchingCancellable {
         val res = api.reorderBookmarkGroups(ReorderBookmarkGroupsRequest(groupIds))
         if (!res.success) error(res.message ?: "Не удалось изменить порядок групп")
+        res.data.orEmpty()
+    }
+
+    suspend fun bookmarkCategoryOrder(): Result<List<String>> = runCatchingCancellable {
+        val res = api.bookmarkCategoryOrder()
+        if (!res.success) error(res.message ?: "Не удалось загрузить порядок категорий")
+        res.data.orEmpty()
+    }
+
+    suspend fun reorderBookmarkCategories(categoryIds: List<String>): Result<List<String>> = runCatchingCancellable {
+        val res = api.reorderBookmarkCategories(ReorderBookmarkCategoriesRequest(categoryIds))
+        if (!res.success) error(res.message ?: "Не удалось изменить порядок категорий")
         res.data.orEmpty()
     }
 

@@ -83,6 +83,8 @@ fun DecoratedAvatar(
     val effectiveAvatar = avatarModels.getOrNull(avatarModelIndex)
     val effectiveFrame = frameUrl ?: decorations?.frameUrl()
     val effectiveBadge = badgeUrl ?: decorations?.badgeUrl()
+    val badgeSize = (size * 0.38f).coerceAtLeast(18.dp)
+    val badgeSpace = if (effectiveBadge.isNullOrBlank()) 0.dp else badgeSize * 0.72f
     val inset = if (effectiveFrame != null) size * 0.105f else 2.dp
     val initials = avatarInitials(username)
     val avatarColors = AvatarGradients[
@@ -90,9 +92,10 @@ fun DecoratedAvatar(
     ]
 
     Box(
-        modifier = modifier.size(size),
-        contentAlignment = Alignment.Center,
+        modifier = modifier.size(width = size, height = size + badgeSpace),
+        contentAlignment = Alignment.TopCenter,
     ) {
+        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -142,11 +145,23 @@ fun DecoratedAvatar(
             )
         }
 
-        if (!effectiveBadge.isNullOrBlank()) {
+        if (online) {
             Box(
                 Modifier
                     .align(Alignment.BottomEnd)
-                    .size(size * 0.31f)
+                    .size(size * 0.23f)
+                    .clip(CircleShape)
+                    .background(TomiloSurface2)
+                    .padding(2.dp),
+            ) { Box(Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF55C98C))) }
+        }
+        }
+
+        if (!effectiveBadge.isNullOrBlank()) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .size(badgeSize)
                     .shadow(5.dp, RoundedCornerShape(7.dp))
                     .clip(RoundedCornerShape(7.dp))
                     .background(TomiloSurface2)
@@ -160,19 +175,6 @@ fun DecoratedAvatar(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-        }
-
-        if (online) {
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(size * 0.23f)
-                    .clip(CircleShape)
-                    .background(TomiloSurface2)
-                    .padding(2.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF55C98C)),
-            )
         }
     }
 }
