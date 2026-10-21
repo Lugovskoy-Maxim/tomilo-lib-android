@@ -268,6 +268,7 @@ fun MatchThreeScreen(
     val scope = rememberCoroutineScope()
     val premium = ru.tomilo.lib.mobile.core.Premium.isActive(user?.subscriptionExpiresAt)
     val admin = user?.isAdmin() == true
+    val authenticated = user != null
     val capacity = if (premium) 8 else 5
     var saved by remember { mutableStateOf(MatchThreeSave()) }
     var selectedTab by rememberSaveable { mutableStateOf(MatchThreeTab.PLAY) }
@@ -330,6 +331,9 @@ fun MatchThreeScreen(
     var rankError by remember { mutableStateOf<String?>(null) }
     var remoteMode by rememberSaveable { mutableStateOf(false) }
     var remoteLives by remember { mutableIntStateOf(-1) }
+    var remoteStateLoaded by remember { mutableStateOf(false) }
+    var remoteStateFailed by remember { mutableStateOf(false) }
+    var stateRefreshNonce by remember { mutableIntStateOf(0) }
     var remoteCapacity by remember { mutableIntStateOf(capacity) }
     var remoteNextLifeAt by remember { mutableStateOf<String?>(null) }
     var remoteCompleted by remember { mutableStateOf<List<Int>>(emptyList()) }
@@ -344,10 +348,10 @@ fun MatchThreeScreen(
     val remoteMinutes = remoteNextLifeAt?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
         ?.let { ((it - now + 59_999L) / 60_000L).coerceAtLeast(0).toInt() } ?: 0
 
-    LaunchedEffect(Unit) {
-        saved = store.read().normalized(capacity)
-        store.write(saved)
-        if (!admin) {
+    LaunchedEffect(user?.stableId(), capacity) {
+        if (user == null) {
+            saved = store.read().normalized(capacity)
+            store.write(saved)
             selectedLevel = (saved.records.maxOfOrNull { it.level } ?: 0) + 1
             saved.activeSession?.takeIf { it.board.size == 64 && it.obstacles.size == 64 && it.level > 0 && (it.moves > 0 || it.collected >= it.target) }?.let { session ->
                 selectedLevel = session.level
@@ -366,12 +370,17 @@ fun MatchThreeScreen(
                 won = session.collected >= session.target
                 playing = true
             }
+        } else {
+            saved = MatchThreeSave()
+            playing = false
         }
     }
-    LaunchedEffect(user?.stableId(), capacity) {
-        if (admin) {
+    LaunchedEffect(user?.stableId(), capacity, stateRefreshNonce) {
+        if (authenticated) {
             playing = false
             remoteMode = false
+            remoteStateLoaded = false
+            remoteStateFailed = false
             gamesRepository.pillMatchState().onSuccess { state ->
                 remoteLives = state.lives.current
                 remoteCapacity = state.lives.capacity
@@ -393,27 +402,38 @@ fun MatchThreeScreen(
                     playing = true
                     remoteMode = true
                 }
+                remoteStateLoaded = true
+            }.onFailure {
+                remoteLives = 0
+                remoteStateFailed = true
+                remoteStateLoaded = true
+                notice = it.message ?: "Не удалось загрузить прогресс. Повторите запрос."
             }
         } else {
             remoteMode = false
             remoteLives = -1
+            remoteStateLoaded = false
+            remoteStateFailed = false
             remoteNextLifeAt = null
             remoteCompleted = emptyList()
         }
     }
-    LaunchedEffect(capacity) {
-        val refreshed = store.read().normalized(capacity)
-        saved = refreshed
-        store.write(refreshed)
+    LaunchedEffect(capacity, user?.stableId()) {
+        if (user == null) {
+            val refreshed = store.read().normalized(capacity)
+            saved = refreshed
+            store.write(refreshed)
+        }
     }
     LaunchedEffect(rejectionSequence) {
         if (rejectedCells.isNotEmpty()) { delay(450); rejectedCells = emptySet() }
     }
-    LaunchedEffect(admin) {
-        if (admin) gamesRepository.pillMatchPublishedLevels().onSuccess { publishedLevels = it }
+    LaunchedEffect(user?.stableId(), admin) {
+        if (authenticated) gamesRepository.pillMatchPublishedLevels().onSuccess { publishedLevels = it }
+        if (!admin && selectedTab == MatchThreeTab.EDITOR) selectedTab = MatchThreeTab.PLAY
     }
     LaunchedEffect(selectedTab, rankPeriod, user?.stableId()) {
-        if (selectedTab == MatchThreeTab.RANK && admin) {
+        if (selectedTab == MatchThreeTab.RANK && authenticated) {
             rankLoading = true
             rankError = null
             gamesRepository.pillMatchLeaderboard(rankPeriod.apiValue)
@@ -433,18 +453,24 @@ fun MatchThreeScreen(
                 .onFailure { notice = it.message ?: "Не удалось загрузить уровни администратора" }
         }
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(user?.stableId(), capacity) {
         while (true) {
             delay(60_000)
             now = System.currentTimeMillis()
-            val latest = store.read().refreshed(capacity, now)
-            if (latest != saved) { saved = latest; store.write(latest) }
-            if (admin) {
+            if (user == null) {
+                val latest = store.read().refreshed(capacity, now)
+                if (latest != saved) { saved = latest; store.write(latest) }
+            }
+            if (authenticated) {
                 gamesRepository.pillMatchState().onSuccess { state ->
                     remoteLives = state.lives.current
                     remoteCapacity = state.lives.capacity
                     remoteNextLifeAt = state.lives.nextLifeAt
                     remoteCompleted = state.completedLevels
+                    remoteStateLoaded = true
+                    remoteStateFailed = false
+                }.onFailure {
+                    remoteStateFailed = true
                 }
             }
         }
@@ -486,8 +512,8 @@ fun MatchThreeScreen(
     fun startLevel(number: Int) {
         val spec = levelSpec(number)
         val refreshed = saved.refreshed(capacity, System.currentTimeMillis())
-        if (!admin && refreshed.lives <= 0 && saved.activeSession?.level != number) { notice = "Сердца восстановятся через ${refreshed.nextLifeMinutes(capacity)} мин."; return }
-        if (!admin && saved.activeSession?.level == number) {
+        if (user == null && refreshed.lives <= 0 && saved.activeSession?.level != number) { notice = "Сердца восстановятся через ${refreshed.nextLifeMinutes(capacity)} мин."; return }
+        if (user == null && saved.activeSession?.level == number) {
             saved.activeSession?.let { session ->
                 visualGems = emptyList()
                 hintCells = emptySet()
@@ -514,7 +540,7 @@ fun MatchThreeScreen(
         activeBooster = ""
         finished = false
         won = false
-        if (admin) {
+        if (authenticated) {
             saving = true
             scope.launch {
                 try {
@@ -1269,7 +1295,7 @@ fun MatchThreeScreen(
         won = false
         visualGems = emptyList()
         activeBooster = ""
-        remoteMode = admin
+        remoteMode = authenticated
         selectedTab = MatchThreeTab.EDITOR
         notice = "Черновик главы $editorLevelNumber на месте"
     }
@@ -1611,11 +1637,11 @@ fun MatchThreeScreen(
                     }
                     item {
                         MatchThreeHero(
-                            level = selectedLevel, lives = if (remoteLives >= 0) remoteLives else saved.lives, capacity = if (remoteLives >= 0) remoteCapacity else capacity, premium = premium, minutes = if (remoteLives >= 0) remoteMinutes else saved.nextLifeMinutes(capacity),
+                            level = selectedLevel, lives = if (authenticated) remoteLives.coerceAtLeast(0) else saved.lives, capacity = if (authenticated) remoteCapacity else capacity, premium = premium, minutes = if (authenticated) remoteMinutes else saved.nextLifeMinutes(capacity),
                             completed = (saved.records.map { it.level } + remoteCompleted).distinct().size, onPremium = onOpenPremium,
                         )
                     }
-                    if (!admin) item {
+                    if (!authenticated) item {
                         Text(
                             "Локальная тренировка: главы сохраняются на этом устройстве, награды и общий рейтинг пока недоступны.",
                             color = Color(0xFFBAC5D6),
@@ -1633,13 +1659,18 @@ fun MatchThreeScreen(
                                     Text("❄ Лёд", color = Color(0xFFADF1FF), style = MaterialTheme.typography.labelSmall)
                                     Text("⛓ Цепь", color = Color(0xFFFFD481), style = MaterialTheme.typography.labelSmall)
                                 }
-                                val availableLives = if (remoteLives >= 0) remoteLives else saved.lives
-                                Button(onClick = { startLevel(selectedLevel) }, enabled = availableLives > 0 && !saving, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(17.dp)) {
+                                val availableLives = if (authenticated) remoteLives.coerceAtLeast(0) else saved.lives
+                                Button(onClick = { startLevel(selectedLevel) }, enabled = availableLives > 0 && !saving && (!authenticated || (remoteStateLoaded && !remoteStateFailed)), modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(17.dp)) {
                                     Text(when {
+                                        authenticated && !remoteStateLoaded -> "Загружаем прогресс…"
+                                        authenticated && remoteStateFailed -> "Нет связи с сервером"
                                         saving -> "Открываем главу…"
                                         availableLives > 0 -> "Войти в сад  ·  ♥ $availableLives"
                                         else -> "Ждём новое сердце"
                                     })
+                                }
+                                if (authenticated && remoteStateFailed) {
+                                    TextButton(onClick = { stateRefreshNonce++ }, enabled = !saving) { Text("Повторить загрузку прогресса") }
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text("Пройдено: ${(saved.records.map { it.level } + remoteCompleted).distinct().size} глав", color = Color(0xFFBDC7DB), style = MaterialTheme.typography.labelMedium)
@@ -1658,7 +1689,7 @@ fun MatchThreeScreen(
                             RankPeriod.entries.forEach { period -> FilterChip(selected = period == rankPeriod, onClick = { rankPeriod = period }, label = { Text(period.title) }, modifier = Modifier.weight(1f)) }
                         }
                     }
-                    if (!admin) item {
+                    if (!authenticated) item {
                         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF20263A).copy(alpha = .96f)), shape = RoundedCornerShape(20.dp)) {
                             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Рейтинг исследователей", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
@@ -1667,9 +1698,9 @@ fun MatchThreeScreen(
                             }
                         }
                     }
-                    if (rankLoading && admin) item { Text("Загружаем таблицу лидеров…", color = Color(0xFFBAC5D6)) }
+                    if (rankLoading && authenticated) item { Text("Загружаем таблицу лидеров…", color = Color(0xFFBAC5D6)) }
                     rankError?.let { message -> item { Text(message, color = Color(0xFFFF99A9)) } }
-                    if (!rankLoading && rankError == null && rankUsers.isEmpty() && admin) item {
+                    if (!rankLoading && rankError == null && rankUsers.isEmpty() && authenticated) item {
                         Text("В этом периоде пока нет прохождений. Локально пройдено: ${saved.records.map { it.level }.distinct().size} глав.", color = Color(0xFFBAC5D6))
                     }
                     items(rankUsers, key = { "rank_${rankPeriod.apiValue}_${it.userId}" }) { entry ->
@@ -1684,7 +1715,7 @@ fun MatchThreeScreen(
                             }
                         }
                     }
-                    if (admin) item { Text("Рейтинг синхронизируется с сервером. Период: ${rankPeriod.title.lowercase()}.", color = Color(0xFF909CB4), style = MaterialTheme.typography.bodySmall) }
+                    if (authenticated) item { Text("Рейтинг синхронизируется с сервером. Период: ${rankPeriod.title.lowercase()}.", color = Color(0xFF909CB4), style = MaterialTheme.typography.bodySmall) }
                 }
                 MatchThreeTab.EDITOR -> {
                     item { Text("Раздел доступен только администратору.", color = Color.White) }
