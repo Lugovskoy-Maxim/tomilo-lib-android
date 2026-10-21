@@ -3,6 +3,7 @@ package ru.tomilo.lib.mobile.ui.components
 import android.animation.ValueAnimator
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -12,8 +13,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -48,10 +53,85 @@ fun SeasonalLogoMark(theme: SeasonalTheme, modifier: Modifier = Modifier) {
 @Composable
 fun SeasonalCornerDecoration(theme: SeasonalTheme, modifier: Modifier = Modifier) {
     when (theme) {
-        SeasonalTheme.HALLOWEEN -> HalloweenCornerWeb(modifier)
+        SeasonalTheme.HALLOWEEN -> HalloweenAtmosphere(modifier)
         SeasonalTheme.NONE -> Unit
         else -> SeasonalParticleDecoration(theme, modifier)
     }
+}
+
+@Composable
+private fun HalloweenAtmosphere(modifier: Modifier) {
+    val webStrip = ImageBitmap.imageResource(R.drawable.halloween_web_glint)
+    val motionEnabled = ValueAnimator.areAnimatorsEnabled()
+    var frame by remember { mutableIntStateOf(0) }
+    LaunchedEffect(motionEnabled) {
+        if (!motionEnabled) {
+            frame = 0
+            return@LaunchedEffect
+        }
+        while (true) {
+            delay(560L)
+            frame = (frame + 1) % 4
+        }
+    }
+
+    Canvas(modifier.fillMaxSize()) {
+        val frameWidth = webStrip.width / 4
+        val webPlacements = listOf(
+            SpritePlacement(0f, 0f, 98f, 130f, 0f, 0.96f),
+            SpritePlacement(size.width / density - 68f, 0f, 68f, 91f, 0f, 0.76f),
+            SpritePlacement(size.width / density - 45f, 0f, 45f, 60f, 0f, 0.60f),
+        )
+        webPlacements.forEachIndexed { index, placement ->
+            val left = placement.x.dp.toPx()
+            val top = placement.y.dp.toPx()
+            val width = placement.width.dp.toPx()
+            val height = placement.height.dp.toPx()
+            val drawWeb: DrawScope.() -> Unit = {
+                drawImage(
+                    image = webStrip,
+                    srcOffset = IntOffset(((frame + index) % 4) * frameWidth, 0),
+                    srcSize = IntSize(frameWidth, webStrip.height),
+                    dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
+                    dstSize = IntSize(width.roundToInt(), height.roundToInt()),
+                    alpha = placement.alpha,
+                )
+            }
+            if (index > 0) {
+                scale(scaleX = -1f, scaleY = 1f, pivot = Offset(left + width / 2f, top + height / 2f), block = drawWeb)
+            } else drawWeb()
+        }
+
+        val batColor = Color(0xFF241A2A).copy(alpha = 0.92f)
+        val widthPx = 28.dp.toPx()
+        val heightPx = 19.dp.toPx()
+        val batPositions = listOf(
+            Offset(size.width * 0.64f, 38.dp.toPx()),
+            Offset(size.width * 0.77f, 61.dp.toPx()),
+            Offset(size.width * 0.88f, 30.dp.toPx()),
+        )
+        batPositions.forEachIndexed { index, center ->
+            val drift = if (motionEnabled) floatArrayOf(-5f, 0f, 5f, 0f)[(frame + index) % 4] else 0f
+            val wingScale = if (motionEnabled) floatArrayOf(0.78f, 1f, 0.78f, 0.56f)[(frame + index) % 4] else 0.82f
+            drawBat(center + Offset(drift, 0f), widthPx, heightPx, wingScale, batColor)
+        }
+    }
+}
+
+private fun DrawScope.drawBat(center: Offset, width: Float, height: Float, wingScale: Float, color: Color) {
+    val left = center.x - width / 2f
+    val top = center.y - height / 2f
+    val path = Path().apply {
+        moveTo(center.x, top + height * 0.27f)
+        cubicTo(left + width * 0.38f, top - height * 0.08f, left + width * 0.22f, top + height * 0.05f, left, top + height * 0.02f)
+        cubicTo(left + width * 0.04f, top + height * 0.48f, left + width * 0.22f, top + height * 0.72f, left + width * 0.39f, top + height * 0.58f)
+        lineTo(center.x, top + height * 0.93f)
+        lineTo(left + width * 0.61f, top + height * 0.58f)
+        cubicTo(left + width * 0.78f, top + height * 0.72f, left + width * 0.96f, top + height * 0.48f, left + width, top + height * 0.02f)
+        cubicTo(left + width * 0.78f, top + height * 0.05f, left + width * 0.62f, top - height * 0.08f, center.x, top + height * 0.27f)
+        close()
+    }
+    scale(scaleX = 1f, scaleY = wingScale, pivot = center) { drawPath(path, color) }
 }
 
 @Composable
