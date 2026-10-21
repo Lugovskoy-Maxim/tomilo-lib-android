@@ -220,7 +220,7 @@ private fun NavTabItem(
         label = "tabBg",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.24f) else Color.Transparent,
+        targetValue = if (selected) TomiloPrimary.copy(alpha = 0.62f) else Color.Transparent,
         animationSpec = if (motionEnabled) spring(stiffness = Spring.StiffnessMediumLow) else snap(),
         label = "tabBorder",
     )

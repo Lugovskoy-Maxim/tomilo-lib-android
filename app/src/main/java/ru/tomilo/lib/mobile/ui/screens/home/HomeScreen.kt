@@ -542,6 +542,7 @@ private fun HomeHeroCarousel(
                         .background(Color.Black.copy(alpha = 0.62f))
                         .height(40.dp)
                         .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -559,7 +560,10 @@ private fun HomeHeroCarousel(
                             letterSpacing = 1.1.sp,
                         )
                         if (seasonalTheme != SeasonalTheme.NONE) {
-                            SeasonalLogoMark(seasonalTheme, Modifier.padding(start = 4.dp))
+                            SeasonalLogoMark(
+                                seasonalTheme,
+                                Modifier.padding(start = 4.dp).size(22.dp),
+                            )
                         }
                     }
                 }
