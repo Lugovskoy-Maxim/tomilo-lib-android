@@ -6,6 +6,15 @@ object MediaUrl {
     private val cdn = BuildConfig.CDN_BASE_URL.trimEnd('/')
     private val s3 = BuildConfig.S3_BASE_URL.trimEnd('/')
     private val site = BuildConfig.SITE_URL.trimEnd('/')
+    private val signedQueryKeys = setOf(
+        "signature",
+        "sig",
+        "token",
+        "access_token",
+        "awsaccesskeyid",
+        "key-pair-id",
+        "expires",
+    )
 
     fun resolve(pathOrUrl: String?): String {
         if (pathOrUrl.isNullOrBlank()) return ""
@@ -31,6 +40,7 @@ object MediaUrl {
         if (raw.startsWith("http://") || raw.startsWith("https://")) {
             return try {
                 val uri = java.net.URI(raw)
+                if (hasSignedQuery(uri)) return listOf(raw)
                 if (isSiteAssetPath(uri.path.orEmpty())) return listOf(raw)
                 if (!isTomiloMediaHost(uri.host.orEmpty())) return listOf(raw)
                 val key = normalizeKey(uri.path.orEmpty())
@@ -55,6 +65,7 @@ object MediaUrl {
             val u = java.net.URI(url)
             val host = u.host.orEmpty()
             val path = u.path.orEmpty()
+            if (hasSignedQuery(u)) return url
             if (isSiteAssetPath(path)) return url
             if (isTomiloMediaHost(host)) {
                 val key = normalizeKey(path)
@@ -73,6 +84,12 @@ object MediaUrl {
             host.contains("tomilo-lib.ru") ||
             host == "localhost" ||
             host == "127.0.0.1"
+
+    private fun hasSignedQuery(uri: java.net.URI): Boolean =
+        uri.rawQuery.orEmpty().split('&').any { parameter ->
+            val key = parameter.substringBefore('=').lowercase()
+            key in signedQueryKeys || key.startsWith("x-amz-") || key.startsWith("x-goog-")
+        }
 
     // Эти файлы обслуживает сайт/API. В S3 и CDN таких путей нет.
     private fun isSiteAssetPath(path: String): Boolean =

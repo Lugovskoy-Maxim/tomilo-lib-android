@@ -81,8 +81,10 @@ object WebtoonTiles {
     private const val CACHE_TRIM_AT = 600L * 1024L * 1024L
     private const val CACHE_TARGET = 450L * 1024L * 1024L
     private const val DOWNLOAD_PERMITS = 2
-    // Переключаемся на запасной адрес, если тело страницы зависло на одном хосте.
-    private const val SOURCE_CALL_TIMEOUT_SECONDS = 25L
+    // Не держим чтение главы на одном зависшем источнике дольше 12 секунд.
+    private const val SOURCE_CALL_TIMEOUT_SECONDS = 12L
+    // Ограничиваем суммарное последовательное ожидание S3/CDN/исходного URL.
+    private const val SOURCE_CHAIN_TIMEOUT_SECONDS = 24L
 
     private val sourceLocks = ConcurrentHashMap<String, Mutex>()
     private val downloads = Semaphore(DOWNLOAD_PERMITS)
@@ -337,7 +339,11 @@ object WebtoonTiles {
                 var lastError: Throwable? = null
                 val candidates = MediaUrl.candidates(source).ifEmpty { listOf(source) }
                 val ordered = candidates.drop(retry % candidates.size) + candidates.take(retry % candidates.size)
+                val chainDeadlineNanos = System.nanoTime() +
+                    TimeUnit.SECONDS.toNanos(SOURCE_CHAIN_TIMEOUT_SECONDS)
                 for (candidate in ordered) {
+                    val remainingNanos = chainDeadlineNanos - System.nanoTime()
+                    if (remainingNanos <= 0L) break
                     try {
                         part.delete()
                         val request = Request.Builder()
@@ -346,7 +352,10 @@ object WebtoonTiles {
                             .get()
                             .build()
                         val call = client(context).newCall(request).apply {
-                            timeout().timeout(SOURCE_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                            timeout().timeout(
+                                sourceCallTimeoutNanos(remainingNanos),
+                                TimeUnit.NANOSECONDS,
+                            )
                         }
                         call.execute().use { response ->
                             if (!response.isSuccessful) error("HTTP ${response.code}")
@@ -371,6 +380,11 @@ object WebtoonTiles {
                 throw lastError ?: IllegalStateException("Не удалось загрузить страницу")
             }
         }
+    }
+
+    internal fun sourceCallTimeoutNanos(remainingNanos: Long): Long {
+        require(remainingNanos > 0L)
+        return minOf(TimeUnit.SECONDS.toNanos(SOURCE_CALL_TIMEOUT_SECONDS), remainingNanos)
     }
 
     private fun client(context: Context): OkHttpClient = mediaClient ?: synchronized(this) {

@@ -44,4 +44,12 @@ class MediaUrlTest {
         assertEquals(url, MediaUrl.resolve(url))
         assertEquals(listOf(url), MediaUrl.candidates(path))
     }
+
+    @Test
+    fun signedMediaUrlKeepsOriginalHostAndQuery() {
+        val url = "https://s3.regru.cloud/tomilolib/page.webp?X-Amz-Signature=abc&X-Amz-Expires=60"
+
+        assertEquals(url, MediaUrl.resolve(url))
+        assertEquals(listOf(url), MediaUrl.candidates(url))
+    }
 }

@@ -6,8 +6,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
+import java.util.concurrent.TimeUnit
 
 class WebtoonTilesTest {
+    @Test
+    fun sourceTimeoutIsCappedByPerHostLimitAndRemainingChainBudget() {
+        assertEquals(
+            TimeUnit.SECONDS.toNanos(12),
+            WebtoonTiles.sourceCallTimeoutNanos(TimeUnit.SECONDS.toNanos(30)),
+        )
+        assertEquals(
+            TimeUnit.SECONDS.toNanos(5),
+            WebtoonTiles.sourceCallTimeoutNanos(TimeUnit.SECONDS.toNanos(5)),
+        )
+    }
+
     @Test
     fun tallPageIsSplitWithoutGapsOrCropping() {
         val dimensions = PageDimensions(width = 1200, height = 10100)

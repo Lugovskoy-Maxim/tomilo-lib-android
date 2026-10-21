@@ -32,8 +32,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -81,13 +84,26 @@ fun TomiloCoverImage(
 ) {
     val candidates = remember(source) { MediaUrl.candidates(source) }
     var attempt by remember(source) { mutableIntStateOf(0) }
+    var loading by remember(source, attempt) { mutableStateOf(false) }
+    LaunchedEffect(source, attempt, candidates.size, loading) {
+        if (loading && attempt < candidates.lastIndex) {
+            delay(10_000)
+            if (loading) attempt++
+        }
+    }
+    val requestAttempt = attempt
     AsyncImage(
         model = candidates.getOrNull(attempt),
         contentDescription = contentDescription,
         contentScale = contentScale,
         modifier = modifier,
+        onLoading = { if (attempt == requestAttempt) loading = true },
+        onSuccess = { if (attempt == requestAttempt) loading = false },
         onError = {
-            if (attempt < candidates.lastIndex) attempt++
+            if (attempt == requestAttempt) {
+                loading = false
+                if (attempt < candidates.lastIndex) attempt++
+            }
         },
     )
 }
