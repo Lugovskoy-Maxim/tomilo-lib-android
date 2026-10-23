@@ -183,6 +183,9 @@ class NetworkModuleHttpCacheTest {
         val cache = Cache(temporaryFolder.newFolder("http-cache"), 1024L * 1024L)
         val client = OkHttpClient.Builder()
             .cache(cache)
+            .addInterceptor { chain ->
+                chain.proceed(NetworkModule.requestWithHttpCachePolicy(chain.request(), networkAvailable = true))
+            }
             .addNetworkInterceptor { chain ->
                 val response = chain.proceed(chain.request())
                 val localCacheControl = NetworkModule.cacheControlForNetworkResponse(
@@ -202,6 +205,15 @@ class NetworkModuleHttpCacheTest {
             val first = client.newCall(request).execute().use { response ->
                 assertEquals(200, response.code)
                 response.body!!.string()
+            }
+            val staleSnapshotRequest = request.newBuilder()
+                .header(NetworkModule.CACHE_MODE_HEADER, NetworkModule.STALE_CACHE_ONLY)
+                .build()
+            client.newCall(staleSnapshotRequest).execute().use { response ->
+                assertEquals(200, response.code)
+                assertNotNull(response.cacheResponse)
+                assertEquals(null, response.networkResponse)
+                assertEquals(first, response.body!!.string())
             }
             val second = client.newCall(request).execute().use { response ->
                 assertEquals(200, response.code)

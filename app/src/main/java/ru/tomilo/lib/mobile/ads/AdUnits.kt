@@ -16,11 +16,11 @@ object AdUnits {
     /** Первый rewarded-блок. Показ выбирает любой уже загруженный из [rewardedUnits]. */
     val rewarded: String = rewardedUnits.firstOrNull().orEmpty()
 
-    /** Interstitial между главами: R-M-19689456-2 */
+    /** Interstitial между главами; ID выбирается по flavor магазина. */
     val interstitial: String = BuildConfig.YANDEX_INTERSTITIAL_AD_UNIT_ID.trim()
 
-    /** Нативное объявление в каталоге: R-M-19689456-4 */
-    const val nativeCatalog: String = "R-M-19689456-4"
+    /** Нативное объявление в каталоге; ID выбирается по flavor магазина. */
+    val nativeCatalog: String = BuildConfig.YANDEX_NATIVE_CATALOG_AD_UNIT_ID.trim()
 
     const val DEMO_REWARDED = "demo-rewarded-yandex"
     const val DEMO_INTERSTITIAL = "demo-interstitial-yandex"

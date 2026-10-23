@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.vector.ImageVector
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import ru.tomilo.lib.mobile.BuildConfig
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -98,7 +99,12 @@ fun TomiloCoverImage(
         contentScale = contentScale,
         modifier = modifier,
         onLoading = { if (attempt == requestAttempt) loading = true },
-        onSuccess = { if (attempt == requestAttempt) loading = false },
+        onSuccess = { state ->
+            if (attempt == requestAttempt) loading = false
+            if (BuildConfig.DEBUG) {
+                android.util.Log.d("TomiloCoverCache", state.result.dataSource.name)
+            }
+        },
         onError = {
             if (attempt == requestAttempt) {
                 loading = false

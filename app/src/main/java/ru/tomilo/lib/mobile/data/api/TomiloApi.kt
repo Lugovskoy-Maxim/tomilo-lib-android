@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -237,18 +238,21 @@ interface TomiloApi {
         @Query("limit") limit: Int = 24,
         @Query("page") page: Int = 1,
         @Query("includeAdult") includeAdult: Boolean? = null,
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
     @GET("titles/popular")
     suspend fun popular(
         @Query("limit") limit: Int = 24,
         @Query("includeAdult") includeAdult: Boolean? = null,
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
     @GET("titles/random")
     suspend fun randomTitles(
         @Query("limit") limit: Int = 1,
         @Query("includeAdult") includeAdult: Boolean? = null,
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
     @GET("titles/{id}")
@@ -446,6 +450,7 @@ interface TomiloApi {
         @Query("period") period: String = "all",
         @Query("limit") limit: Int = 50,
         @Query("page") page: Int = 1,
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
     ): ApiResponse<LeaderboardResponseDto>
 
     // ── Notifications (in-app «пуши») ───────────────────────────

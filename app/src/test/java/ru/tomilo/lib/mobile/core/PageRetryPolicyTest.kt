@@ -13,7 +13,7 @@ class PageRetryPolicyTest {
     }
 
     @Test
-    fun aManualRetryStartsAnotherFullCycleAfterCacheBustNonceIncrements() {
+    fun aManualRetryStartsAnotherFullCycleAfterAttemptCountIncrements() {
         assertTrue(PageRetryPolicy.shouldRetry(attempt = 3, maxAttempts = 3))
         assertTrue(PageRetryPolicy.shouldRetry(attempt = 4, maxAttempts = 3))
         assertFalse(PageRetryPolicy.shouldRetry(attempt = 5, maxAttempts = 3))

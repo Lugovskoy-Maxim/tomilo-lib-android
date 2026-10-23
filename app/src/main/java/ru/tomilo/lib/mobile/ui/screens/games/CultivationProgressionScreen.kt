@@ -33,7 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.runCultivationMutationAndSync
 import ru.tomilo.lib.mobile.data.api.CultivationDiscipleDto
 import ru.tomilo.lib.mobile.data.api.CultivationStageDto
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
@@ -59,24 +62,53 @@ internal fun CultivationProgressionScreen(gamesRepository: GamesRepository, modi
     var disciples by remember { mutableStateOf<List<CultivationDiscipleDto>>(emptyList()) }
     var stages by remember { mutableStateOf<List<CultivationStageDto>>(emptyList()) }
     var inventory by remember { mutableStateOf<List<GameInventoryItemDto>>(emptyList()) }
+    var progressionVerified by remember { mutableStateOf(false) }
+    var inventoryVerified by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var busyCharacter by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
 
-    suspend fun loadData() {
+    suspend fun loadData(): Boolean {
         loading = true
-        gamesRepository.discipleProgression()
-            .onSuccess { overview ->
-                disciples = overview.disciples.filter { !it.inWarehouse.orFalse() }
-                stages = overview.cultivationStages.sortedBy { it.order }
+        progressionVerified = false
+        inventoryVerified = false
+        try {
+            val (progressionResult, inventoryResult) = coroutineScope {
+                val progression = async { gamesRepository.discipleProgression() }
+                val inventory = async { gamesRepository.gameInventory() }
+                progression.await() to inventory.await()
             }
-            .onFailure {
-                message = it.message ?: "Не удалось загрузить культивацию"
-                isError = true
+            var synchronized = true
+            progressionResult
+                .onSuccess { overview ->
+                    progressionVerified = true
+                    disciples = overview.disciples.filter { !it.inWarehouse.orFalse() }
+                    stages = overview.cultivationStages.sortedBy { it.order }
+                }
+                .onFailure {
+                    synchronized = false
+                    message = it.message ?: "Не удалось загрузить культивацию"
+                    isError = true
+                }
+            inventoryResult
+                .onSuccess {
+                    inventory = it
+                    inventoryVerified = true
+                }
+                .onFailure {
+                    synchronized = false
+                    message = it.message ?: "Не удалось проверить предметы в хранилище"
+                    isError = true
+                }
+            if (synchronized) {
+                message = null
+                isError = false
             }
-        gamesRepository.gameInventory().onSuccess { inventory = it }
-        loading = false
+            return synchronized
+        } finally {
+            loading = false
+        }
     }
     val refresh: () -> Unit = {
         scope.launch { loadData() }
@@ -87,15 +119,27 @@ internal fun CultivationProgressionScreen(gamesRepository: GamesRepository, modi
         if (busyCharacter != null) return
         scope.launch {
             busyCharacter = characterId
-            action().onSuccess { result ->
-                isError = false
-                loadData()
-                message = result
-            }.onFailure {
-                message = it.message ?: "Действие не выполнено"
-                isError = true
+            try {
+                val outcome = runCultivationMutationAndSync(action) { loadData() }
+                outcome.actionResult.onSuccess { result ->
+                    if (outcome.stateSynchronized) {
+                        message = result
+                        isError = false
+                    } else {
+                        message = "Действие подтверждено сервером, но состояние не обновлено. Нажмите «Обновить данные»."
+                        isError = true
+                    }
+                }.onFailure {
+                    message = if (outcome.stateSynchronized) {
+                        it.message ?: "Действие не выполнено"
+                    } else {
+                        "Не удалось подтвердить результат. Сверьте данные с сервером перед следующим действием."
+                    }
+                    isError = true
+                }
+            } finally {
+                busyCharacter = null
             }
-            busyCharacter = null
         }
     }
 
@@ -143,8 +187,10 @@ internal fun CultivationProgressionScreen(gamesRepository: GamesRepository, modi
                     disciple = disciple,
                     stages = stages,
                     inventory = inventory,
+                    progressionVerified = progressionVerified,
+                    inventoryVerified = inventoryVerified,
                     busy = busyCharacter == disciple.characterId,
-                    anyBusy = busyCharacter != null,
+                    anyBusy = busyCharacter != null || loading,
                     onStart = { runAction(disciple.characterId) {
                         gamesRepository.startMeditation(disciple.characterId).map { "${disciple.displayName()} начал медитацию" }
                     } },
@@ -173,6 +219,8 @@ private fun CultivationDiscipleCard(
     disciple: CultivationDiscipleDto,
     stages: List<CultivationStageDto>,
     inventory: List<GameInventoryItemDto>,
+    progressionVerified: Boolean,
+    inventoryVerified: Boolean,
     busy: Boolean,
     anyBusy: Boolean,
     onStart: () -> Unit,
@@ -192,7 +240,7 @@ private fun CultivationDiscipleCard(
     val missingItems = requirement?.itemCosts.orEmpty().filter { cost ->
         inventory.firstOrNull { it.itemId.equals(cost.itemId, ignoreCase = true) }?.count.orZero() < cost.count
     }
-    val ready = requirement != null && !missingLevel && !missingExp && missingItems.isEmpty()
+    val ready = progressionVerified && inventoryVerified && requirement != null && !missingLevel && !missingExp && missingItems.isEmpty()
     val chance = requirement?.let {
         previewBreakthroughChance(level, disciple.cultivationExp, it.minDiscipleLevel, it.minCultivationExp, nextStage.order)
     }
@@ -200,6 +248,9 @@ private fun CultivationDiscipleCard(
     Surface(color = TomiloSurface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, TomiloBorder)) {
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(disciple.displayName(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (!progressionVerified) {
+                Text("Состояние ученика не подтверждено сервером. Действия временно заблокированы.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            }
             Text("${stageLabel(stages, disciple.cultivationStageKey)} · уровень ${level} · звёзды ${disciple.starLevel}", color = TomiloMuted)
             Text("Опыт культивации: ${disciple.cultivationExp}", fontWeight = FontWeight.SemiBold)
 
@@ -210,7 +261,7 @@ private fun CultivationDiscipleCard(
                 cultivationPaths.forEach { path ->
                     val selected = disciple.path.equals(path.id, ignoreCase = true)
                     Surface(
-                        modifier = Modifier.fillMaxWidth().clickable(enabled = !anyBusy && !selected) { onSetPath(path) },
+                        modifier = Modifier.fillMaxWidth().clickable(enabled = progressionVerified && !anyBusy && !selected) { onSetPath(path) },
                         color = if (selected) TomiloPrimary.copy(alpha = 0.12f) else Color.Transparent,
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, if (selected) TomiloPrimary.copy(alpha = 0.45f) else TomiloBorder),
@@ -226,10 +277,10 @@ private fun CultivationDiscipleCard(
             Text(if (meditating) "Медитация начата: ${disciple.meditation.startedAt}" else "Медитация не начата", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (meditating) {
-                    OutlinedButton(onClick = onClaim, enabled = !anyBusy) { Text("Собрать опыт") }
-                    OutlinedButton(onClick = onStop, enabled = !anyBusy) { Text("Остановить") }
+                    OutlinedButton(onClick = onClaim, enabled = progressionVerified && !anyBusy) { Text("Собрать опыт") }
+                    OutlinedButton(onClick = onStop, enabled = progressionVerified && !anyBusy) { Text("Остановить") }
                 } else {
-                    Button(onClick = onStart, enabled = !anyBusy && !disciple.characterId.isBlank()) { Text("Начать медитацию") }
+                    Button(onClick = onStart, enabled = progressionVerified && !anyBusy && !disciple.characterId.isBlank()) { Text("Начать медитацию") }
                 }
                 if (busy) CircularProgressIndicator(modifier = Modifier.padding(10.dp).width(22.dp), strokeWidth = 2.dp)
             }
@@ -237,9 +288,13 @@ private fun CultivationDiscipleCard(
             if (nextStage != null && requirement != null) {
                 Text("Следующая стадия: ${stageLabel(stages, nextStage.stageKey)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text("Для прорыва: уровень ${requirement.minDiscipleLevel} (${level}), опыт ${requirement.minCultivationExp} (${disciple.cultivationExp})", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-                missingItems.forEach { cost ->
-                    val have = inventory.firstOrNull { it.itemId.equals(cost.itemId, ignoreCase = true) }?.count.orZero()
-                    Text("${inventory.firstOrNull { it.itemId.equals(cost.itemId, true) }?.name ?: cost.itemId}: $have / ${cost.count}", color = Color(0xFFDA716A), style = MaterialTheme.typography.bodySmall)
+                if (inventoryVerified) {
+                    missingItems.forEach { cost ->
+                        val have = inventory.firstOrNull { it.itemId.equals(cost.itemId, ignoreCase = true) }?.count.orZero()
+                        Text("${inventory.firstOrNull { it.itemId.equals(cost.itemId, true) }?.name ?: cost.itemId}: $have / ${cost.count}", color = Color(0xFFDA716A), style = MaterialTheme.typography.bodySmall)
+                    }
+                } else {
+                    Text("Наличие предметов не подтверждено сервером. Обновите данные перед прорывом.", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 if (ready) Text("Шанс успеха: ${chance?.times(100)?.toInt()}%", color = TomiloMuted)
                 Button(onClick = onBreakthrough, enabled = ready && !anyBusy && !meditating && !disciple.characterId.isBlank()) {

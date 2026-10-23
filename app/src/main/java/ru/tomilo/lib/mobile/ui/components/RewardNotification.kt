@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -136,7 +135,7 @@ fun RewardNotificationHost(modifier: Modifier = Modifier) {
                             }
                             if (reward.coins != 0) {
                                 if (reward.experience != 0) Spacer(Modifier.width(12.dp))
-                                Icon(Icons.Default.MonetizationOn, null, tint = TomiloPremium, modifier = Modifier.size(17.dp))
+                                GameCoinIcon(modifier = Modifier.size(17.dp))
                                 Spacer(Modifier.width(3.dp))
                                 Text(
                                     signed(reward.coins),

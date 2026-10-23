@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
@@ -76,8 +78,8 @@ internal fun ExpeditionNativeScreen(
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var syncedResultAt by remember { mutableStateOf<String?>(null) }
 
-    suspend fun loadStatus() {
-        gamesRepository.expeditionStatus().onSuccess { next ->
+    suspend fun updateStatus(result: Result<ExpeditionStatusDto>) {
+        result.onSuccess { next ->
             status = next
             isError = false
             message = null
@@ -92,18 +94,29 @@ internal fun ExpeditionNativeScreen(
         }
     }
 
+    suspend fun loadStatus() = updateStatus(gamesRepository.expeditionStatus())
+
     suspend fun loadAll() {
         loading = true
-        loadStatus()
-        gamesRepository.gameInventory().onSuccess { inventory = it }.onFailure {
-            message = it.message ?: "Не удалось загрузить ключи и талисманы"
-            isError = true
+        try {
+            val (statusResult, inventoryResult, categoriesResult) = coroutineScope {
+                val status = async { gamesRepository.expeditionStatus() }
+                val inventory = async { gamesRepository.gameInventory() }
+                val categories = async { gamesRepository.realmMapsCatalog() }
+                Triple(status.await(), inventory.await(), categories.await())
+            }
+            updateStatus(statusResult)
+            inventoryResult.onSuccess { inventory = it }.onFailure {
+                message = it.message ?: "Не удалось загрузить ключи и талисманы"
+                isError = true
+            }
+            categoriesResult.onSuccess { categories = it.categories }.onFailure {
+                message = it.message ?: "Не удалось загрузить карты тайных миров"
+                isError = true
+            }
+        } finally {
+            loading = false
         }
-        gamesRepository.realmMapsCatalog().onSuccess { categories = it.categories }.onFailure {
-            message = it.message ?: "Не удалось загрузить карты тайных миров"
-            isError = true
-        }
-        loading = false
     }
 
     fun refresh() { scope.launch { loadAll() } }

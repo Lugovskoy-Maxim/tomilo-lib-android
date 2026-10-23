@@ -8,9 +8,7 @@ import android.graphics.Rect
 import android.net.Uri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -86,7 +84,7 @@ object WebtoonTiles {
     // Ограничиваем суммарное последовательное ожидание S3/CDN/исходного URL.
     private const val SOURCE_CHAIN_TIMEOUT_SECONDS = 24L
 
-    private val sourceLocks = ConcurrentHashMap<String, Mutex>()
+    private val sourceLocks = KeyedSuspendMutex<String>()
     private val downloads = Semaphore(DOWNLOAD_PERMITS)
     private val activeDecodes = ConcurrentHashMap<String, AtomicInteger>()
     private val poisoned = ConcurrentHashMap.newKeySet<String>()
@@ -323,8 +321,7 @@ object WebtoonTiles {
         val cacheDir = File(context.cacheDir, "webtoon_sources").apply { mkdirs() }
         val key = sha256(source)
         val destination = File(cacheDir, "$key.source")
-        val lock = sourceLocks.getOrPut(key) { Mutex() }
-        return lock.withLock {
+        return sourceLocks.withLock(key) {
             if (isImage(destination) && destination.absolutePath !in poisoned) {
                 destination.setLastModified(System.currentTimeMillis())
                 return@withLock destination

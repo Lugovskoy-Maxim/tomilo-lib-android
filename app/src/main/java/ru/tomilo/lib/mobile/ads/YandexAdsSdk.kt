@@ -19,30 +19,53 @@ object YandexAdsSdk {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ready = AtomicBoolean(false)
     private val started = AtomicBoolean(false)
+    private val personalized = AtomicBoolean(true)
 
     @Volatile
     private var pending: List<() -> Unit> = emptyList()
 
     val isReady: Boolean get() = ready.get()
 
-    fun initialize(context: Context, onReady: () -> Unit) {
-        if (ready.get()) {
-            onReady()
-            return
+    fun setPersonalized(personalizedAds: Boolean) {
+        val shouldApply = synchronized(this) {
+            personalized.set(personalizedAds)
+            ready.get()
         }
-        synchronized(this) {
-            pending = pending + onReady
+        if (shouldApply) {
+            mainHandler.post {
+                synchronized(this) {
+                    if (ready.get()) YandexAds.setUserConsent(personalized.get())
+                }
+            }
+        }
+    }
+
+    fun initialize(context: Context, onReady: () -> Unit) {
+        val alreadyReady = synchronized(this) {
+            if (ready.get()) true
+            else {
+                pending = pending + onReady
+                false
+            }
+        }
+        if (alreadyReady) {
+            mainHandler.post(onReady)
+            return
         }
         if (started.compareAndSet(false, true)) {
             mainHandler.post {
+                YandexAds.setUserConsent(personalized.get())
                 YandexAds.initialize(context.applicationContext) {
-                    ready.set(true)
-                    val callbacks = synchronized(this) {
-                        val callbacks = pending
-                        pending = emptyList()
-                        callbacks
+                    mainHandler.post {
+                        val callbacks = synchronized(this) {
+                            YandexAds.setUserConsent(personalized.get())
+                            ready.set(true)
+                            val callbacks = pending
+                            pending = emptyList()
+                            callbacks
+                        }
+                        callbacks.forEach { it.invoke() }
                     }
-                    callbacks.forEach { it.invoke() }
                 }
             }
         }

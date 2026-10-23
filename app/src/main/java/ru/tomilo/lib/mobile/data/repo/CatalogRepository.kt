@@ -1,11 +1,13 @@
 package ru.tomilo.lib.mobile.data.repo
 
+import ru.tomilo.lib.mobile.data.api.ApiResponse
 import ru.tomilo.lib.mobile.data.api.CatalogFilterOptionsDto
 import ru.tomilo.lib.mobile.data.api.CatalogPageDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.ChapterDto
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
+import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
 import ru.tomilo.lib.mobile.data.api.TomiloApi
 import kotlinx.coroutines.CancellationException
@@ -37,6 +39,16 @@ class CatalogRepository(private val api: TomiloApi) {
         res.data ?: CatalogFilterOptionsDto()
     }
 
+    suspend fun latestUpdatesCacheSnapshot(limit: Int = 24): Result<List<CatalogTitleDto>> =
+        cacheOnlyTitles("Не удалось прочитать кеш обновлений") {
+            api.latestUpdates(
+                limit = limit,
+                page = 1,
+                includeAdult = false,
+                cacheMode = NetworkModule.STALE_CACHE_ONLY,
+            )
+        }
+
     suspend fun latestUpdates(
         limit: Int = 24,
         includeAdult: Boolean = false,
@@ -64,6 +76,15 @@ class CatalogRepository(private val api: TomiloApi) {
         }
     }
 
+    suspend fun popularCacheSnapshot(limit: Int = 24): Result<List<CatalogTitleDto>> =
+        cacheOnlyTitles("Не удалось прочитать кеш популярных тайтлов") {
+            api.popular(
+                limit = limit,
+                includeAdult = false,
+                cacheMode = NetworkModule.STALE_CACHE_ONLY,
+            )
+        }
+
     suspend fun popular(
         limit: Int = 24,
         includeAdult: Boolean? = null,
@@ -81,6 +102,17 @@ class CatalogRepository(private val api: TomiloApi) {
         val res = api.randomTitles(limit = 1, includeAdult = includeAdult)
         if (!res.success) error(res.message ?: "Не удалось выбрать случайный тайтл")
         res.data?.firstOrNull() ?: error("В каталоге пока нет подходящих тайтлов")
+    }
+
+    suspend fun randomTitlesCacheSnapshot(limit: Int = 12): Result<List<CatalogTitleDto>> {
+        val safeLimit = limit.coerceIn(2, 24)
+        return cacheOnlyTitles("Не удалось прочитать кеш случайной подборки") {
+            api.randomTitles(
+                limit = safeLimit,
+                includeAdult = false,
+                cacheMode = NetworkModule.STALE_CACHE_ONLY,
+            )
+        }
     }
 
     suspend fun randomTitles(limit: Int = 12, includeAdult: Boolean = false): Result<List<CatalogTitleDto>> {
@@ -169,6 +201,15 @@ class CatalogRepository(private val api: TomiloApi) {
         val res = api.chapterPrev(chapterId, currentChapter)
         if (!res.success) error(res.message ?: "Нет предыдущей главы")
         res.data ?: error("Нет предыдущей главы")
+    }
+
+    private suspend fun cacheOnlyTitles(
+        errorMessage: String,
+        request: suspend () -> ApiResponse<List<CatalogTitleDto>>,
+    ): Result<List<CatalogTitleDto>> = runCatchingCancellable {
+        val response = request()
+        if (!response.success) error(response.message ?: errorMessage)
+        response.data.orEmpty()
     }
 
     suspend fun search(query: String): Result<List<SearchHitDto>> = try {

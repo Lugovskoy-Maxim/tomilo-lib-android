@@ -544,8 +544,26 @@ class SocialRepository(private val api: TomiloApi) {
         category: String = "level",
         period: String = "all",
         limit: Int = 50,
+    ): Result<List<LeaderboardUserDto>> = loadLeaderboard(category, period, limit, cacheOnly = false)
+
+    suspend fun leaderboardCacheSnapshot(
+        category: String = "level",
+        period: String = "all",
+        limit: Int = 50,
+    ): Result<List<LeaderboardUserDto>> = loadLeaderboard(category, period, limit, cacheOnly = true)
+
+    private suspend fun loadLeaderboard(
+        category: String,
+        period: String,
+        limit: Int,
+        cacheOnly: Boolean,
     ): Result<List<LeaderboardUserDto>> = runCatchingCancellable {
-        val res = api.leaderboard(category = category, period = period, limit = limit)
+        val res = api.leaderboard(
+            category = category,
+            period = period,
+            limit = limit,
+            cacheMode = if (cacheOnly) NetworkModule.STALE_CACHE_ONLY else null,
+        )
         if (!res.success) error(res.message ?: "Ошибка лидерборда")
         res.data?.users.orEmpty()
     }

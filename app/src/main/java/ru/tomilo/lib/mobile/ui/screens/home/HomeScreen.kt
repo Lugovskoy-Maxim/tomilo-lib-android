@@ -35,12 +35,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
-import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudOff
-import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Update
@@ -80,8 +78,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.CancellationException
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -105,6 +101,7 @@ import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
+import ru.tomilo.lib.mobile.ui.components.GameCoinIcon
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
 import ru.tomilo.lib.mobile.ui.components.HomeFeedSkeleton
 import ru.tomilo.lib.mobile.ui.components.SeasonalCornerDecoration
@@ -241,23 +238,67 @@ fun HomeScreen(
         loading = true
         error = null
         try {
-            val (u, p, random) = coroutineScope {
-                val updatesRequest = async { catalogRepository.latestUpdates(includeAdult = includeAdult) }
-                val popularRequest = async { catalogRepository.popular(includeAdult = includeAdult) }
-                val randomRequest = async {
-                    catalogRepository.randomTitles(limit = 12, includeAdult = includeAdult)
+            fun List<CatalogTitleDto>.filterAdult() =
+                if (includeAdult) this else filter { it.isAdult != true }
+
+            var updatesFailure: Throwable? = null
+            var popularFailure: Throwable? = null
+            var updatesLoadedFromNetwork = false
+            var popularLoadedFromNetwork = false
+            var randomLoadedFromNetwork = false
+            if (!includeAdult && updates.isEmpty()) {
+                launch {
+                    catalogRepository.latestUpdatesCacheSnapshot()
+                        .onSuccess { if (!updatesLoadedFromNetwork) updates = it.filterAdult() }
                 }
-                Triple(updatesRequest.await(), popularRequest.await(), randomRequest.await())
             }
-            if (u.isFailure && p.isFailure) {
-                error = u.exceptionOrNull()?.message ?: "Не удалось загрузить данные"
-                return@LaunchedEffect
+            if (!includeAdult && popular.isEmpty()) {
+                launch {
+                    catalogRepository.popularCacheSnapshot()
+                        .onSuccess { if (!popularLoadedFromNetwork) popular = it.filterAdult() }
+                }
             }
-            val showAdult = includeAdult
-            fun List<CatalogTitleDto>.filterAdult() = if (showAdult) this else filter { it.isAdult != true }
-            updates = u.getOrDefault(emptyList()).filterAdult()
-            popular = p.getOrDefault(emptyList()).filterAdult()
-            randomTitles = random.getOrDefault(emptyList()).filterAdult()
+            if (!includeAdult && randomTitles.isEmpty()) {
+                launch {
+                    catalogRepository.randomTitlesCacheSnapshot(limit = 12)
+                        .onSuccess { if (!randomLoadedFromNetwork) randomTitles = it.filterAdult() }
+                }
+            }
+            val updatesRequest = launch {
+                catalogRepository.latestUpdates(includeAdult = includeAdult)
+                    .onSuccess {
+                        updatesLoadedFromNetwork = true
+                        updates = it.filterAdult()
+                    }
+                    .onFailure { updatesFailure = it }
+            }
+            val popularRequest = launch {
+                catalogRepository.popular(includeAdult = includeAdult)
+                    .onSuccess {
+                        popularLoadedFromNetwork = true
+                        popular = it.filterAdult()
+                    }
+                    .onFailure { popularFailure = it }
+            }
+            launch {
+                catalogRepository.randomTitles(limit = 12, includeAdult = includeAdult)
+                    .onSuccess {
+                        randomLoadedFromNetwork = true
+                        randomTitles = it.filterAdult()
+                    }
+            }
+
+            // Show each primary feed as soon as its own request completes. The
+            // carousel's random batch must not hold the home screen behind it.
+            updatesRequest.join()
+            popularRequest.join()
+            if (updatesFailure != null && popularFailure != null &&
+                updates.isEmpty() && popular.isEmpty()
+            ) {
+                error = updatesFailure?.message
+                    ?: popularFailure?.message
+                    ?: "Не удалось загрузить данные"
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
@@ -268,28 +309,37 @@ fun HomeScreen(
         }
     }
 
-    val filteredUpdates = remember(updates, selectedFilter) {
+    val visibleUpdates = remember(updates, includeAdult) {
+        if (includeAdult) updates else updates.filter { it.isAdult != true }
+    }
+    val visiblePopular = remember(popular, includeAdult) {
+        if (includeAdult) popular else popular.filter { it.isAdult != true }
+    }
+    val visibleRandomTitles = remember(randomTitles, includeAdult) {
+        if (includeAdult) randomTitles else randomTitles.filter { it.isAdult != true }
+    }
+    val filteredUpdates = remember(visibleUpdates, selectedFilter) {
         when (selectedFilter) {
-            FeedFilter.ALL -> updates
-            FeedFilter.MANHWA -> updates.filter { it.type.equals("manhwa", ignoreCase = true) }
-            FeedFilter.MANGA -> updates.filter { it.type.equals("manga", ignoreCase = true) }
-            FeedFilter.MANHUA -> updates.filter { it.type.equals("manhua", ignoreCase = true) }
-            FeedFilter.TOP_RATED -> updates.sortedByDescending { it.displayRating() ?: 0.0 }
+            FeedFilter.ALL -> visibleUpdates
+            FeedFilter.MANHWA -> visibleUpdates.filter { it.type.equals("manhwa", ignoreCase = true) }
+            FeedFilter.MANGA -> visibleUpdates.filter { it.type.equals("manga", ignoreCase = true) }
+            FeedFilter.MANHUA -> visibleUpdates.filter { it.type.equals("manhua", ignoreCase = true) }
+            FeedFilter.TOP_RATED -> visibleUpdates.sortedByDescending { it.displayRating() ?: 0.0 }
         }
     }
 
-    val filteredPopular = remember(popular, selectedFilter) {
+    val filteredPopular = remember(visiblePopular, selectedFilter) {
         when (selectedFilter) {
-            FeedFilter.ALL -> popular
-            FeedFilter.MANHWA -> popular.filter { it.type.equals("manhwa", ignoreCase = true) }
-            FeedFilter.MANGA -> popular.filter { it.type.equals("manga", ignoreCase = true) }
-            FeedFilter.MANHUA -> popular.filter { it.type.equals("manhua", ignoreCase = true) }
-            FeedFilter.TOP_RATED -> popular.sortedByDescending { it.displayRating() ?: 0.0 }
+            FeedFilter.ALL -> visiblePopular
+            FeedFilter.MANHWA -> visiblePopular.filter { it.type.equals("manhwa", ignoreCase = true) }
+            FeedFilter.MANGA -> visiblePopular.filter { it.type.equals("manga", ignoreCase = true) }
+            FeedFilter.MANHUA -> visiblePopular.filter { it.type.equals("manhua", ignoreCase = true) }
+            FeedFilter.TOP_RATED -> visiblePopular.sortedByDescending { it.displayRating() ?: 0.0 }
         }
     }
 
-    val featured = remember(popular, updates, randomTitles) {
-        interleaveCarouselTitles(popular, randomTitles, updates)
+    val featured = remember(visiblePopular, visibleUpdates, visibleRandomTitles) {
+        interleaveCarouselTitles(visiblePopular, visibleRandomTitles, visibleUpdates)
     }
     val luckyOpen = showCarousel && featured.isNotEmpty()
     SideEffect { onLuckyVisible(luckyOpen) }
@@ -562,7 +612,7 @@ private fun HomeHeroCarousel(
                         if (seasonalTheme != SeasonalTheme.NONE) {
                             SeasonalLogoMark(
                                 seasonalTheme,
-                                Modifier.padding(start = 4.dp).size(22.dp),
+                                Modifier.padding(start = 4.dp),
                             )
                         }
                     }
@@ -584,12 +634,7 @@ private fun HomeHeroCarousel(
                         ringColor = Color.White.copy(alpha = 0.35f),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Icon(
-                        Icons.Default.Paid,
-                        contentDescription = null,
-                        tint = TomiloPremium,
-                        modifier = Modifier.size(16.dp),
-                    )
+                    GameCoinIcon(modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(
                         "$coins",
@@ -603,29 +648,7 @@ private fun HomeHeroCarousel(
             Spacer(Modifier.height(14.dp))
 
             Column {
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(TomiloPrimary)
-                        .padding(horizontal = 10.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        Icons.Outlined.LocalFireDepartment,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        "В центре внимания",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                    )
-                }
                 current?.displayRating()?.let { rating ->
-                    Spacer(Modifier.height(8.dp))
                     Row(
                         Modifier
                             .clip(RoundedCornerShape(12.dp))

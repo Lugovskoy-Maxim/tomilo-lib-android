@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -73,6 +72,7 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.GameCoinIcon
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.StatusPill
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
@@ -228,7 +228,7 @@ fun ShopScreen(
                 }
                 Surface(color = TomiloPremium.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MonetizationOn, null, tint = TomiloPremium, modifier = Modifier.size(17.dp))
+                        GameCoinIcon(modifier = Modifier.size(17.dp))
                         Spacer(Modifier.size(4.dp))
                         Text("${user?.balance ?: 0}", color = TomiloPremium, fontWeight = FontWeight.Bold)
                     }

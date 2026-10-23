@@ -21,7 +21,11 @@ object PageImages {
     fun request(context: Context, data: Any, attempt: Int = 0): ImageRequest {
         val bypassCache = attempt > 0
         val source = retrySource(data, attempt)
-        val local = source is String && isLocal(source)
+        val local = when (source) {
+            is String -> isLocal(source)
+            is java.io.File -> true
+            else -> false
+        }
         return ImageRequest.Builder(context)
             .data(source)
             .size(MAX_DECODE_WIDTH_PX, MAX_DECODE_HEIGHT_PX)
@@ -35,6 +39,9 @@ object PageImages {
             .diskCachePolicy(if (bypassCache || local) CachePolicy.DISABLED else CachePolicy.ENABLED)
             // DISABLED запрещает сетевой запрос. Для файла на диске сеть не нужна.
             .networkCachePolicy(if (local) CachePolicy.DISABLED else CachePolicy.ENABLED)
+            .apply {
+                retryCacheControl(attempt)?.let { addHeader("Cache-Control", it) }
+            }
             .build()
     }
 
@@ -48,12 +55,11 @@ object PageImages {
         runCatching { context.imageLoader.diskCache?.remove(key) }
     }
 
-    private fun retrySource(data: Any, attempt: Int): Any {
+    internal fun retrySource(data: Any, attempt: Int): Any {
         if (data !is String) return data
-        val candidate = MediaUrl.candidate(data, attempt)
-        if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) return candidate
-        if (attempt <= 0) return candidate
-        val separator = if ('?' in candidate) '&' else '?'
-        return "$candidate${separator}tomilo_retry=$attempt"
+        return MediaUrl.candidate(data, attempt)
     }
+
+    internal fun retryCacheControl(attempt: Int): String? =
+        "no-cache, no-store".takeIf { attempt > 0 }
 }

@@ -107,6 +107,72 @@ class NetworkModuleCachePolicyTest {
     }
 
     @Test
+    fun `stale snapshots are cache only and use each public feed window`() {
+        val cases = listOf(
+            "titles/latest-updates?includeAdult=false" to 300,
+            "titles/popular?includeAdult=false" to 600,
+            "titles/random?limit=12&includeAdult=false" to 300,
+            "users/leaderboard?category=level&period=all" to 300,
+        )
+
+        cases.forEach { (path, staleWindow) ->
+            val request = Request.Builder()
+                .url("https://tomilo-lib.ru/api/$path")
+                .header(NetworkModule.CACHE_MODE_HEADER, NetworkModule.STALE_CACHE_ONLY)
+                .get()
+                .build()
+            val cachedRequest = NetworkModule.requestWithHttpCachePolicy(request, networkAvailable = true)
+
+            assertEquals("public, only-if-cached, max-stale=$staleWindow", cachedRequest.header("Cache-Control"))
+            assertNull(cachedRequest.header(NetworkModule.CACHE_MODE_HEADER))
+            assertTrue(NetworkModule.isCacheOnlyRequest(cachedRequest))
+        }
+    }
+
+    @Test
+    fun `stale snapshot marker cannot enable cache for adult or private requests`() {
+        val adult = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=true")
+            .header(NetworkModule.CACHE_MODE_HEADER, NetworkModule.STALE_CACHE_ONLY)
+            .get()
+            .build()
+        val private = Request.Builder()
+            .url("https://tomilo-lib.ru/api/users/profile")
+            .header(NetworkModule.CACHE_MODE_HEADER, NetworkModule.STALE_CACHE_ONLY)
+            .get()
+            .build()
+
+        listOf(adult, private).forEach { request ->
+            val safeRequest = NetworkModule.requestWithHttpCachePolicy(request, networkAvailable = true)
+            assertEquals("no-cache, no-store", safeRequest.header("Cache-Control"))
+            assertNull(safeRequest.header(NetworkModule.CACHE_MODE_HEADER))
+        }
+    }
+
+    @Test
+    fun `cache only miss is logged as a cache miss instead of network`() {
+        val cacheOnly = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
+            .header("Cache-Control", "public, only-if-cached, max-stale=300")
+            .get()
+            .build()
+        val miss = Response.Builder()
+            .request(cacheOnly)
+            .protocol(Protocol.HTTP_1_1)
+            .code(504)
+            .message("Unsatisfiable Request (only-if-cached)")
+            .build()
+
+        val networkRequest = Request.Builder()
+            .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
+            .get()
+            .build()
+
+        assertEquals("cache-miss", NetworkModule.cacheSourceLabel(cacheOnly, miss))
+        assertEquals("network", NetworkModule.cacheSourceLabel(networkRequest, response(networkRequest)))
+    }
+
+    @Test
     fun `anonymous public discovery can still use cache`() {
         val request = Request.Builder()
             .url("https://tomilo-lib.ru/api/titles/latest-updates?includeAdult=false")
@@ -180,6 +246,15 @@ class NetworkModuleCachePolicyTest {
             privateRequest,
             response(privateRequest, headers = mapOf("Cache-Control" to "public, max-age=60")),
         ))
+
+        val leaderboardRequest = Request.Builder()
+            .url("https://tomilo-lib.ru/api/users/leaderboard?category=level&period=all")
+            .get()
+            .build()
+        assertEquals(
+            "public, max-age=120, stale-while-revalidate=300",
+            NetworkModule.cacheControlForNetworkResponse(leaderboardRequest, response(leaderboardRequest)),
+        )
     }
 
     private fun response(

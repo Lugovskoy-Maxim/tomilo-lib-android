@@ -42,6 +42,21 @@ git push origin v1.5.0
 остался `ru.tomilo.lib.mobile`. Один upload keystore можно использовать для обоих.
 `keystores/tomilo-upload.jks` и `keystore.properties` в git не класть.
 
+У Play отдельные рекламные блоки РСЯ. Перед сборкой добавьте выданные в кабинете ID
+в `~/.gradle/gradle.properties` или задайте их переменными окружения:
+
+```properties
+PLAY_YANDEX_REWARDED_AD_UNIT_ID=...
+PLAY_YANDEX_REWARDED_AD_UNIT_ID_2=...
+PLAY_YANDEX_INTERSTITIAL_AD_UNIT_ID=...
+PLAY_YANDEX_NATIVE_CATALOG_AD_UNIT_ID=...
+```
+
+Пустые значения отключают соответствующий формат рекламы в Play-сборке. Блоки
+RuStore остаются отдельными и не подставляются в Play. GitHub Actions читает те же
+значения из одноимённых repository secrets при сборке Play AAB. Без секрета
+соответствующий Play-блок останется выключенным.
+
 ## Push-уведомления
 
 1. Firebase Console → создать отдельное Android-приложение для Google Play с package `ru.tomilolib.mobile`.

@@ -542,7 +542,11 @@ fun TomiloNavHost(container: AppContainer) {
                     onOpenQuests = { navController.navigate(Routes.Quests) },
                     onOpenWheel = { navController.navigate(Routes.Wheel) },
                     onOpenWebTab = { tab ->
-                        val url = "${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/games?tab=${Routes.enc(tab)}"
+                        val url = if (tab == "cards") {
+                            "${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/cards"
+                        } else {
+                            "${ru.tomilo.lib.mobile.BuildConfig.SITE_URL}/games?tab=${Routes.enc(tab)}"
+                        }
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                     },
                 )
@@ -556,6 +560,7 @@ fun TomiloNavHost(container: AppContainer) {
                     MatchThreeScreen(
                         user = user,
                         gamesRepository = container.gamesRepository,
+                        authRepository = container.authRepository,
                         onBack = { navController.popBackStack() },
                         onLogin = { goLogin() },
                         onOpenPremium = { navController.navigate(Routes.Premium) },
@@ -627,6 +632,7 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Leaders) {
                 LeadersScreen(
                     socialRepository = container.socialRepository,
+                    authRepository = container.authRepository,
                     onBack = { navController.popBackStack() },
                     onOpenUser = { id -> navController.navigate(Routes.user(id)) },
                 )

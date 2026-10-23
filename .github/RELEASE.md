@@ -26,4 +26,11 @@ Release-сборка берёт keystore и пароли только из GitHu
 
 Нужные секреты репозитория: `KEYSTORE_BASE64`, `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
 
+Для Google Play задайте secrets `PLAY_YANDEX_REWARDED_AD_UNIT_ID`,
+`PLAY_YANDEX_REWARDED_AD_UNIT_ID_2`, `PLAY_YANDEX_INTERSTITIAL_AD_UNIT_ID` и
+`PLAY_YANDEX_NATIVE_CATALOG_AD_UNIT_ID`. Они используются только в Play flavor;
+RuStore продолжает брать отдельные ID из Gradle. Release-сборка Play останавливается,
+если любой ID отсутствует, совпадает с RuStore или повторяет другой Play placement.
+Debug-сборки могут оставаться без рекламных ID.
+
 Mapping после локальной release-сборки лежит в `app/build/outputs/mapping/` (каталог в git не попадает). Его нельзя выкладывать в публичный релиз — по нему снимается обфускация.

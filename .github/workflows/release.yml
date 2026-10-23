@@ -109,6 +109,10 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          PLAY_YANDEX_REWARDED_AD_UNIT_ID: ${{ secrets.PLAY_YANDEX_REWARDED_AD_UNIT_ID }}
+          PLAY_YANDEX_REWARDED_AD_UNIT_ID_2: ${{ secrets.PLAY_YANDEX_REWARDED_AD_UNIT_ID_2 }}
+          PLAY_YANDEX_INTERSTITIAL_AD_UNIT_ID: ${{ secrets.PLAY_YANDEX_INTERSTITIAL_AD_UNIT_ID }}
+          PLAY_YANDEX_NATIVE_CATALOG_AD_UNIT_ID: ${{ secrets.PLAY_YANDEX_NATIVE_CATALOG_AD_UNIT_ID }}
         run: ./gradlew :app:bundlePlayRelease --no-daemon
 
       - name: Package release artifacts

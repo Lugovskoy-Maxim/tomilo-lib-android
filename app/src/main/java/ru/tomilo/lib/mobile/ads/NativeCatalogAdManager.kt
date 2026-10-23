@@ -56,7 +56,11 @@ class NativeCatalogAdManager(
     }
 
     fun preload() {
-        if (!adsAllowed.get() || adUnitId.isBlank() || !sdkReady.get()) return
+        if (!adsAllowed.get() || adUnitId.isBlank()) return
+        if (!sdkReady.get()) {
+            initialize()
+            return
+        }
         retryRunnable?.let(mainHandler::removeCallbacks)
         retryRunnable = null
         if (_nativeAd.value != null || loading.get()) return
@@ -96,8 +100,8 @@ class NativeCatalogAdManager(
         val changed = adsAllowed.getAndSet(allowed) != allowed
         if (!allowed) {
             destroy()
-        } else if (changed || !sdkReady.get()) {
-            if (sdkReady.get()) preload() else initialize()
+        } else if (changed && sdkReady.get()) {
+            preload()
         }
     }
 

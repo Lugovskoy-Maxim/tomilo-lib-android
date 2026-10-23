@@ -242,7 +242,8 @@ class GamesRepository(private val api: TomiloApi) {
     suspend fun claimMeditation(characterId: String): Result<Int> = runCatchingCancellable {
         val response = api.claimDiscipleMeditation(characterId)
         if (!response.success) error(response.message ?: "Не удалось собрать результат медитации")
-        response.data?.cultivationExpGained ?: 0
+        val result = response.data ?: error("Сервер не вернул результат медитации")
+        result.cultivationExpGained
     }
 
     suspend fun stopMeditation(characterId: String): Result<Unit> = runCatchingCancellable {

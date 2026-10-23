@@ -39,6 +39,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.GameInventoryItemDto
@@ -66,18 +68,24 @@ internal fun InventoryNativeScreen(
 
     suspend fun loadData() {
         loading = true
-        val inventoryResult = gamesRepository.gameInventory()
-        val usesResult = gamesRepository.gameInventoryUses()
-        inventoryResult.onSuccess { inventory = it }.onFailure {
-            message = it.message ?: "Не удалось загрузить инвентарь"
-            isError = true
+        try {
+            val (inventoryResult, usesResult) = coroutineScope {
+                val inventory = async { gamesRepository.gameInventory() }
+                val uses = async { gamesRepository.gameInventoryUses() }
+                inventory.await() to uses.await()
+            }
+            inventoryResult.onSuccess { inventory = it }.onFailure {
+                message = it.message ?: "Не удалось загрузить инвентарь"
+                isError = true
+            }
+            usesResult.onSuccess { uses = it }.onFailure {
+                message = it.message ?: "Не удалось проверить действия с предметами"
+                isError = true
+                uses = emptyList()
+            }
+        } finally {
+            loading = false
         }
-        usesResult.onSuccess { uses = it }.onFailure {
-            message = it.message ?: "Не удалось проверить действия с предметами"
-            isError = true
-            uses = emptyList()
-        }
-        loading = false
     }
     val refresh: () -> Unit = { scope.launch { loadData() } }
     LaunchedEffect(Unit) { loadData() }
@@ -140,7 +148,7 @@ internal fun InventoryNativeScreen(
                     item = item,
                     useInfo = useInfo,
                     busy = busyItem == item.itemId,
-                    anyBusy = busyItem != null,
+                    anyBusy = busyItem != null || loading,
                     onUse = { count -> useItem(item, count) },
                 )
             }

@@ -74,6 +74,10 @@ class AuthRepository(
         user
     }
 
+    private suspend fun refreshProfileAfterReward() {
+        if (refreshProfile().isFailure) refreshProfile()
+    }
+
     suspend fun logout() {
         // Remove in-memory credentials before the suspendable DataStore clear, so an
         // in-flight 401 refresh cannot restore a session after logout.
@@ -95,7 +99,7 @@ class AuthRepository(
         val res = api.claimDailyBonus()
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Бонус уже получен")
         val data = res.data ?: error(res.message ?: "Бонус не получен")
-        refreshProfile()
+        refreshProfileAfterReward()
         data
     }
 
@@ -103,7 +107,7 @@ class AuthRepository(
         val res = api.claimDailyQuest(QuestClaimRequest(questId))
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Награда недоступна")
         val data = res.data ?: QuestClaimResultDto()
-        refreshProfile()
+        refreshProfileAfterReward()
         data
     }
 
@@ -111,7 +115,7 @@ class AuthRepository(
         val res = api.claimAllDailyQuests()
         if (!res.success) error(res.message ?: res.errors?.firstOrNull() ?: "Нет доступных наград")
         val data = res.data ?: QuestClaimResultDto()
-        refreshProfile()
+        refreshProfileAfterReward()
         data
     }
 

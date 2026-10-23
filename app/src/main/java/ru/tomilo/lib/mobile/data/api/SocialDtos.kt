@@ -51,6 +51,7 @@ data class LeaderboardUserDto(
     @SerialName("_id") val underscoreId: String? = null,
     val id: String? = null,
     val username: String? = null,
+    val role: String? = null,
     val avatar: String? = null,
     val level: Int? = null,
     val experience: Int? = null,
@@ -65,12 +66,19 @@ data class LeaderboardUserDto(
     val balance: Int? = null,
     /** Категория developmentHelp — принятые персонажи */
     val charactersAcceptedCount: Int? = null,
+    val rankChange: LeaderboardRankChangeDto? = null,
     val equippedDecorations: EquippedDecorationsDto? = null,
     @SerialName("equipped_decorations") val equippedDecorationsLegacy: EquippedDecorationsDto? = null,
 ) {
     fun stableId(): String = id ?: underscoreId.orEmpty()
     fun decorations(): EquippedDecorationsDto? = equippedDecorations ?: equippedDecorationsLegacy
 }
+
+@Serializable
+data class LeaderboardRankChangeDto(
+    val day: Int? = null,
+    val week: Int? = null,
+)
 
 @Serializable
 data class BookmarkEntryDto(

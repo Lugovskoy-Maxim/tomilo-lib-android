@@ -9,7 +9,6 @@ import com.yandex.mobile.ads.common.AdError
 import com.yandex.mobile.ads.common.AdRequest
 import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.common.ImpressionData
-import com.yandex.mobile.ads.common.YandexAds
 import com.yandex.mobile.ads.interstitial.InterstitialAd
 import com.yandex.mobile.ads.interstitial.InterstitialAdEventListener
 import com.yandex.mobile.ads.interstitial.InterstitialAdLoadListener
@@ -33,7 +32,6 @@ class InterstitialAdManager(
     private val sdkReady = AtomicBoolean(false)
     private val loading = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(false)
-    private val personalized = AtomicBoolean(true)
 
     val enabled: Boolean get() = adUnitId.isNotBlank() && adsAllowed.get()
 
@@ -47,10 +45,7 @@ class InterstitialAdManager(
      * при живом SDK обновляет согласие для следующих запросов.
      */
     fun setPersonalized(personalizedAds: Boolean) {
-        personalized.set(personalizedAds)
-        if (sdkReady.get()) {
-            mainHandler.post { YandexAds.setUserConsent(personalizedAds) }
-        }
+        YandexAdsSdk.setPersonalized(personalizedAds)
     }
 
     fun initialize(onReady: (() -> Unit)? = null) {
@@ -64,7 +59,6 @@ class InterstitialAdManager(
             return
         }
         // Инициализация SDK — однократная и общая для всех менеджеров (YandexAdsSdk).
-        mainHandler.post { YandexAds.setUserConsent(personalized.get()) }
         YandexAdsSdk.initialize(appContext) {
             if (!adsAllowed.get()) {
                 onReady?.invoke()
@@ -83,7 +77,11 @@ class InterstitialAdManager(
     }
 
     fun preload() {
-        if (!enabled || !sdkReady.get()) return
+        if (!enabled) return
+        if (!sdkReady.get()) {
+            initialize()
+            return
+        }
         retryRunnable?.let(mainHandler::removeCallbacks)
         retryRunnable = null
         if (loadedAd != null || loading.get()) return
@@ -123,8 +121,8 @@ class InterstitialAdManager(
         val changed = adsAllowed.getAndSet(allowed) != allowed
         if (!allowed) {
             destroy()
-        } else if (changed || !sdkReady.get()) {
-            if (sdkReady.get()) preload() else initialize()
+        } else if (changed && sdkReady.get()) {
+            preload()
         }
     }
 

@@ -130,6 +130,7 @@ import ru.tomilo.lib.mobile.data.local.MatchThreeLocalSession
 import ru.tomilo.lib.mobile.data.local.MatchThreeProgressStore
 import ru.tomilo.lib.mobile.data.local.MatchThreeRecord
 import ru.tomilo.lib.mobile.data.local.MatchThreeSave
+import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
@@ -258,6 +259,7 @@ private fun gardenPose(kind: GardenFxKind, life: Float): FxPose {
 fun MatchThreeScreen(
     user: UserDto?,
     gamesRepository: GamesRepository,
+    authRepository: AuthRepository,
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
     onLogin: () -> Unit = {},
@@ -379,6 +381,9 @@ fun MatchThreeScreen(
         if (authenticated) {
             playing = false
             remoteMode = false
+            finished = false
+            won = false
+            activeBooster = ""
             remoteStateLoaded = false
             remoteStateFailed = false
             gamesRepository.pillMatchState().onSuccess { state ->
@@ -453,7 +458,7 @@ fun MatchThreeScreen(
                 .onFailure { notice = it.message ?: "Не удалось загрузить уровни администратора" }
         }
     }
-    LaunchedEffect(user?.stableId(), capacity) {
+    LaunchedEffect(user?.stableId(), capacity, stateRefreshNonce) {
         while (true) {
             delay(60_000)
             now = System.currentTimeMillis()
@@ -471,6 +476,10 @@ fun MatchThreeScreen(
                     remoteStateFailed = false
                 }.onFailure {
                     remoteStateFailed = true
+                    activeBooster = ""
+                    if (playing && remoteMode) {
+                        notice = "Нет связи с сервером. Сверьте прогресс перед следующим ходом."
+                    }
                 }
             }
         }
@@ -509,7 +518,22 @@ fun MatchThreeScreen(
         return MatchThreeEngine.Level(number, custom.target, custom.moves, custom.color, map, custom.seed)
     }
 
+    fun refreshRemoteState(message: String? = null, discardCurrentGame: Boolean = false) {
+        if (message != null) notice = "$message Сверяем прогресс с сервером…"
+        remoteStateLoaded = false
+        remoteStateFailed = false
+        if (discardCurrentGame) {
+            playing = false
+            remoteMode = false
+            finished = false
+            won = false
+            activeBooster = ""
+        }
+        stateRefreshNonce++
+    }
+
     fun startLevel(number: Int) {
+        if (authenticated && (!remoteStateLoaded || remoteStateFailed || saving)) return
         val spec = levelSpec(number)
         val refreshed = saved.refreshed(capacity, System.currentTimeMillis())
         if (user == null && refreshed.lives <= 0 && saved.activeSession?.level != number) { notice = "Сердца восстановятся через ${refreshed.nextLifeMinutes(capacity)} мин."; return }
@@ -547,7 +571,7 @@ fun MatchThreeScreen(
                     gamesRepository.startPillMatchLevel(number).onSuccess { response ->
                         val session = response.session
                         if (session == null) {
-                            notice = "Сервер не открыл главу. Попробуйте ещё раз."
+                            refreshRemoteState("Сервер не открыл главу.", discardCurrentGame = true)
                             return@onSuccess
                         }
                         visualGems = emptyList()
@@ -573,7 +597,10 @@ fun MatchThreeScreen(
                         remoteCompleted = response.completedLevels
                         playing = true
                     }.onFailure {
-                        notice = it.message ?: "Не удалось открыть главу. Проверьте соединение и число сердец."
+                        refreshRemoteState(
+                            it.message ?: "Не удалось открыть главу. Проверьте соединение и число сердец.",
+                            discardCurrentGame = true,
+                        )
                     }
                 } finally {
                     saving = false
@@ -611,6 +638,8 @@ fun MatchThreeScreen(
     }.toMap()
 
     suspend fun applyRemoteState(state: ru.tomilo.lib.mobile.data.api.PillMatchActionDto, session: PillMatchSessionDto = state.session) {
+        remoteStateLoaded = true
+        remoteStateFailed = false
         board = session.board.map { color -> listOf("coral", "cyan", "lemon", "violet", "mint").indexOf(color).coerceAtLeast(0) }
         obstacles = session.obstacles.mapIndexedNotNull { i, kind -> if (kind < 0) null else i to Obstacle.entries.getOrElse(kind) { Obstacle.ROCK } }.toMap()
                     obstacleHealth = session.obstacleHealth
@@ -640,6 +669,7 @@ fun MatchThreeScreen(
             notice = "Проба пройдена. В прогресс игроков она не пишется."
             return
         }
+        if (authenticated && (!remoteMode || !remoteStateLoaded || remoteStateFailed)) return
         if (finished) return
         if (saving) return
         if (remoteMode) {
@@ -650,7 +680,12 @@ fun MatchThreeScreen(
                     remoteError = null
                     remoteCompleted = (remoteCompleted + selectedLevel).distinct()
                     notice = if (result.awarded) "Уровень пройден! +${result.xpGained} опыта ✨" else "Уровень пройден! Новая глава уже открыта ✨"
-                }.onFailure { remoteError = it.message ?: "Не удалось сохранить прохождение"; notice = "Не удалось сохранить победу. Повторите сохранение." }
+                }.onFailure {
+                    remoteError = it.message ?: "Не удалось сохранить прохождение"
+                    refreshRemoteState("Не удалось сохранить победу.", discardCurrentGame = true)
+                }
+                // Keep the shared profile flow in sync even when the completion response was lost.
+                scope.launch { authRepository.refreshProfile() }
                 saving = false
             }
             return
@@ -937,6 +972,7 @@ fun MatchThreeScreen(
     }
 
     fun armBooster(name: String) {
+        if (authenticated && !trial && (!remoteMode || !remoteStateLoaded || remoteStateFailed)) return
         if (busy || dealing || saving || finished || won || moves <= 0) return
         activeBooster = if (activeBooster == name) "" else name
         hintCells = emptySet()
@@ -948,6 +984,7 @@ fun MatchThreeScreen(
     }
 
     fun playCell(index: Int) {
+        if (authenticated && !trial && (!remoteMode || !remoteStateLoaded || remoteStateFailed)) return
         if (!playing || finished || won || moves <= 0 || saving || busy || dealing) return
         if (activeBooster.isEmpty()) return
         if (index !in board.indices || activeBooster == "rainbow" && index in obstacles) {
@@ -974,7 +1011,9 @@ fun MatchThreeScreen(
                         applyRemoteState(action)
                         if (notice == "Применяем бустер…") notice = null
                         noteIfStuck()
-                    }.onFailure { notice = it.message ?: "Бустер не сработал. Попробуйте ещё раз." }
+                    }.onFailure {
+                        refreshRemoteState(it.message ?: "Бустер не сработал.", discardCurrentGame = true)
+                    }
                     saving = false
                 } else if (booster == "hammer" && boosterHammer > 0) {
                     val result = MatchThreeEngine.clearAt(startBoard, obstacles, index, targetColor, System.nanoTime().toInt())
@@ -1018,6 +1057,7 @@ fun MatchThreeScreen(
     }
 
     fun playSwipe(from: Int, to: Int) {
+        if (authenticated && !trial && (!remoteMode || !remoteStateLoaded || remoteStateFailed)) return
         if (!playing || finished || won || moves <= 0 || saving || busy || dealing || activeBooster.isNotEmpty()) return
         if (!MatchThreeEngine.adjacent(from, to) || from in obstacles || to in obstacles) {
             rejectSwipe(from, to, "Камень, лёд и цепь блокируют обмен", wiggle = false)
@@ -1050,6 +1090,7 @@ fun MatchThreeScreen(
                     gamesRepository.pillMatchMove(from, to).onSuccess { action ->
                         if (!action.validMove) {
                             playSwap(to, from)
+                            applyRemoteState(action)
                             rejectSwipe(from, to, "Нужно собрать три или больше самоцветов.", wiggle = false)
                         } else {
                             playRemoteFrames(action)
@@ -1059,7 +1100,7 @@ fun MatchThreeScreen(
                         }
                     }.onFailure {
                         playSwap(to, from)
-                        notice = it.message ?: "Не удалось отправить ход"
+                        refreshRemoteState(it.message ?: "Не удалось отправить ход.", discardCurrentGame = true)
                     }
                     saving = false
                 } else if (guestMove != null) {
@@ -1075,6 +1116,7 @@ fun MatchThreeScreen(
     }
 
     fun mixBoard() {
+        if (authenticated && !trial && (!remoteMode || !remoteStateLoaded || remoteStateFailed)) return
         if (busy || dealing || saving || finished || won || moves <= 0 || boosterShuffle <= 0) return
         busy = true
         hintCells = emptySet()
@@ -1089,7 +1131,9 @@ fun MatchThreeScreen(
                         applyRemoteState(action)
                         notice = "Самоцветы перемешаны"
                         noteIfStuck()
-                    }.onFailure { notice = it.message ?: "Не удалось перемешать поле" }
+                    }.onFailure {
+                        refreshRemoteState(it.message ?: "Не удалось перемешать поле.", discardCurrentGame = true)
+                    }
                     saving = false
                 } else {
                     val mixed = runCatching { MatchThreeEngine.shuffle(startBoard, obstacles, System.nanoTime().toInt()) }.getOrElse {
@@ -1361,6 +1405,21 @@ fun MatchThreeScreen(
                     }
                 }
                 MissionPanel(color = targetColor, collected = collected, target = target, moves = moves)
+                if (authenticated && !trial && (!remoteStateLoaded || remoteStateFailed)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (remoteStateLoaded) "Сервер недоступен. Ходы временно приостановлены." else "Сверяем прогресс…",
+                            Modifier.weight(1f),
+                            color = Color(0xFFFFD689),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        if (remoteStateFailed) {
+                            TextButton(onClick = { refreshRemoteState() }, enabled = !saving) {
+                                Text("Повторить")
+                            }
+                        }
+                    }
+                }
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     val boardWidth = minOf(maxWidth, maxHeight)
                     val boardHeight = boardWidth
@@ -1374,7 +1433,8 @@ fun MatchThreeScreen(
                             hintCells = hintCells,
                             nudge = nudge,
                             nudgeToken = nudgeToken,
-                            busy = busy || saving || dealing || gameMenu,
+                            busy = busy || saving || dealing || gameMenu ||
+                                (authenticated && !trial && (!remoteStateLoaded || remoteStateFailed)),
                             obstacleHealth = if (remoteMode) obstacleHealth else emptyList(),
                             specials = if (remoteMode) remoteSpecials else emptyList(),
                             flights = remoteFlights,
@@ -1445,7 +1505,8 @@ fun MatchThreeScreen(
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val boostersReady = !saving && !busy && !dealing && !finished && !won && moves > 0
+                    val boostersReady = !saving && !busy && !dealing && !finished && !won && moves > 0 &&
+                        (!authenticated || trial || (remoteMode && remoteStateLoaded && !remoteStateFailed))
                     BoosterButton(ru.tomilo.lib.mobile.R.drawable.pill_booster_hammer, "Молот", boosterHammer, activeBooster == "hammer", Modifier.weight(1f), enabled = boostersReady, onClick = { armBooster("hammer") })
                     BoosterButton(ru.tomilo.lib.mobile.R.drawable.pill_booster_rainbow, "Радуга", boosterRainbow, activeBooster == "rainbow", Modifier.weight(1f), enabled = boostersReady, onClick = { armBooster("rainbow") })
                     BoosterButton(ru.tomilo.lib.mobile.R.drawable.pill_booster_shuffle, "Микс", boosterShuffle, false, Modifier.weight(1f), enabled = boostersReady, onClick = ::mixBoard)
@@ -1670,7 +1731,7 @@ fun MatchThreeScreen(
                                     })
                                 }
                                 if (authenticated && remoteStateFailed) {
-                                    TextButton(onClick = { stateRefreshNonce++ }, enabled = !saving) { Text("Повторить загрузку прогресса") }
+                                    TextButton(onClick = { refreshRemoteState() }, enabled = !saving) { Text("Повторить загрузку прогресса") }
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text("Пройдено: ${(saved.records.map { it.level } + remoteCompleted).distinct().size} глав", color = Color(0xFFBDC7DB), style = MaterialTheme.typography.labelMedium)
@@ -1694,7 +1755,7 @@ fun MatchThreeScreen(
                             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Рейтинг исследователей", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                 Text("Здесь отображаются сетевые прохождения. Локальная тренировка остаётся на этом устройстве.", color = Color(0xFFBAC5D6), style = MaterialTheme.typography.bodyMedium)
-                                if (user == null) Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
+                                Button(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("Войти") }
                             }
                         }
                     }

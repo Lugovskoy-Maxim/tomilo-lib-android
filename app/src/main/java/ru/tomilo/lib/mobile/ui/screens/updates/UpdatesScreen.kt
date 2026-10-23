@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.local.ContentPrefs
@@ -82,8 +83,21 @@ fun UpdatesScreen(
         page = 1
         hasMore = true
         try {
+            var freshLoaded = false
+            if (!includeAdult && items.isEmpty()) {
+                launch {
+                    catalogRepository.latestUpdatesCacheSnapshot()
+                        .onSuccess { cached ->
+                            if (!freshLoaded) {
+                                items = filterAdult(cached).distinctBy { title -> title.stableId() }
+                                hasMore = cached.size >= 24
+                            }
+                        }
+                }
+            }
             catalogRepository.latestUpdatesPage(1, 24, includeAdult)
                 .onSuccess {
+                    freshLoaded = true
                     items = filterAdult(it).distinctBy { title -> title.stableId() }
                     hasMore = it.size >= 24
                 }
@@ -130,6 +144,10 @@ fun UpdatesScreen(
             }
     }
 
+    val visibleItems = remember(items, includeAdult) {
+        if (includeAdult) items else items.filter { it.isAdult != true }
+    }
+
     Scaffold(
         containerColor = TomiloBg,
         topBar = {
@@ -155,9 +173,9 @@ fun UpdatesScreen(
         },
     ) { padding ->
         when {
-            loading && items.isEmpty() -> ListCardsSkeleton(Modifier.padding(padding))
-            error != null && items.isEmpty() -> ErrorBox(error ?: "Ошибка", Modifier.padding(padding)) { reload += 1 }
-            items.isEmpty() -> EmptyState(
+            loading && visibleItems.isEmpty() -> ListCardsSkeleton(Modifier.padding(padding))
+            error != null && visibleItems.isEmpty() -> ErrorBox(error ?: "Ошибка", Modifier.padding(padding)) { reload += 1 }
+            visibleItems.isEmpty() -> EmptyState(
                 title = "Обновлений пока нет",
                 message = "Новые главы появятся здесь сразу после публикации.",
                 icon = Icons.Outlined.Update,
@@ -185,10 +203,10 @@ fun UpdatesScreen(
                         subtitle = "Лента автоматически догружает предыдущие обновления",
                         icon = Icons.Outlined.Update,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        trailing = { StatusPill("${items.size}") },
+                        trailing = { StatusPill("${visibleItems.size}") },
                     )
                 }
-                items(items, key = { it.stableId().ifBlank { it.slug.orEmpty() } }) { title ->
+                items(visibleItems, key = { it.stableId().ifBlank { it.slug.orEmpty() } }) { title ->
                     TitleSearchCard(
                         title = title.displayTitle(),
                         cover = title.coverPath(),

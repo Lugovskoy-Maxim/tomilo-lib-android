@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.MilitaryTech
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +61,7 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.data.api.GameDisciplesDto
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.GamesRepository
+import ru.tomilo.lib.mobile.ui.components.GameCoinIcon
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
@@ -140,7 +140,6 @@ fun GamesScreen(
             )
             page == GamesPage.HUB -> GamesContent(
                 balance = user?.balance ?: 0,
-                isAdmin = user?.isAdmin() == true,
                 onOpenQuests = onOpenQuests,
                 onOpenWheel = onOpenWheel,
                 onOpenCards = { page = GamesPage.CARDS },
@@ -159,7 +158,7 @@ fun GamesScreen(
                     isAuthenticated = user != null,
                     onBack = { page = GamesPage.HUB },
                     onLogin = onLogin,
-                    onOpenSubmit = { onOpenWebTab("cards/submit") },
+                    onOpenSubmit = { onOpenWebTab("cards") },
                     onOpenWebTab = onOpenWebTab,
                 )
             }
@@ -237,7 +236,6 @@ private fun GamesGuest(
 @Composable
 private fun GamesContent(
     balance: Int,
-    isAdmin: Boolean,
     onOpenQuests: () -> Unit,
     onOpenWheel: () -> Unit,
     onOpenCards: () -> Unit,
@@ -280,7 +278,7 @@ private fun GamesContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(7.dp),
                         ) {
-                            Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = TomiloPremium, modifier = Modifier.size(20.dp))
+                            GameCoinIcon(modifier = Modifier.size(20.dp))
                             Text("$balance", fontWeight = FontWeight.Bold, maxLines = 1)
                             Text("монет", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
                         }
@@ -293,7 +291,7 @@ private fun GamesContent(
             GameModeRow(
                 icon = Icons.Default.AutoAwesome,
                 title = "Пилюли",
-                subtitle = if (isAdmin) "Три в ряд с серверным прогрессом и наградами" else "Три в ряд · локальная тренировка без наград",
+                subtitle = "Три в ряд · серверный прогресс и награды",
                 onClick = onOpenMatch,
             )
         }

@@ -32,6 +32,23 @@ fun prop(name: String): String? =
     keystoreProperties.getProperty(name)
         ?: System.getenv(name)
 
+fun configuredPlayAdUnit(name: String): String =
+    (keystoreProperties.getProperty(name)
+        ?: providers.gradleProperty(name).orNull
+        ?: System.getenv(name))
+        ?.trim()
+        .orEmpty()
+
+fun buildConfigString(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val rustoreAdUnitIds = mapOf(
+    "YANDEX_REWARDED_AD_UNIT_ID" to "R-M-19689456-1",
+    "YANDEX_REWARDED_AD_UNIT_ID_2" to "R-M-19689456-3",
+    "YANDEX_INTERSTITIAL_AD_UNIT_ID" to "R-M-19689456-2",
+    "YANDEX_NATIVE_CATALOG_AD_UNIT_ID" to "R-M-19689456-4",
+)
+
 val hasReleaseSigning =
     !prop("STORE_FILE").isNullOrBlank() &&
         !prop("STORE_PASSWORD").isNullOrBlank() &&
@@ -61,12 +78,11 @@ android {
         // ID проекта из RuStore Консоль → Push-уведомления → Проекты (пусто = SDK не инициализируется)
         val rustorePushProjectId = prop("RUSTORE_PUSH_PROJECT_ID") ?: ""
         buildConfigField("String", "RUSTORE_PUSH_PROJECT_ID", "\"$rustorePushProjectId\"")
-        // РСЯ: «Реклама с вознаграждением 02-08-2026», валюта Reward, сумма 1
-        buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"R-M-19689456-1\"")
-        // РСЯ: «Реклама с вознаграждением 31-08-2026». Грузится параллельно с -1.
-        buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID_2", "\"R-M-19689456-3\"")
-        // Interstitial между главами (~1/10 мин), блок РСЯ «Межстраничная»
-        buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", "\"R-M-19689456-2\"")
+        // Ad units are set per store flavor; empty defaults keep accidental cross-store use off.
+        buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", "\"\"")
+        buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID_2", "\"\"")
+        buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", "\"\"")
+        buildConfigField("String", "YANDEX_NATIVE_CATALOG_AD_UNIT_ID", "\"\"")
         // по умолчанию (переопределяется flavor)
         buildConfigField("String", "STORE_CHANNEL", "\"rustore\"")
         buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
@@ -85,16 +101,27 @@ android {
             isDefault = true
             buildConfigField("String", "STORE_CHANNEL", "\"rustore\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
+            // RuStore's current Yandex ad units.
+            buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", buildConfigString(rustoreAdUnitIds.getValue("YANDEX_REWARDED_AD_UNIT_ID")))
+            buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID_2", buildConfigString(rustoreAdUnitIds.getValue("YANDEX_REWARDED_AD_UNIT_ID_2")))
+            buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", buildConfigString(rustoreAdUnitIds.getValue("YANDEX_INTERSTITIAL_AD_UNIT_ID")))
+            buildConfigField("String", "YANDEX_NATIVE_CATALOG_AD_UNIT_ID", buildConfigString(rustoreAdUnitIds.getValue("YANDEX_NATIVE_CATALOG_AD_UNIT_ID")))
             // Имя приложения в лаунчере для стора
             resValue("string", "app_name", "TOMILO LIB")
         }
         create("play") {
             dimension = "store"
-            // Play Console зарегистрирован на этот id. Кабинет РСЯ привязан к
-            // ru.tomilo.lib.mobile, поэтому заполнение блоков на play-сборке не ждём.
+            // Play-сборка использует отдельные блоки РСЯ из PLAY_YANDEX_* ниже.
+            // Пустой ID отключает только соответствующий рекламный формат.
             applicationId = "ru.tomilolib.mobile"
             buildConfigField("String", "STORE_CHANNEL", "\"play\"")
             buildConfigField("boolean", "IS_CONSUMER_BUILD", "true")
+            // Set PLAY_YANDEX_* in ~/.gradle/gradle.properties or the build environment.
+            // Blank values disable that ad format until its Play-specific unit is configured.
+            buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID", buildConfigString(configuredPlayAdUnit("PLAY_YANDEX_REWARDED_AD_UNIT_ID")))
+            buildConfigField("String", "YANDEX_REWARDED_AD_UNIT_ID_2", buildConfigString(configuredPlayAdUnit("PLAY_YANDEX_REWARDED_AD_UNIT_ID_2")))
+            buildConfigField("String", "YANDEX_INTERSTITIAL_AD_UNIT_ID", buildConfigString(configuredPlayAdUnit("PLAY_YANDEX_INTERSTITIAL_AD_UNIT_ID")))
+            buildConfigField("String", "YANDEX_NATIVE_CATALOG_AD_UNIT_ID", buildConfigString(configuredPlayAdUnit("PLAY_YANDEX_NATIVE_CATALOG_AD_UNIT_ID")))
             resValue("string", "app_name", "TOMILO LIB")
         }
     }
@@ -124,9 +151,7 @@ android {
             }
         }
         debug {
-            // Суффикс .debug даёт пакет ru.tomilo.lib.mobile.debug. Кабинет РСЯ
-            // такой пакет не знает и отдаёт пустые блоки. debug ставится поверх
-            // release того же id.
+            // Версия debug-артефакта отличается суффиксом; package ID задаётся flavor.
             versionNameSuffix = "-debug"
         }
     }
@@ -157,6 +182,60 @@ android {
             val qualifiedVersion = if (ver.endsWith("-$type")) ver else "$ver-$type"
             output.outputFileName = "tomilo-$flavor-$qualifiedVersion.apk"
         }
+    }
+}
+
+// Release Play artifacts must never ship with blank, reused, or duplicate ad units.
+val playAdUnitProperties = listOf(
+    "PLAY_YANDEX_REWARDED_AD_UNIT_ID",
+    "PLAY_YANDEX_REWARDED_AD_UNIT_ID_2",
+    "PLAY_YANDEX_INTERSTITIAL_AD_UNIT_ID",
+    "PLAY_YANDEX_NATIVE_CATALOG_AD_UNIT_ID",
+)
+val verifyPlayAdUnitIsolation by tasks.registering {
+    group = "verification"
+    description = "Requires unique Google Play ad units separate from RuStore."
+    doLast {
+        val playUnits = playAdUnitProperties.associateWith(::configuredPlayAdUnit)
+        val missing = playUnits.filterValues { it.isBlank() }.keys
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Google Play release requires its own Yandex ad units: ${missing.joinToString()}. " +
+                    "Configure these PLAY_YANDEX_* secrets before building a Play release.",
+            )
+        }
+
+        val rustoreUnits = rustoreAdUnitIds.values.toSet()
+        val reusedRustoreUnits = playUnits.filterValues { it in rustoreUnits }.keys
+        if (reusedRustoreUnits.isNotEmpty()) {
+            throw GradleException(
+                "Google Play ad units must be separate from RuStore: ${reusedRustoreUnits.joinToString()}.",
+            )
+        }
+
+        val duplicatePlayUnits = playUnits.entries
+            .groupBy { it.value.lowercase() }
+            .values
+            .filter { it.size > 1 }
+            .flatten()
+            .map { it.key }
+        if (duplicatePlayUnits.isNotEmpty()) {
+            throw GradleException(
+                "Each Google Play placement needs a unique Yandex unit: ${duplicatePlayUnits.joinToString()}.",
+            )
+        }
+    }
+}
+
+val playReleasePackagingTasks = setOf(
+    "assemblePlayRelease",
+    "bundlePlayRelease",
+    "packagePlayRelease",
+    "packagePlayReleaseBundle",
+)
+tasks.configureEach {
+    if (name in playReleasePackagingTasks) {
+        dependsOn(verifyPlayAdUnitIsolation)
     }
 }
 

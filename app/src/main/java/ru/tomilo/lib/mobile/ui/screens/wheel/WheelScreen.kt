@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
@@ -108,6 +107,7 @@ import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.WheelAttemptRejectedException
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
+import ru.tomilo.lib.mobile.ui.components.GameCoinIcon
 import ru.tomilo.lib.mobile.ui.components.LoadingBox
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
 import ru.tomilo.lib.mobile.ui.components.StatusPill
@@ -463,12 +463,7 @@ fun WheelScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(top = 2.dp),
                                     ) {
-                                        Icon(
-                                            Icons.Default.MonetizationOn,
-                                            contentDescription = null,
-                                            tint = Color(0xFFFFD700),
-                                            modifier = Modifier.size(20.dp),
-                                        )
+                                        GameCoinIcon(modifier = Modifier.size(20.dp))
                                         Spacer(Modifier.width(6.dp))
                                         Text(
                                             "${data.balance} монет",
@@ -642,7 +637,7 @@ fun WheelScreen(
                                             .height(48.dp),
                                         shape = RoundedCornerShape(14.dp),
                                     ) {
-                                        Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = TomiloPremium)
+                                        GameCoinIcon(modifier = Modifier.size(18.dp))
                                         Spacer(Modifier.width(8.dp))
                                         val paidLabel = when {
                                             data.paidSpinsUsed >= data.paidSpinsLimit -> "Платные попытки на сегодня закончились"
@@ -981,7 +976,11 @@ private fun PrizeRow(segment: WheelSegmentDto) {
                     .background(color.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(rewardIcon(segment.rewardType), null, tint = color, modifier = Modifier.size(24.dp))
+                if (segment.rewardType.equals("coins", ignoreCase = true)) {
+                    GameCoinIcon(modifier = Modifier.size(24.dp))
+                } else {
+                    Icon(rewardIcon(segment.rewardType), null, tint = color, modifier = Modifier.size(24.dp))
+                }
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -1140,7 +1139,6 @@ private fun rewardTypeLabel(type: String): String = when (type.lowercase()) {
 }
 
 private fun rewardIcon(type: String) = when (type.lowercase()) {
-    "coins" -> Icons.Default.MonetizationOn
     "exp", "experience" -> Icons.Default.Bolt
     "item", "premium" -> Icons.Default.AutoAwesome
     else -> Icons.Default.Casino

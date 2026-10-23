@@ -132,7 +132,6 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                                 coins = result.coinsGained,
                                                 source = "Ежедневный бонус",
                                             )
-                                            authRepository.refreshProfile()
                                             message("+${result.experienceGained} опыта · +${result.coinsGained} монет")
                                             reload += 1
                                         }
@@ -174,7 +173,6 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                                         coins = result.coinsGained,
                                                         source = "${result.claimedCount} заданий выполнено",
                                                     )
-                                                    authRepository.refreshProfile()
                                                     message("Получено: +${result.expGained} XP · +${result.coinsGained} монет")
                                                     reload += 1
                                                 }
@@ -202,7 +200,6 @@ fun QuestsScreen(authRepository: AuthRepository, onBack: () -> Unit) {
                                                     coins = result.coinsGained,
                                                     source = quest.name,
                                                 )
-                                                authRepository.refreshProfile()
                                                 message("+${result.expGained} XP · +${result.coinsGained} монет")
                                                 reload += 1
                                             }

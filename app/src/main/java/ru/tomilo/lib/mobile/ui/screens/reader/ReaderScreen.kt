@@ -75,7 +75,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -174,6 +173,7 @@ import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
 import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
+import ru.tomilo.lib.mobile.ui.components.SeasonalProgressIndicator
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
@@ -1198,11 +1198,9 @@ fun ReaderScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { readProgress.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 56.dp).height(2.dp).clip(CircleShape),
-                        color = TomiloPrimary,
-                        trackColor = Color.White.copy(alpha = 0.24f),
+                    SeasonalProgressIndicator(
+                        progress = readProgress,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }

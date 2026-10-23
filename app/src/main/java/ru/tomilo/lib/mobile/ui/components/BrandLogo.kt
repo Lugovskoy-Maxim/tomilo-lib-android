@@ -14,8 +14,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import ru.tomilo.lib.mobile.R
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 
@@ -56,9 +62,33 @@ fun TomiloBrandHeader(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        TomiloRingLogo(size = 88.dp)
-        Spacer(Modifier.height(12.dp))
-        TomiloWordmark(maxWidth = 200.dp)
+        Text(
+            text = buildAnnotatedString {
+                withStyle(
+                    SpanStyle(
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                    ),
+                ) {
+                    append("TOMILO")
+                }
+                withStyle(
+                    SpanStyle(
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                    ),
+                ) {
+                    append(" LIB")
+                }
+            },
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = 28.sp,
+                lineHeight = 34.sp,
+            ),
+            textAlign = TextAlign.Center,
+        )
         if (!subtitle.isNullOrBlank()) {
             Spacer(Modifier.height(8.dp))
             Text(

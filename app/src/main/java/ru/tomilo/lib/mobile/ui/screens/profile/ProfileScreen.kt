@@ -141,11 +141,11 @@ import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import ru.tomilo.lib.mobile.ui.components.ProfileScreenSkeleton
 import ru.tomilo.lib.mobile.ui.components.ConfirmActionDialog
 import ru.tomilo.lib.mobile.ui.components.DecoratedAvatar
+import ru.tomilo.lib.mobile.ui.components.GameCoinIcon
 import ru.tomilo.lib.mobile.ui.components.ProfileDecorationLayer
 import ru.tomilo.lib.mobile.ui.components.profileHeaderGlass
 import ru.tomilo.lib.mobile.ui.components.ErrorBox
-import ru.tomilo.lib.mobile.ui.components.TomiloRingLogo
-import ru.tomilo.lib.mobile.ui.components.TomiloWordmark
+import ru.tomilo.lib.mobile.ui.components.TomiloBrandHeader
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
@@ -649,12 +649,7 @@ private fun UserProfileHeaderCard(
                                 )
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = TomiloPremium,
-                                    modifier = Modifier.size(15.dp),
-                                )
+                                GameCoinIcon(modifier = Modifier.size(15.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text("${user.balance ?: 0}", color = TomiloText, fontSize = 13.sp)
                             }
@@ -1681,9 +1676,7 @@ private fun LoggedOutProfileCard(
                 .padding(22.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            TomiloRingLogo(size = 68.dp)
-            Spacer(Modifier.height(12.dp))
-            TomiloWordmark(maxWidth = 160.dp)
+            TomiloBrandHeader(subtitle = null)
             Spacer(Modifier.height(14.dp))
             Text(
                 "Твой читательский профиль",

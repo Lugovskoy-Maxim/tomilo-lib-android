@@ -9,7 +9,6 @@ import com.yandex.mobile.ads.common.AdError
 import com.yandex.mobile.ads.common.AdRequest
 import com.yandex.mobile.ads.common.AdRequestError
 import com.yandex.mobile.ads.common.ImpressionData
-import com.yandex.mobile.ads.common.YandexAds
 import com.yandex.mobile.ads.rewarded.Reward
 import com.yandex.mobile.ads.rewarded.RewardedAd
 import com.yandex.mobile.ads.rewarded.RewardedAdEventListener
@@ -37,7 +36,6 @@ class RewardedAdManager(
         .map { Slot(it) }
     private val sdkReady = AtomicBoolean(false)
     private val adsAllowed = AtomicBoolean(false)
-    private val personalized = AtomicBoolean(true)
 
     @Volatile
     var isReady: Boolean = false
@@ -49,10 +47,7 @@ class RewardedAdManager(
      * при живом SDK обновляет согласие для следующих запросов.
      */
     fun setPersonalized(personalizedAds: Boolean) {
-        personalized.set(personalizedAds)
-        if (sdkReady.get()) {
-            mainHandler.post { YandexAds.setUserConsent(personalizedAds) }
-        }
+        YandexAdsSdk.setPersonalized(personalizedAds)
     }
 
     fun initialize(onReady: (() -> Unit)? = null) {
@@ -64,7 +59,6 @@ class RewardedAdManager(
             onReady?.invoke()
             return
         }
-        mainHandler.post { YandexAds.setUserConsent(personalized.get()) }
         YandexAdsSdk.initialize(appContext) {
             if (!adsAllowed.get()) {
                 onReady?.invoke()
@@ -79,7 +73,11 @@ class RewardedAdManager(
 
     /** Грузит каждый блок, у которого ещё нет креатива. Повторные вызовы не сбрасывают готовый кеш. */
     fun preload() {
-        if (!adsAllowed.get() || slots.isEmpty() || !sdkReady.get()) return
+        if (!adsAllowed.get() || slots.isEmpty()) return
+        if (!sdkReady.get()) {
+            initialize()
+            return
+        }
         slots.forEach { slot ->
             slot.retryRunnable?.let(mainHandler::removeCallbacks)
             slot.retryRunnable = null
@@ -92,8 +90,8 @@ class RewardedAdManager(
         val changed = adsAllowed.getAndSet(allowed) != allowed
         if (!allowed) {
             destroy()
-        } else if (changed || !sdkReady.get()) {
-            if (sdkReady.get()) preload() else initialize()
+        } else if (changed && sdkReady.get()) {
+            preload()
         }
     }
 

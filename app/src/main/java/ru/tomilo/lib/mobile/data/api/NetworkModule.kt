@@ -21,6 +21,15 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
+    internal const val CACHE_MODE_HEADER = "X-Tomilo-Cache-Mode"
+    internal const val STALE_CACHE_ONLY = "stale-only"
+    internal const val MEDIA_CALL_TIMEOUT_MILLIS = 8_000L
+
+    internal fun withMediaCallTimeout(
+        builder: OkHttpClient.Builder,
+        timeoutMillis: Long = MEDIA_CALL_TIMEOUT_MILLIS,
+    ): OkHttpClient.Builder = builder.callTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+
     internal fun shouldOmitAuthorizationForAdultFilteredDiscovery(request: Request): Boolean {
         val publicPath = request.url.encodedPath.removePrefix("/api")
         return request.method == "GET" &&
@@ -55,14 +64,55 @@ object NetworkModule {
     internal fun shouldBypassHttpCache(request: Request): Boolean =
         !request.header("Authorization").isNullOrBlank() || !shouldUsePublicHttpCache(request)
 
-    internal fun requestWithHttpCachePolicy(request: Request, networkAvailable: Boolean): Request = when {
-        shouldBypassHttpCache(request) -> request.newBuilder()
-            .header("Cache-Control", "no-cache, no-store")
+    internal fun staleCacheWindowSeconds(request: Request): Int? = when (
+        request.url.encodedPath.removePrefix("/api")
+    ) {
+        "/titles/latest-updates" -> 300
+        "/titles/popular" -> 600
+        "/titles/random" -> 300
+        "/users/leaderboard" -> 300
+        else -> null
+    }
+
+    internal fun isCacheOnlyRequest(request: Request): Boolean =
+        request.header("Cache-Control")
+            .orEmpty()
+            .split(',')
+            .any { it.trim().equals("only-if-cached", ignoreCase = true) }
+
+    internal fun cacheSourceLabel(request: Request, response: Response): String = when {
+        response.cacheResponse != null && response.networkResponse != null -> "revalidated"
+        response.cacheResponse != null -> "hit"
+        isCacheOnlyRequest(request) && response.code == 504 && response.networkResponse == null -> "cache-miss"
+        else -> "network"
+    }
+
+    internal fun requestWithHttpCachePolicy(request: Request, networkAvailable: Boolean): Request {
+        val cacheMode = request.header(CACHE_MODE_HEADER)
+        val sanitized = request.newBuilder()
+            .removeHeader(CACHE_MODE_HEADER)
             .build()
-        !networkAvailable -> request.newBuilder()
-            .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
-            .build()
-        else -> request
+        return when {
+            shouldBypassHttpCache(request) -> sanitized.newBuilder()
+                .header("Cache-Control", "no-cache, no-store")
+                .build()
+            cacheMode == STALE_CACHE_ONLY -> {
+                val staleWindow = staleCacheWindowSeconds(request)
+                if (staleWindow == null) {
+                    sanitized.newBuilder()
+                        .header("Cache-Control", "no-cache, no-store")
+                        .build()
+                } else {
+                    sanitized.newBuilder()
+                        .header("Cache-Control", "public, only-if-cached, max-stale=$staleWindow")
+                        .build()
+                }
+            }
+            !networkAvailable -> sanitized.newBuilder()
+                .header("Cache-Control", "public, only-if-cached, max-stale=${60 * 60 * 24 * 7}")
+                .build()
+            else -> sanitized
+        }
     }
 
     /** Null means keep the server's explicit Cache-Control unchanged. */
@@ -75,7 +125,11 @@ object NetworkModule {
         if (!response.header("Pragma").isNullOrBlank() || !response.header("Set-Cookie").isNullOrBlank()) {
             return "no-store"
         }
-        return "public, max-age=120"
+        return if (response.request.url.encodedPath.removePrefix("/api") == "/users/leaderboard") {
+            "public, max-age=120, stale-while-revalidate=300"
+        } else {
+            "public, max-age=120"
+        }
     }
 
     @Volatile private var mediaClient: OkHttpClient? = null
@@ -123,7 +177,7 @@ object NetworkModule {
         // Повторяем только безопасные GET-запросы; мутации никогда не дублируем.
         val retryGetInterceptor = Interceptor { chain ->
             val original = chain.request()
-            val maxAttempts = if (original.method == "GET") 3 else 1
+            val maxAttempts = if (original.method == "GET" && !isCacheOnlyRequest(original)) 3 else 1
             var lastFailure: java.io.IOException? = null
             var lastResponse: Response? = null
             var delayBeforeNextAttemptMs = 0L
@@ -263,6 +317,20 @@ object NetworkModule {
             .addInterceptor(retryGetInterceptor)
             .addNetworkInterceptor(cacheInterceptor)
             .addInterceptor(logging)
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val startedAtNanos = System.nanoTime()
+                val response = chain.proceed(request)
+                if (BuildConfig.DEBUG && shouldUsePublicHttpCache(request)) {
+                    val cacheSource = cacheSourceLabel(request, response)
+                    val headersTimeMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos)
+                    android.util.Log.d(
+                        "TomiloApiCache",
+                        "${request.url.encodedPath} $cacheSource code=${response.code} headers=${headersTimeMs}ms",
+                    )
+                }
+                response
+            }
             .build()
 
         return Retrofit.Builder()
@@ -290,7 +358,7 @@ object NetworkModule {
             .retryOnConnectionFailure(true)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(45, TimeUnit.SECONDS)
-            .callTimeout(60, TimeUnit.SECONDS)
+            .let { withMediaCallTimeout(it) }
             .addInterceptor { chain ->
                 val request = chain.request().newBuilder()
                     .header("User-Agent", "tomilo-lib-android/${BuildConfig.VERSION_NAME}")
@@ -298,6 +366,24 @@ object NetworkModule {
                     .build()
                 chain.proceed(request)
             }
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val response = chain.proceed(request)
+                val contentType = response.header("Content-Type")
+                    ?.substringBefore(';')
+                    ?.lowercase()
+                if (BuildConfig.DEBUG && contentType?.startsWith("image/") == true) {
+                    val cacheSource = when {
+                        response.request.tag(CoalescedCoverRequestTag::class.java) != null -> "coalesced"
+                        response.cacheResponse != null && response.networkResponse != null -> "revalidated"
+                        response.cacheResponse != null -> "hit"
+                        else -> "network"
+                    }
+                    android.util.Log.d("TomiloHttpImageCache", "$cacheSource ${request.url.host}")
+                }
+                response
+            }
+            .addInterceptor(CoverRequestCoalescingInterceptor())
             .addNetworkInterceptor { chain ->
                 val response = chain.proceed(chain.request())
                 val isImage = response.header("Content-Type")
