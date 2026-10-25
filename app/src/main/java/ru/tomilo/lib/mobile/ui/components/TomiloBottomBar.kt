@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -164,8 +165,9 @@ fun TomiloBottomBar(
                 onDismissRequest = { moreOpen = false },
                 offset = DpOffset(0.dp, 36.dp),
                 shape = RoundedCornerShape(20.dp),
-                containerColor = TomiloSurface,
-                tonalElevation = 12.dp,
+                containerColor = TomiloSurface.copy(alpha = 0.64f),
+                border = BorderStroke(1.dp, GlassBorder),
+                tonalElevation = 0.dp,
                 shadowElevation = 16.dp,
             ) {
                 val catalog = tabs.firstOrNull { it.label == "Каталог" } ?: tabs.firstOrNull()

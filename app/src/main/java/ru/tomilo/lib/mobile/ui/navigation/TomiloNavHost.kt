@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Bookmarks
@@ -181,6 +182,7 @@ fun TomiloNavHost(container: AppContainer) {
     )
     val moreTabs = listOf(
         TomiloTabItem(Routes.Profile, "Профиль", Icons.Outlined.AccountCircle, Icons.Filled.AccountCircle),
+        TomiloTabItem(Routes.Leaders, "Лидерборд", Icons.Filled.Leaderboard, Icons.Filled.Leaderboard),
         TomiloTabItem(Routes.Updates, "Обновления", Icons.Outlined.NewReleases, Icons.Outlined.NewReleases),
         TomiloTabItem(Routes.Notifications, "Уведомления", Icons.Outlined.Notifications, Icons.Outlined.Notifications),
         TomiloTabItem(Routes.Shop, "Магазин", Icons.Outlined.Store, Icons.Outlined.Store),

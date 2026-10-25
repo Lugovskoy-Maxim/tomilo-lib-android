@@ -203,6 +203,13 @@ object WebtoonTiles {
             boundsOf(file)
         }
 
+    /** Скачивает оригинал в ограниченный дисковый кеш, не декодируя bitmap. */
+    suspend fun prefetchSource(context: Context, source: String): File =
+        withContext(Dispatchers.IO) {
+            require(source.isNotBlank()) { "Пустой адрес страницы" }
+            sourceFile(context.applicationContext, source, retry = 0)
+        }
+
     suspend fun measureLocalSources(sources: List<String>): List<PageDimensions> =
         withContext(Dispatchers.IO) {
             sources.map { source ->

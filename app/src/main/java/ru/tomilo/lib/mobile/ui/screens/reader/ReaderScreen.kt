@@ -80,6 +80,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -119,6 +120,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
@@ -131,6 +135,8 @@ import coil.compose.AsyncImagePainter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -165,15 +171,16 @@ import ru.tomilo.lib.mobile.data.local.OfflineChapterEntity
 import ru.tomilo.lib.mobile.data.local.ReadingPosition
 import ru.tomilo.lib.mobile.data.local.ReadingPrefs
 import ru.tomilo.lib.mobile.data.local.ReadingSettings
+import ru.tomilo.lib.mobile.data.local.SeasonalTheme
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.data.repo.CatalogRepository
 import ru.tomilo.lib.mobile.data.repo.HistoryRepository
 import ru.tomilo.lib.mobile.data.repo.OfflineRepository
 import ru.tomilo.lib.mobile.data.repo.SocialRepository
 import ru.tomilo.lib.mobile.ui.components.CommentsSection
+import ru.tomilo.lib.mobile.ui.components.SeasonalLogoMark
 import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
 import ru.tomilo.lib.mobile.ui.components.RewardNotifications
-import ru.tomilo.lib.mobile.ui.components.SeasonalProgressIndicator
 import ru.tomilo.lib.mobile.ui.theme.TomiloBorder
 import ru.tomilo.lib.mobile.ui.theme.TomiloMuted
 import ru.tomilo.lib.mobile.ui.theme.TomiloPremium
@@ -181,8 +188,70 @@ import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface
 import ru.tomilo.lib.mobile.ui.theme.TomiloSurface2
 import ru.tomilo.lib.mobile.ui.theme.TomiloText
+import ru.tomilo.lib.mobile.ui.theme.LocalSeasonalTheme
 import java.io.File
 import java.util.Locale
+import kotlin.math.roundToInt
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReaderProgressTrack(
+    progress: Float,
+    value: Float,
+    maxValue: Float,
+    enabled: Boolean,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val season = LocalSeasonalTheme.current
+    val markerSize = if (season == SeasonalTheme.NONE) 12.dp else 20.dp
+    val primary = MaterialTheme.colorScheme.primary
+    val trackProgress = if (maxValue > 0f) (value / maxValue).coerceIn(0f, 1f) else progress.coerceIn(0f, 1f)
+
+    Slider(
+        value = value.coerceIn(0f, maxValue.coerceAtLeast(1f)),
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
+        enabled = enabled,
+        valueRange = 0f..maxValue.coerceAtLeast(1f),
+        modifier = modifier
+            .height(24.dp)
+            .semantics {
+                contentDescription = "Прогресс чтения"
+                progressBarRangeInfo = ProgressBarRangeInfo(progress.coerceIn(0f, 1f), 0f..1f)
+            },
+        colors = SliderDefaults.colors(thumbColor = Color.Transparent),
+        thumb = {
+            if (season == SeasonalTheme.NONE) {
+                Box(
+                    Modifier
+                        .size(markerSize)
+                        .background(primary, CircleShape)
+                        .border(2.dp, Color.Black.copy(alpha = 0.68f), CircleShape),
+                )
+            } else {
+                SeasonalLogoMark(theme = season, modifier = Modifier.size(markerSize))
+            }
+        },
+        track = {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.5.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.24f)),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(trackProgress)
+                        .fillMaxHeight()
+                        .background(primary, CircleShape),
+                )
+            }
+        },
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, FlowPreview::class)
 @Composable
@@ -235,6 +304,7 @@ fun ReaderScreen(
     var adCountdownJob by remember { mutableStateOf<Job?>(null) }
     val latestCountdownJob = rememberUpdatedState(adCountdownJob)
     var pages by remember { mutableStateOf<List<String>>(emptyList()) }
+    var prefetchedSources by remember(currentChapterId) { mutableStateOf<Map<Int, String>>(emptyMap()) }
     var pageDimensions by remember { mutableStateOf<List<PageDimensions>>(emptyList()) }
     var offlineIncomplete by remember { mutableStateOf(false) }
     var settledPages by remember { mutableStateOf<Map<Int, Boolean>>(emptyMap()) }
@@ -611,6 +681,49 @@ fun ReaderScreen(
             runCatching { listState.scrollToItem(index, offset) }
             restoreStep = 2
             restoredChapterId = currentChapterId
+        }
+    }
+
+    LaunchedEffect(currentChapterId, pages, loading, online, offline, preferOffline, restoredChapterId, layout) {
+        if (loading || pages.isEmpty() || !online || offline || preferOffline || restoredChapterId != currentChapterId) {
+            return@LaunchedEffect
+        }
+
+        // Кешируем оригиналы следующими парами, не декодируя всю главу в bitmap.
+        val visibleEnd = if (layout == ReaderLayout.PAGER) {
+            (pagerState.currentPage + 1).coerceAtMost(pages.lastIndex)
+        } else {
+            listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: listState.firstVisibleItemIndex
+        }
+        val startIndex = (visibleEnd + 1).coerceAtLeast(0)
+        if (startIndex >= pages.size) return@LaunchedEffect
+
+        var consecutiveFailures = 0
+        for (batchStart in startIndex until pages.size step 2) {
+            val batchEnd = minOf(batchStart + 2, pages.size)
+            val outcomes = coroutineScope {
+                (batchStart until batchEnd).map { index ->
+                    async {
+                        val source = pages[index]
+                        if (source.isBlank()) return@async true
+                        try {
+                            val file = WebtoonTiles.prefetchSource(context, source)
+                            if (layout == ReaderLayout.PAGER && file.isFile) {
+                                prefetchedSources = prefetchedSources + (index to file.toURI().toString())
+                            }
+                            true
+                        } catch (failure: CancellationException) {
+                            throw failure
+                        } catch (_: Exception) {
+                            false
+                        }
+                    }
+                }.awaitAll()
+            }
+            outcomes.forEach { success ->
+                consecutiveFailures = if (success) 0 else consecutiveFailures + 1
+            }
+            if (consecutiveFailures >= 4) return@LaunchedEffect
         }
     }
 
@@ -1016,6 +1129,7 @@ fun ReaderScreen(
             layout == ReaderLayout.PAGER -> PagerReader(
                 pages = pages,
                 pageDimensions = pageDimensions,
+                prefetchedSources = prefetchedSources,
                 pagerState = pagerState,
                 direction = direction,
                 chapterId = currentChapterId,
@@ -1197,11 +1311,6 @@ fun ReaderScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    SeasonalProgressIndicator(
-                        progress = readProgress,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
                 }
             }
         }
@@ -1249,30 +1358,35 @@ fun ReaderScreen(
                                 style = MaterialTheme.typography.labelSmall,
                             )
                         }
-                        if (pages.size > 1) {
-                            Slider(
-                                value = pageSliderValue.coerceIn(0f, pages.lastIndex.toFloat()),
-                                onValueChange = {
-                                    pageSliderActive = true
-                                    pageSliderValue = it
-                                },
-                                onValueChangeFinished = {
-                                    val target = pageSliderValue.toInt().coerceIn(0, pages.lastIndex)
-                                    scope.launch {
-                                        if (layout == ReaderLayout.PAGER) {
-                                            if (kotlin.math.abs(target - pagerState.currentPage) > 3) pagerState.scrollToPage(target)
-                                            else pagerState.animateScrollToPage(target)
-                                        } else {
-                                            if (kotlin.math.abs(target - listState.firstVisibleItemIndex) > 3) listState.scrollToItem(target)
-                                            else listState.animateScrollToItem(target)
-                                        }
+                        Spacer(Modifier.height(2.dp))
+                        ReaderProgressTrack(
+                            progress = readProgress,
+                            value = when {
+                                pageSliderActive -> pageSliderValue
+                                layout == ReaderLayout.PAGER -> pagerState.currentPage.toFloat()
+                                else -> (readProgress * pages.size).coerceIn(0f, pages.lastIndex.coerceAtLeast(0).toFloat())
+                            },
+                            maxValue = pages.lastIndex.coerceAtLeast(0).toFloat(),
+                            enabled = pages.size > 1,
+                            onValueChange = {
+                                pageSliderActive = true
+                                pageSliderValue = it
+                            },
+                            onValueChangeFinished = {
+                                val target = pageSliderValue.roundToInt().coerceIn(0, pages.lastIndex)
+                                scope.launch {
+                                    if (layout == ReaderLayout.PAGER) {
+                                        if (kotlin.math.abs(target - pagerState.currentPage) > 3) pagerState.scrollToPage(target)
+                                        else pagerState.animateScrollToPage(target)
+                                    } else {
+                                        if (kotlin.math.abs(target - listState.firstVisibleItemIndex) > 3) listState.scrollToItem(target)
+                                        else listState.animateScrollToItem(target)
                                     }
                                     pageSliderActive = false
-                                },
-                                valueRange = 0f..pages.lastIndex.toFloat(),
-                                modifier = Modifier.fillMaxWidth().height(44.dp),
-                            )
-                        }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        )
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -2403,6 +2517,7 @@ private fun WebtoonTileImage(
 private fun PagerReader(
     pages: List<String>,
     pageDimensions: List<PageDimensions>,
+    prefetchedSources: Map<Int, String>,
     pagerState: PagerState,
     direction: ReaderDirection,
     chapterId: String,
@@ -2422,10 +2537,11 @@ private fun PagerReader(
         modifier = Modifier.fillMaxSize(),
     ) { index ->
         val page = pages.getOrNull(index) ?: return@HorizontalPager
+        val displaySource = prefetchedSources[index] ?: page
         val knownHeight = pageDimensions.getOrNull(index)?.takeIf { it.isValid() }?.height
         key("$chapterId-$index") {
             ReaderPage(
-                page = page,
+                page = displaySource,
                 index = index,
                 total = pages.size,
                 failed = index in failedPages,
