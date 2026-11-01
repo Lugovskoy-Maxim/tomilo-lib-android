@@ -66,8 +66,8 @@ android {
         // RuStore / production consumer release
         // Каждый production-релиз получает новый versionCode: магазины не
         // позволяют заменить уже загруженную сборку тем же кодом версии.
-        versionCode = 53
-        versionName = "1.5.1"
+        versionCode = 54
+        versionName = "1.5.2"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")

@@ -173,6 +173,20 @@ private fun Int.libraryItemsLabel(): String = when {
     else -> "тайтлов"
 }
 
+private fun BookmarkEntryDto.readingProgressLine(progress: ReadingProgressDto?): String? {
+    val title = resolvedTitle()
+    val total = progress?.totalChapters?.takeIf { it > 0 }
+        ?: title?.totalChapters?.takeIf { it > 0 }
+        ?: title?.chaptersCount?.takeIf { it > 0 }
+        ?: return null
+    val read = progress?.chaptersRead?.coerceAtLeast(0) ?: 0
+    return when {
+        read == 0 -> "Не начато · $total гл."
+        read < total -> "Прочитано $read / $total · осталось ${total - read} гл."
+        else -> "Все $total гл. прочитаны"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
@@ -251,11 +265,15 @@ fun LibraryScreen(
         loading = false
     }
 
-    LaunchedEffect(history, user?.stableId(), tab) {
-        if (user == null || tab != ShelfTab.History || history.isEmpty()) {
-            progressByTitle = emptyMap()
-        } else {
-            progressByTitle = historyRepository.progressMap(history.map { it.titleKey() }.filter(String::isNotBlank))
+    LaunchedEffect(history, bookmarks, user?.stableId(), tab, showBookmarkOverview) {
+        progressByTitle = emptyMap()
+        if (user == null) return@LaunchedEffect
+        progressByTitle = when {
+            tab == ShelfTab.History && history.isNotEmpty() ->
+                historyRepository.progressMap(history.map { it.titleKey() }.filter(String::isNotBlank))
+            isBookmarksTab && !showBookmarkOverview && bookmarks.isNotEmpty() ->
+                historyRepository.progressMap(bookmarks.map { it.resolvedTitleId() })
+            else -> emptyMap()
         }
     }
 
@@ -536,6 +554,7 @@ fun LibraryScreen(
                                     title = item.displayName(),
                                     cover = item.coverPath(),
                                     subtitle = bookmarkLabel,
+                                    progressLine = item.readingProgressLine(progressByTitle[titleId]),
                                     secondaryActionIcon = Icons.Default.Edit,
                                     secondaryActionDescription = "Изменить категорию",
                                     onSecondaryAction = {
