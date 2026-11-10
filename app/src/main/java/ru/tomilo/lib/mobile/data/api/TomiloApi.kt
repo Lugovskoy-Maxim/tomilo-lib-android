@@ -255,6 +255,26 @@ interface TomiloApi {
         @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
     ): ApiResponse<List<CatalogTitleDto>>
 
+    @GET("titles/top/{period}")
+    suspend fun topTitles(
+        @Path("period") period: String,
+        @Query("includeAdult") includeAdult: Boolean? = null,
+        @Query("type") type: String? = null,
+        @Query("releaseYear") releaseYear: String? = null,
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
+    ): ApiResponse<List<CatalogTitleDto>>
+
+    @GET("titles/collections")
+    suspend fun editorialCollections(
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
+    ): ApiResponse<List<EditorialCollectionDto>>
+
+    @GET("collections/{id}")
+    suspend fun collectionById(
+        @Path("id") id: String,
+        @Header("X-Tomilo-Cache-Mode") cacheMode: String? = null,
+    ): ApiResponse<CollectionDetailDto>
+
     @GET("titles/{id}")
     suspend fun titleById(@Path("id") id: String): ApiResponse<TitleDetailDto>
 

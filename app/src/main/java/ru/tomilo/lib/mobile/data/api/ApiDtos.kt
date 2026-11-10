@@ -608,6 +608,40 @@ data class CatalogPageDto(
     val pagination: PaginationDto? = null,
 )
 
+/** Редакционные подборки с `/titles/collections` (короткий список + id тайтлов). */
+@Serializable
+data class EditorialCollectionDto(
+    val id: String? = null,
+    @SerialName("_id") val underscoreId: String? = null,
+    val name: String? = null,
+    val description: String? = null,
+    val cover: String? = null,
+    val image: String? = null,
+    val link: String? = null,
+    val views: Long? = null,
+    val titles: List<String> = emptyList(),
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun coverPath(): String? = cover ?: image
+    fun titleCount(): Int = titles.size
+}
+
+/** Полная подборка `/collections/{id}` с карточками тайтлов. */
+@Serializable
+data class CollectionDetailDto(
+    val id: String? = null,
+    @SerialName("_id") val underscoreId: String? = null,
+    val name: String? = null,
+    val description: String? = null,
+    val cover: String? = null,
+    val image: String? = null,
+    val views: Long? = null,
+    val titles: List<CatalogTitleDto> = emptyList(),
+) {
+    fun stableId(): String = id ?: underscoreId.orEmpty()
+    fun coverPath(): String? = cover ?: image
+}
+
 @Serializable
 data class CatalogFilterOptionsDto(
     val genres: List<String> = emptyList(),

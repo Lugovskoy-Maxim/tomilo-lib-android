@@ -189,6 +189,7 @@ fun HomeScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var updates by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var popular by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
+    var topWeek by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var randomTitles by remember { mutableStateOf<List<CatalogTitleDto>>(emptyList()) }
     var continueItems by remember { mutableStateOf<List<HistoryEntryDto>>(emptyList()) }
     var continueProgress by remember { mutableStateOf<Map<String, ReadingProgressDto>>(emptyMap()) }
@@ -287,6 +288,10 @@ fun HomeScreen(
                         randomTitles = it.filterAdult()
                     }
             }
+            launch {
+                catalogRepository.topTitles("week", includeAdult = includeAdult)
+                    .onSuccess { topWeek = it.filterAdult() }
+            }
 
             // Show each primary feed as soon as its own request completes. The
             // carousel's random batch must not hold the home screen behind it.
@@ -318,23 +323,31 @@ fun HomeScreen(
     val visibleRandomTitles = remember(randomTitles, includeAdult) {
         if (includeAdult) randomTitles else randomTitles.filter { it.isAdult != true }
     }
-    val filteredUpdates = remember(visibleUpdates, selectedFilter) {
+    val visibleTopWeek = remember(topWeek, includeAdult) {
+        if (includeAdult) topWeek else topWeek.filter { it.isAdult != true }
+    }
+    val filteredUpdates = remember(visibleUpdates, visibleTopWeek, selectedFilter) {
         when (selectedFilter) {
             FeedFilter.ALL -> visibleUpdates
             FeedFilter.MANHWA -> visibleUpdates.filter { it.type.equals("manhwa", ignoreCase = true) }
             FeedFilter.MANGA -> visibleUpdates.filter { it.type.equals("manga", ignoreCase = true) }
             FeedFilter.MANHUA -> visibleUpdates.filter { it.type.equals("manhua", ignoreCase = true) }
-            FeedFilter.TOP_RATED -> visibleUpdates.sortedByDescending { it.displayRating() ?: 0.0 }
+            // Топ недели с сайта; fallback на локальную сортировку по рейтингу.
+            FeedFilter.TOP_RATED -> visibleTopWeek.ifEmpty {
+                visibleUpdates.sortedByDescending { it.displayRating() ?: 0.0 }
+            }
         }
     }
 
-    val filteredPopular = remember(visiblePopular, selectedFilter) {
+    val filteredPopular = remember(visiblePopular, visibleTopWeek, selectedFilter) {
         when (selectedFilter) {
             FeedFilter.ALL -> visiblePopular
             FeedFilter.MANHWA -> visiblePopular.filter { it.type.equals("manhwa", ignoreCase = true) }
             FeedFilter.MANGA -> visiblePopular.filter { it.type.equals("manga", ignoreCase = true) }
             FeedFilter.MANHUA -> visiblePopular.filter { it.type.equals("manhua", ignoreCase = true) }
-            FeedFilter.TOP_RATED -> visiblePopular.sortedByDescending { it.displayRating() ?: 0.0 }
+            FeedFilter.TOP_RATED -> visibleTopWeek.ifEmpty {
+                visiblePopular.sortedByDescending { it.displayRating() ?: 0.0 }
+            }
         }
     }
 

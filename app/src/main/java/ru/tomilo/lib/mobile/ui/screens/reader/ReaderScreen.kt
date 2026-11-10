@@ -1465,10 +1465,9 @@ fun ReaderScreen(
         }
 
         if (offlineIncomplete && error == null && !loading && !needsOfflineAd && pages.isNotEmpty()) {
-            Text(
-                "Глава скачана не полностью. Пустые страницы можно докачать.",
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -1476,7 +1475,31 @@ fun ReaderScreen(
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xE01B1B21))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
+            ) {
+                Text(
+                    "Глава скачана не полностью.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            offlineRepository.repairChapter(currentChapterId)
+                                .onSuccess {
+                                    chapterNavMessage = "Глава докачана"
+                                    loadChapter(currentChapterId, restorePosition = true)
+                                }
+                                .onFailure {
+                                    chapterNavMessage = it.toUserFacingError("Не удалось докачать главу.")
+                                }
+                        }
+                    },
+                    enabled = online && !loading,
+                ) {
+                    Text("Докачать")
+                }
+            }
         }
 
         if (adCountdown > 0) {
