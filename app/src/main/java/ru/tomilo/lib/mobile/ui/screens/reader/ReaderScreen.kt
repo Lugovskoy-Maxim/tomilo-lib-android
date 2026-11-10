@@ -501,7 +501,8 @@ fun ReaderScreen(
             hasScrolledThisChapter = false
             autoAdvanceFromChapter = null
 
-            if (preferOffline || offlineRepository.isDownloaded(id)) {
+            // Неполная глава тоже открывается с диска: дыры показывают «Докачать».
+            if (preferOffline || offlineRepository.hasAnyLocalPages(id)) {
                 val local = offlineRepository.readLocalChapter(id)
                 if (!still()) return@launch
                 if (local != null) {

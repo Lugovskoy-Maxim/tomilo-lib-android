@@ -12,12 +12,14 @@ import coil.request.CachePolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
@@ -40,6 +42,10 @@ class TomiloApp : Application(), ImageLoaderFactory {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val historySyncMutex = Mutex()
+
+    private val _sessionReady = MutableStateFlow(false)
+    /** Токены из DataStore уже в TokenBridge — можно ходить в API с Authorization. */
+    val sessionReady: StateFlow<Boolean> = _sessionReady.asStateFlow()
 
     /**
      * Очередь сохраняется в DataStore, поэтому неудачные элементы останутся до
@@ -69,15 +75,28 @@ class TomiloApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // Синхронно подтянуть токен до UI — иначе чаты/закладки уходят без Authorization
-        val initialUser = runBlocking {
-            container.authStore.encryptLegacySessionSecrets()
-            TokenBridge.setCachedSession(
-                token = container.authStore.token(),
-                refreshToken = container.authStore.refreshToken(),
-            )
-            container.authStore.user()
+        // Не блокируем main thread: hydrate сессии и фоновые сервисы уходят в IO.
+        // MainActivity ждёт sessionReady перед первым Navigation/API.
+        appScope.launch {
+            runCatching {
+                container.authStore.encryptLegacySessionSecrets()
+                TokenBridge.setCachedSession(
+                    token = container.authStore.token(),
+                    refreshToken = container.authStore.refreshToken(),
+                )
+                container.authStore.user()
+            }.onSuccess { initialUser ->
+                applyInitialAdsPolicy(initialUser?.subscriptionExpiresAt)
+            }.onFailure {
+                applyInitialAdsPolicy(null)
+            }
+            _sessionReady.value = true
+            startPostSessionWork()
         }
+        NotificationHelper.ensureChannel(this)
+    }
+
+    private fun applyInitialAdsPolicy(subscriptionExpiresAt: String?) {
         // У Premium реклама отключена полностью: SDK не запрашивает и не кеширует объявления.
         // Выбор согласия убран из приложения: без Premium реклама показывается
         // всегда, поэтому на старте принудительно ставим GRANTED (старое значение
@@ -86,13 +105,15 @@ class TomiloApp : Application(), ImageLoaderFactory {
             container.adsConsentStore.set(AdsConsent.GRANTED)
         }
         val initialConsent = container.adsConsentStore.consent.value
-        val adsAllowedInitially = initialConsent.allowsAds && !Premium.isActive(initialUser?.subscriptionExpiresAt)
+        val adsAllowedInitially = initialConsent.allowsAds && !Premium.isActive(subscriptionExpiresAt)
         container.rewardedAdManager.setPersonalized(initialConsent.personalized)
         container.interstitialAdManager.setPersonalized(initialConsent.personalized)
         container.rewardedAdManager.setAdsAllowed(adsAllowedInitially)
         container.interstitialAdManager.setAdsAllowed(adsAllowedInitially)
         container.nativeCatalogAdManager.setAdsAllowed(adsAllowedInitially)
-        NotificationHelper.ensureChannel(this)
+    }
+
+    private fun startPostSessionWork() {
         if (BuildConfig.RUSTORE_PUSH_PROJECT_ID.isNotBlank()) {
             runCatching {
                 RuStorePushClient.init(
@@ -179,13 +200,14 @@ class TomiloApp : Application(), ImageLoaderFactory {
             }
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.25)
+                    .maxSizePercent(0.20)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("coil_image_cache"))
-                    .maxSizeBytes(250L * 1024L * 1024L)
+                    // OkHttp media cache уже 200 MiB — не раздуваем второй слой.
+                    .maxSizeBytes(150L * 1024L * 1024L)
                     .build()
             }
             .respectCacheHeaders(true)

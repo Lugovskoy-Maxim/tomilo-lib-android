@@ -295,8 +295,8 @@ fun HomeScreen(
             if (updatesFailure != null && popularFailure != null &&
                 updates.isEmpty() && popular.isEmpty()
             ) {
-                error = updatesFailure?.message
-                    ?: popularFailure?.message
+                error = (updatesFailure ?: popularFailure)
+                    ?.toUserFacingError("Не удалось загрузить данные")
                     ?: "Не удалось загрузить данные"
             }
         } catch (cancelled: CancellationException) {
