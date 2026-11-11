@@ -64,6 +64,7 @@ import ru.tomilo.lib.mobile.ui.screens.bookmarks.BookmarksScreen
 import ru.tomilo.lib.mobile.ui.screens.catalog.CatalogScreen
 import ru.tomilo.lib.mobile.ui.screens.chats.ChatThreadScreen
 import ru.tomilo.lib.mobile.ui.screens.chats.ChatsScreen
+import ru.tomilo.lib.mobile.ui.screens.collections.CollectionsScreen
 import ru.tomilo.lib.mobile.ui.screens.history.HistoryScreen
 import ru.tomilo.lib.mobile.ui.screens.hub.TomiloHubScreen
 import ru.tomilo.lib.mobile.ui.screens.friends.FriendsScreen
@@ -83,6 +84,7 @@ import ru.tomilo.lib.mobile.ui.screens.quests.QuestsScreen
 import ru.tomilo.lib.mobile.ui.screens.search.SearchScreen
 import ru.tomilo.lib.mobile.ui.screens.shop.ShopScreen
 import ru.tomilo.lib.mobile.ui.screens.title.TitleScreen
+import ru.tomilo.lib.mobile.ui.screens.top.TopTitlesScreen
 import ru.tomilo.lib.mobile.ui.screens.user.UserProfileScreen
 import ru.tomilo.lib.mobile.ui.screens.updates.UpdatesScreen
 import ru.tomilo.lib.mobile.ui.screens.wheel.WheelScreen
@@ -102,6 +104,8 @@ object Routes {
     const val Profile = "profile"
     const val Offline = "offline"
     const val Leaders = "leaders"
+    const val TopTitles = "top"
+    const val Collections = "collections"
     const val Notifications = "notifications"
     const val History = "history"
     const val Admin = "admin"
@@ -224,6 +228,9 @@ fun TomiloNavHost(container: AppContainer) {
             path == "friends" -> navController.navigate(Routes.Friends)
             path in setOf("updates", "latest-updates") -> navController.navigate(Routes.Updates)
             path in setOf("leaderboard", "leaders") -> navController.navigate(Routes.Leaders)
+            path == "top" -> navController.navigate(Routes.TopTitles)
+            path == "collections" || path.startsWith("collections/") ->
+                navController.navigate(Routes.Collections)
             path in setOf("daily-quests", "quests") -> navController.navigate(Routes.Quests)
             path == "history" -> navController.navigate(Routes.History)
             path == "offline" -> navController.navigate(Routes.Offline)
@@ -531,6 +538,27 @@ fun TomiloNavHost(container: AppContainer) {
                     onBack = { navController.popBackStack() },
                     onOpenShop = { navController.navigate(Routes.Shop) },
                     onOpenGames = { navController.navigate(Routes.Games) },
+                    onOpenCollections = { navController.navigate(Routes.Collections) },
+                    onOpenTop = { navController.navigate(Routes.TopTitles) },
+                )
+            }
+            composable(Routes.TopTitles) {
+                TopTitlesScreen(
+                    catalogRepository = container.catalogRepository,
+                    contentPrefs = container.contentPrefs,
+                    onBack = { navController.popBackStack() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
+                )
+            }
+            composable(Routes.Collections) {
+                CollectionsScreen(
+                    catalogRepository = container.catalogRepository,
+                    onBack = { navController.popBackStack() },
+                    onOpenTitle = { id, slug ->
+                        navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))
+                    },
                 )
             }
             composable(Routes.Games) {

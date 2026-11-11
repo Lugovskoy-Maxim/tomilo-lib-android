@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.launch
+import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.ui.components.TomiloBrandHeader
 import ru.tomilo.lib.mobile.ui.components.TomiloLoginIllustration
@@ -83,7 +84,7 @@ fun LoginScreen(
             focusManager.clearFocus()
             authRepository.login(email, password)
                 .onSuccess { onSuccess() }
-                .onFailure { error = it.message ?: "Ошибка входа" }
+                .onFailure { error = it.toUserFacingError("Не удалось войти.") }
             loading = false
         }
     }
@@ -117,7 +118,7 @@ fun LoginScreen(
                 else -> Result.failure(IllegalStateException("Неизвестный провайдер"))
             }
             res.onSuccess { onSuccess() }
-                .onFailure { error = it.message ?: "Ошибка входа" }
+                .onFailure { error = it.toUserFacingError("Не удалось войти.") }
             loading = false
         }
     }

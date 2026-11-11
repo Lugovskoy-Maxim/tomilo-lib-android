@@ -6,6 +6,8 @@ import ru.tomilo.lib.mobile.data.api.CatalogPageDto
 import ru.tomilo.lib.mobile.data.api.CatalogQuery
 import ru.tomilo.lib.mobile.data.api.CatalogTitleDto
 import ru.tomilo.lib.mobile.data.api.ChapterDto
+import ru.tomilo.lib.mobile.data.api.CollectionDetailDto
+import ru.tomilo.lib.mobile.data.api.EditorialCollectionDto
 import ru.tomilo.lib.mobile.data.api.SearchHitDto
 import ru.tomilo.lib.mobile.data.api.NetworkModule
 import ru.tomilo.lib.mobile.data.api.TitleDetailDto
@@ -125,6 +127,43 @@ class CatalogRepository(private val api: TomiloApi) {
                 res.data.orEmpty()
             }
         }
+    }
+
+    /** period: day | week | month — как на сайте /top */
+    suspend fun topTitles(
+        period: String,
+        includeAdult: Boolean = false,
+    ): Result<List<CatalogTitleDto>> = discoveryRequests.run(
+        key = "top:$period:$includeAdult",
+    ) {
+        runCatchingCancellable {
+            val safePeriod = when (period.lowercase()) {
+                "day", "week", "month" -> period.lowercase()
+                else -> "week"
+            }
+            val res = api.topTitles(
+                period = safePeriod,
+                includeAdult = if (includeAdult) null else false,
+            )
+            if (!res.success) error(res.message ?: "Не удалось загрузить топ")
+            res.data.orEmpty()
+        }
+    }
+
+    suspend fun editorialCollections(): Result<List<EditorialCollectionDto>> = discoveryRequests.run(
+        key = "editorial-collections",
+    ) {
+        runCatchingCancellable {
+            val res = api.editorialCollections()
+            if (!res.success) error(res.message ?: "Не удалось загрузить подборки")
+            res.data.orEmpty()
+        }
+    }
+
+    suspend fun collection(id: String): Result<CollectionDetailDto> = runCatchingCancellable {
+        val res = api.collectionById(id)
+        if (!res.success) error(res.message ?: "Подборка не найдена")
+        res.data ?: error("Подборка не найдена")
     }
 
     suspend fun title(idOrSlug: String): Result<TitleDetailDto> = runCatchingCancellable {

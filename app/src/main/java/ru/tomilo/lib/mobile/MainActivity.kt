@@ -7,7 +7,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.SystemBarStyle
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -15,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -22,6 +25,7 @@ import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationOpen
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
 import ru.tomilo.lib.mobile.ui.navigation.TomiloNavHost
+import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
 import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 import ru.tomilo.lib.mobile.data.update.AppUpdateCheckWorker
 import ru.tomilo.lib.mobile.rustore.RuStoreEngagement
@@ -88,6 +92,7 @@ class MainActivity : ComponentActivity() {
                     }
                 } else null
             }
+            val sessionReady by app.sessionReady.collectAsState()
             TomiloTheme(
                 accentColor = activeAccent,
                 darkTheme = darkTheme,
@@ -95,7 +100,14 @@ class MainActivity : ComponentActivity() {
                 seasonalTheme = seasonalTheme,
             ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    TomiloNavHost(container = app.container)
+                    if (sessionReady) {
+                        TomiloNavHost(container = app.container)
+                    } else {
+                        // Короткий gate: токены уже читаются на IO, UI не блокирует Application.
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = TomiloPrimary)
+                        }
+                    }
                 }
             }
         }

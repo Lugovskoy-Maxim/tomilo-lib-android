@@ -24,6 +24,8 @@ data class ReadingSettings(
     val volumeButtonsScroll: Boolean = false,
     val autoAdvanceChapters: Boolean = true,
     val lastAutoScrollOn: Boolean = false,
+    /** Базовый масштаб страниц (1.0–2.5). Удобно, когда текст на скане мелкий. */
+    val pageScale: Float = 1f,
 )
 
 data class ReadingPosition(
@@ -37,6 +39,7 @@ class ReadingPrefs(private val context: Context) {
     private val fullscreenKey = booleanPreferencesKey("start_fullscreen")
     private val volumeKey = booleanPreferencesKey("volume_buttons")
     private val autoAdvanceKey = booleanPreferencesKey("auto_advance_chapters")
+    private val pageScaleKey = floatPreferencesKey("page_scale")
     private val pendingHistoryKey = stringSetPreferencesKey("pending_offline_history")
 
     val settingsFlow: Flow<ReadingSettings> = context.readingDataStore.data.map { p ->
@@ -46,11 +49,23 @@ class ReadingPrefs(private val context: Context) {
             startFullscreen = p[fullscreenKey] ?: true,
             volumeButtonsScroll = p[volumeKey] ?: false,
             autoAdvanceChapters = p[autoAdvanceKey] ?: true,
+            pageScale = (p[pageScaleKey] ?: 1f).coerceIn(PAGE_SCALE_MIN, PAGE_SCALE_MAX),
         )
     }
 
     suspend fun setAutoScrollSpeed(speed: Float) {
         context.readingDataStore.edit { it[speedKey] = speed.coerceIn(0.4f, 5f) }
+    }
+
+    suspend fun setPageScale(scale: Float) {
+        context.readingDataStore.edit {
+            it[pageScaleKey] = scale.coerceIn(PAGE_SCALE_MIN, PAGE_SCALE_MAX)
+        }
+    }
+
+    companion object {
+        const val PAGE_SCALE_MIN = 1f
+        const val PAGE_SCALE_MAX = 2.5f
     }
 
     suspend fun setKeepScreenOn(value: Boolean) {

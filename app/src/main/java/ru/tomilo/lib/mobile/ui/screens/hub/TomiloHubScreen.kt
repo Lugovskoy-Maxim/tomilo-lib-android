@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.ContactSupport
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.ShoppingBag
@@ -51,6 +52,7 @@ private data class HubLink(
 private val contentLinks: List<HubLink>
     @Composable get() = listOf(
         HubLink("Подборки", "Тематические коллекции от сообщества", "/collections", Icons.Default.CollectionsBookmark, TomiloPrimary),
+        HubLink("Топ тайтлов", "По просмотрам за день, неделю и месяц", "/top", Icons.Default.EmojiEvents, Color(0xFFFFB454)),
         HubLink("Новости", "Обновления проекта и анонсы", "/news", Icons.Default.Newspaper, Color(0xFF62B8FF)),
         HubLink("Гайды", "Полезные материалы для читателей", "/guides", Icons.AutoMirrored.Filled.MenuBook, Color(0xFF57C7B8)),
         HubLink("Магазин Tomilo", "Украшения профиля и игровые предметы", "/tomilo-shop", Icons.Default.ShoppingBag, TomiloPremium),
@@ -71,16 +73,28 @@ fun TomiloHubScreen(
     onBack: () -> Unit,
     onOpenShop: () -> Unit = {},
     onOpenGames: () -> Unit = {},
+    onOpenCollections: () -> Unit = {},
+    onOpenTop: () -> Unit = {},
 ) {
     val context = LocalContext.current
     fun open(path: String) {
-        if (path == "/games") {
-            onOpenGames()
-            return
-        }
-        if (path == "/tomilo-shop") {
-            onOpenShop()
-            return
+        when (path) {
+            "/games" -> {
+                onOpenGames()
+                return
+            }
+            "/tomilo-shop" -> {
+                onOpenShop()
+                return
+            }
+            "/collections" -> {
+                onOpenCollections()
+                return
+            }
+            "/top" -> {
+                onOpenTop()
+                return
+            }
         }
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(BuildConfig.SITE_URL + path))) }
     }

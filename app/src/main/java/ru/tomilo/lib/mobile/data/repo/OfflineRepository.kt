@@ -52,7 +52,13 @@ class OfflineRepository(
     fun observeByTitle(titleId: String): Flow<List<OfflineChapterEntity>> = dao.observeByTitle(titleId)
     fun observeTitles(): Flow<List<OfflineTitleEntity>> = dao.observeTitles()
 
-    suspend fun isDownloaded(chapterId: String): Boolean = getLocalPages(chapterId)?.isNotEmpty() == true
+    /** Полностью скачанная глава: все слоты на месте. Дыры не считаются offline-ready. */
+    suspend fun isDownloaded(chapterId: String): Boolean =
+        readLocalChapter(chapterId)?.complete == true
+
+    /** Есть хотя бы одна целая страница — для UI «частично скачано». */
+    suspend fun hasAnyLocalPages(chapterId: String): Boolean =
+        getLocalPages(chapterId)?.isNotEmpty() == true
 
     suspend fun getEntity(chapterId: String) = dao.get(chapterId)
 

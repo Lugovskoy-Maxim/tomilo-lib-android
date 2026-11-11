@@ -34,7 +34,14 @@ object NetworkModule {
         val publicPath = request.url.encodedPath.removePrefix("/api")
         return request.method == "GET" &&
             request.url.queryParameter("includeAdult") == "false" &&
-            publicPath in setOf("/titles/latest-updates", "/titles/popular", "/titles/random")
+            publicPath in setOf(
+                "/titles/latest-updates",
+                "/titles/popular",
+                "/titles/random",
+                "/titles/top/day",
+                "/titles/top/week",
+                "/titles/top/month",
+            )
     }
 
     private fun isPublicCachePath(path: String): Boolean {
@@ -45,8 +52,13 @@ object NetworkModule {
                 "/titles/latest-updates",
                 "/titles/popular",
                 "/titles/random",
+                "/titles/collections",
+                "/titles/top/day",
+                "/titles/top/week",
+                "/titles/top/month",
                 "/users/leaderboard",
             ) ||
+            publicPath.startsWith("/collections/") ||
             publicPath == "/search" || publicPath == "/search/autocomplete"
     }
 
@@ -64,14 +76,17 @@ object NetworkModule {
     internal fun shouldBypassHttpCache(request: Request): Boolean =
         !request.header("Authorization").isNullOrBlank() || !shouldUsePublicHttpCache(request)
 
-    internal fun staleCacheWindowSeconds(request: Request): Int? = when (
-        request.url.encodedPath.removePrefix("/api")
-    ) {
-        "/titles/latest-updates" -> 300
-        "/titles/popular" -> 600
-        "/titles/random" -> 300
-        "/users/leaderboard" -> 300
-        else -> null
+    internal fun staleCacheWindowSeconds(request: Request): Int? {
+        val path = request.url.encodedPath.removePrefix("/api")
+        return when (path) {
+            "/titles/latest-updates" -> 300
+            "/titles/popular" -> 600
+            "/titles/random" -> 300
+            "/titles/collections" -> 600
+            "/titles/top/day", "/titles/top/week", "/titles/top/month" -> 300
+            "/users/leaderboard" -> 300
+            else -> if (path.startsWith("/collections/")) 300 else null
+        }
     }
 
     internal fun isCacheOnlyRequest(request: Request): Boolean =

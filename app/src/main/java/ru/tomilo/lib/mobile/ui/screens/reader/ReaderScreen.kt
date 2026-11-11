@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -110,6 +112,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
@@ -126,7 +129,9 @@ import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -501,7 +506,8 @@ fun ReaderScreen(
             hasScrolledThisChapter = false
             autoAdvanceFromChapter = null
 
-            if (preferOffline || offlineRepository.isDownloaded(id)) {
+            // Неполная глава тоже открывается с диска: дыры показывают «Докачать».
+            if (preferOffline || offlineRepository.hasAnyLocalPages(id)) {
                 val local = offlineRepository.readLocalChapter(id)
                 if (!still()) return@launch
                 if (local != null) {
@@ -1133,6 +1139,7 @@ fun ReaderScreen(
                 pagerState = pagerState,
                 direction = direction,
                 chapterId = currentChapterId,
+                pageScale = settings.pageScale,
                 failedPages = failedPages,
                 loadedPages = loadedPages,
                 pageRetryNonce = pageRetryNonce,
@@ -1160,6 +1167,7 @@ fun ReaderScreen(
                 pages = pages,
                 listState = listState,
                 chapterId = currentChapterId,
+                pageScale = settings.pageScale,
                 coilPages = coilPages,
                 coilSources = coilSources,
                 failedPages = failedPages,
@@ -1464,10 +1472,9 @@ fun ReaderScreen(
         }
 
         if (offlineIncomplete && error == null && !loading && !needsOfflineAd && pages.isNotEmpty()) {
-            Text(
-                "Глава скачана не полностью. Пустые страницы можно докачать.",
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding()
@@ -1475,7 +1482,31 @@ fun ReaderScreen(
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0xE01B1B21))
                     .padding(horizontal = 14.dp, vertical = 8.dp),
-            )
+            ) {
+                Text(
+                    "Глава скачана не полностью.",
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            offlineRepository.repairChapter(currentChapterId)
+                                .onSuccess {
+                                    chapterNavMessage = "Глава докачана"
+                                    loadChapter(currentChapterId, restorePosition = true)
+                                }
+                                .onFailure {
+                                    chapterNavMessage = it.toUserFacingError("Не удалось докачать главу.")
+                                }
+                        }
+                    },
+                    enabled = online && !loading,
+                ) {
+                    Text("Докачать")
+                }
+            }
         }
 
         if (adCountdown > 0) {
@@ -1644,6 +1675,25 @@ fun ReaderScreen(
                     }
                 }
                 Spacer(Modifier.height(18.dp))
+                Text("Масштаб страниц", color = TomiloText)
+                Text(
+                    "Увеличьте, если текст на скане мелкий. В ленте также работает щипок и двойной тап.",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Slider(
+                    value = settings.pageScale,
+                    onValueChange = { value ->
+                        scope.launch { readingPrefs.setPageScale(value) }
+                    },
+                    valueRange = ReadingPrefs.PAGE_SCALE_MIN..ReadingPrefs.PAGE_SCALE_MAX,
+                    steps = 14,
+                )
+                Text(
+                    "${String.format(Locale.ROOT, "%.0f", settings.pageScale * 100f)}%",
+                    color = TomiloMuted,
+                )
+                Spacer(Modifier.height(12.dp))
                 Text("Яркость", color = TomiloText)
                 Slider(
                     value = if (brightness < 0f) 0.55f else brightness,
@@ -1682,7 +1732,10 @@ fun ReaderScreen(
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {
-                        scope.launch { readingPrefs.setAutoScrollSpeed(speed) }
+                        scope.launch {
+                            readingPrefs.setAutoScrollSpeed(speed)
+                            readingPrefs.setPageScale(settings.pageScale)
+                        }
                         showSettings = false
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -2131,6 +2184,7 @@ private fun WebtoonReader(
     pages: List<String>,
     listState: LazyListState,
     chapterId: String,
+    pageScale: Float = 1f,
     coilPages: Set<Int>,
     coilSources: Map<Int, String>,
     failedPages: Set<Int>,
@@ -2152,7 +2206,75 @@ private fun WebtoonReader(
     autoAdvanceEnabled: Boolean,
     onOpenComments: () -> Unit,
 ) {
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+    val density = LocalDensity.current
+    val baseScale = pageScale.coerceIn(ReadingPrefs.PAGE_SCALE_MIN, ReadingPrefs.PAGE_SCALE_MAX)
+    // Щипок / двойной тап — временный зум поверх базового масштаба из настроек.
+    var gestureZoom by remember(chapterId) { mutableFloatStateOf(1f) }
+    var pan by remember(chapterId) { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(baseScale, chapterId) {
+        gestureZoom = 1f
+        pan = Offset.Zero
+    }
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        val nextGesture = (gestureZoom * zoomChange).coerceIn(1f, WEBTOON_ZOOM_MAX / baseScale)
+        gestureZoom = nextGesture
+        val total = baseScale * nextGesture
+        if (total <= 1.01f) {
+            pan = Offset.Zero
+        } else {
+            pan = Offset(pan.x + panChange.x, pan.y + panChange.y)
+        }
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .clipToBounds()
+            .pointerInput(chapterId, baseScale) {
+                detectTapGestures(
+                    onDoubleTap = { tapOffset ->
+                        if (gestureZoom > 1.05f) {
+                            gestureZoom = 1f
+                            pan = Offset.Zero
+                        } else {
+                            gestureZoom = (2.2f / baseScale).coerceIn(1f, WEBTOON_ZOOM_MAX / baseScale)
+                            val viewport = androidx.compose.ui.geometry.Size(
+                                size.width.toFloat(),
+                                size.height.toFloat(),
+                            )
+                            val center = Offset(viewport.width / 2f, viewport.height / 2f)
+                            pan = clampReaderPan(
+                                offset = (center - tapOffset) * (gestureZoom - 1f),
+                                zoom = baseScale * gestureZoom,
+                                viewport = viewport,
+                            )
+                        }
+                    },
+                )
+            },
+    ) {
+        val contentWidth = maxWidth * baseScale
+        val overflowX = with(density) { (contentWidth - maxWidth).toPx() }.coerceAtLeast(0f)
+        val maxPanX = overflowX / 2f + with(density) { maxWidth.toPx() } * (gestureZoom - 1f) / 2f
+        val panX = pan.x.coerceIn(-maxPanX, maxPanX)
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .width(contentWidth.coerceAtLeast(maxWidth))
+                .fillMaxSize()
+                .align(Alignment.TopCenter)
+                .graphicsLayer {
+                    scaleX = gestureZoom
+                    scaleY = gestureZoom
+                    translationX = panX
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                }
+                .transformable(
+                    state = transformState,
+                    canPan = { baseScale > 1.01f || gestureZoom > 1.01f },
+                    lockRotationOnZoomPan = true,
+                ),
+        ) {
         itemsIndexed(pages, key = { i, _ -> "$chapterId-$i" }) { index, page ->
             val useCoil = page.isBlank() || index in coilPages
             if (useCoil) {
@@ -2165,6 +2287,7 @@ private fun WebtoonReader(
                     loaded = index in loadedPages,
                     attempt = pageRetryNonce[index] ?: 0,
                     fillHeight = false,
+                    enableZoom = false,
                     onRetry = { onRetry(index, page) },
                     onState = { success, attempt -> onState(index, success, attempt, page) },
                     onTap = onToggleChrome,
@@ -2267,6 +2390,7 @@ private fun WebtoonReader(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -2521,6 +2645,7 @@ private fun PagerReader(
     pagerState: PagerState,
     direction: ReaderDirection,
     chapterId: String,
+    pageScale: Float = 1f,
     failedPages: Set<Int>,
     loadedPages: Set<Int>,
     pageRetryNonce: Map<Int, Int>,
@@ -2552,6 +2677,7 @@ private fun PagerReader(
                 direction = direction,
                 knownHeightPx = knownHeight,
                 measureBeforeCoil = knownHeight == null && page.isNotBlank(),
+                initialZoom = pageScale.coerceIn(ReadingPrefs.PAGE_SCALE_MIN, ReadingPrefs.PAGE_SCALE_MAX),
                 onRetry = { onRetry(index, page) },
                 onState = { success, attempt -> onState(index, success, attempt, page) },
                 onTap = onToggleChrome,
@@ -2579,6 +2705,8 @@ private fun ReaderPage(
     direction: ReaderDirection = ReaderDirection.LTR,
     knownHeightPx: Int? = null,
     measureBeforeCoil: Boolean = false,
+    enableZoom: Boolean = true,
+    initialZoom: Float = 1f,
     onPrevPage: () -> Unit = {},
     onNextPage: () -> Unit = {},
 ) {
@@ -2638,15 +2766,24 @@ private fun ReaderPage(
         coilData = cached?.toURI()?.toString() ?: page
     }
 
-    var zoomScale by remember(page) { mutableFloatStateOf(1f) }
+    var zoomScale by remember(page, initialZoom) {
+        mutableFloatStateOf(initialZoom.coerceIn(1f, PAGER_ZOOM_MAX))
+    }
     var zoomOffset by remember(page) { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(initialZoom, page) {
+        if (zoomScale <= initialZoom + 0.05f) {
+            zoomScale = initialZoom.coerceIn(1f, PAGER_ZOOM_MAX)
+            if (zoomScale <= 1.01f) zoomOffset = Offset.Zero
+        }
+    }
     val zoomState = rememberUpdatedState(zoomScale)
     val zonesState = rememberUpdatedState(pagerZones)
     val tapState = rememberUpdatedState(onTap)
     val prevState = rememberUpdatedState(onPrevPage)
     val nextState = rememberUpdatedState(onNextPage)
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        val nextScale = (zoomScale * zoomChange).coerceIn(1f, 4f)
+        if (!enableZoom) return@rememberTransformableState
+        val nextScale = (zoomScale * zoomChange).coerceIn(1f, PAGER_ZOOM_MAX)
         zoomScale = nextScale
         zoomOffset = if (nextScale <= 1.01f) Offset.Zero else zoomOffset + panChange
     }
@@ -2656,8 +2793,14 @@ private fun ReaderPage(
             .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
             .background(Color.Black)
             .clipToBounds()
-            .transformable(state = transformState, canPan = { zoomScale > 1f })
-            .pointerInput(page, direction) {
+            .then(
+                if (enableZoom) {
+                    Modifier.transformable(state = transformState, canPan = { zoomScale > 1f })
+                } else {
+                    Modifier
+                },
+            )
+            .pointerInput(page, direction, enableZoom) {
                 // Не consume: щипок и пан при масштабе > 1 остаются у transformable,
                 // горизонтальный свайп — у пейджера.
                 coroutineScope {
@@ -2685,12 +2828,28 @@ private fun ReaderPage(
                             return@awaitEachGesture
                         }
                         val now = System.currentTimeMillis()
-                        if (pendingTap?.isActive == true && now - lastUp < viewConfiguration.doubleTapTimeoutMillis) {
+                        if (enableZoom &&
+                            pendingTap?.isActive == true &&
+                            now - lastUp < viewConfiguration.doubleTapTimeoutMillis
+                        ) {
                             pendingTap?.cancel()
                             pendingTap = null
-                            val next = if (zoomState.value > 1f) 1f else 2f
-                            zoomScale = next
-                            if (next <= 1f) zoomOffset = Offset.Zero
+                            val viewport = androidx.compose.ui.geometry.Size(
+                                size.width.toFloat(),
+                                size.height.toFloat(),
+                            )
+                            if (zoomState.value > 1.05f) {
+                                zoomScale = 1f
+                                zoomOffset = Offset.Zero
+                            } else {
+                                zoomScale = PAGER_DOUBLE_TAP_ZOOM
+                                val center = Offset(viewport.width / 2f, viewport.height / 2f)
+                                zoomOffset = clampReaderPan(
+                                    offset = (center - start) * (PAGER_DOUBLE_TAP_ZOOM - 1f),
+                                    zoom = PAGER_DOUBLE_TAP_ZOOM,
+                                    viewport = viewport,
+                                )
+                            }
                         } else {
                             lastUp = now
                             val zoomed = zoomState.value > 1f
@@ -2786,6 +2945,24 @@ private fun ReaderPage(
             }
         }
     }
+}
+
+private const val WEBTOON_ZOOM_MAX = 3.5f
+private const val PAGER_ZOOM_MAX = 6f
+private const val PAGER_DOUBLE_TAP_ZOOM = 2.5f
+
+private fun clampReaderPan(
+    offset: Offset,
+    zoom: Float,
+    viewport: androidx.compose.ui.geometry.Size,
+): Offset {
+    if (zoom <= 1.01f) return Offset.Zero
+    val maxX = viewport.width * (zoom - 1f) / 2f
+    val maxY = viewport.height * (zoom - 1f) / 2f
+    return Offset(
+        x = offset.x.coerceIn(-maxX, maxX),
+        y = offset.y.coerceIn(-maxY, maxY),
+    )
 }
 
 private enum class TileReach { Near, Away, Far }
