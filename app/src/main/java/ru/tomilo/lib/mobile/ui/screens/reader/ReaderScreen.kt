@@ -145,6 +145,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -956,7 +957,10 @@ fun ReaderScreen(
             if (!listState.canScrollForward) {
                 autoScroll = false
                 hasScrolledThisChapter = true
-                if (settings.autoAdvanceChapters && autoAdvanceFromChapter != currentChapterId) {
+                if (settings.autoAdvanceChapters && autoAdvanceFromChapter != currentChapterId &&
+                    restoredChapterId == currentChapterId && settledPages.size == pages.size &&
+                    failedPages.isEmpty()
+                ) {
                     autoAdvanceFromChapter = currentChapterId
                     goNext()
                 }
@@ -994,15 +998,21 @@ fun ReaderScreen(
         snapshotFlow {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
             Triple(listState.isScrollInProgress, lastVisible, listState.canScrollForward)
-        }.collect { (scrolling, lastVisible, canScrollForward) ->
+        }.collectLatest { (scrolling, lastVisible, canScrollForward) ->
             if (scrolling) hasScrolledThisChapter = true
             val reachedChapterFooter = lastVisible >= pages.size && !canScrollForward
             if (settings.autoAdvanceChapters && !scrolling && hasScrolledThisChapter && reachedChapterFooter &&
                 autoAdvanceFromChapter != currentChapterId
             ) {
-                autoAdvanceFromChapter = currentChapterId
                 delay(350)
-                goNext()
+                if (!listState.isScrollInProgress && !listState.canScrollForward &&
+                    (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= pages.size &&
+                    restoredChapterId == currentChapterId && settledPages.size == pages.size &&
+                    failedPages.isEmpty()
+                ) {
+                    autoAdvanceFromChapter = currentChapterId
+                    goNext()
+                }
             }
         }
     }
@@ -1701,8 +1711,13 @@ fun ReaderScreen(
                     valueRange = 0.08f..1f,
                 )
                 if (layout == ReaderLayout.WEBTOON) {
-                    Text("Скорость ленты", color = TomiloText)
-                    Slider(value = speed, onValueChange = { speed = it }, valueRange = 0.4f..5f, steps = 22)
+                    Text("Скорость автопрокрутки", color = TomiloText)
+                    Slider(
+                        value = speed,
+                        onValueChange = { speed = it },
+                        onValueChangeFinished = { scope.launch { readingPrefs.setAutoScrollSpeed(speed) } },
+                        valueRange = ReadingPrefs.AUTO_SCROLL_MIN..ReadingPrefs.AUTO_SCROLL_MAX,
+                    )
                     Text("${String.format(Locale.ROOT, "%.1f", speed)}×", color = TomiloMuted)
                 }
                 Spacer(Modifier.height(8.dp))
@@ -2438,11 +2453,14 @@ private fun TiledWebtoonPage(
     val density = LocalDensity.current
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.roundToPx() }.coerceAtLeast(1)
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.roundToPx() }.coerceAtLeast(1)
-    var sourceDims by remember(page, attempt) { mutableStateOf<PageDimensions?>(null) }
+    // Preserve geometry when LazyColumn recreates an offscreen page.
+    var sourceWidth by rememberSaveable(page, attempt) { mutableIntStateOf(0) }
+    var sourceHeight by rememberSaveable(page, attempt) { mutableIntStateOf(0) }
+    val sourceDims = if (sourceWidth > 0 && sourceHeight > 0) PageDimensions(sourceWidth, sourceHeight) else null
     var gaveUp by remember(page, attempt) { mutableStateOf(false) }
     // Качаем исходник только у страницы, которая уже на экране. Серверные
     // размеры в нарезку не идут: сетка строится по файлу.
-    LaunchedEffect(page, attempt) {
+    LaunchedEffect(page, attempt, sourceDims) {
         snapshotFlow {
             val info = listState.layoutInfo
             val onScreen = info.visibleItemsInfo.any { it.index == index }
@@ -2461,7 +2479,8 @@ private fun TiledWebtoonPage(
                 gaveUp = true
                 onUseCoil(WebtoonTiles.peekCachedFile(context, page))
             } else {
-                sourceDims = measured
+                sourceWidth = measured.width
+                sourceHeight = measured.height
             }
         }
     }

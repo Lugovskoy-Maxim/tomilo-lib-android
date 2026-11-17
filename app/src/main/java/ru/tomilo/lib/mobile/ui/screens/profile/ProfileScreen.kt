@@ -1451,8 +1451,7 @@ private fun ProfileSettingsTab(
                     Slider(
                         value = readingSettings.autoScrollSpeed,
                         onValueChange = onAutoScrollSpeed,
-                        valueRange = 0.5f..4.0f,
-                        steps = 6,
+                        valueRange = ReadingPrefs.AUTO_SCROLL_MIN..ReadingPrefs.AUTO_SCROLL_MAX,
                         colors = SliderDefaults.colors(
                             thumbColor = TomiloPrimary,
                             activeTrackColor = TomiloPrimary,

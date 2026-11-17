@@ -54,7 +54,7 @@ class ReadingPrefs(private val context: Context) {
     }
 
     suspend fun setAutoScrollSpeed(speed: Float) {
-        context.readingDataStore.edit { it[speedKey] = speed.coerceIn(0.4f, 5f) }
+        context.readingDataStore.edit { it[speedKey] = speed.coerceIn(AUTO_SCROLL_MIN, AUTO_SCROLL_MAX) }
     }
 
     suspend fun setPageScale(scale: Float) {
@@ -64,6 +64,8 @@ class ReadingPrefs(private val context: Context) {
     }
 
     companion object {
+        const val AUTO_SCROLL_MIN = 0.4f
+        const val AUTO_SCROLL_MAX = 10f
         const val PAGE_SCALE_MIN = 1f
         const val PAGE_SCALE_MAX = 2.5f
     }
