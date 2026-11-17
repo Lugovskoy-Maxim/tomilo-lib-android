@@ -1,0 +1,2 @@
+# Preserve byte-for-byte hashes of the verified offline game bundle.
+app/src/main/assets/sect-training/** -text
