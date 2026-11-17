@@ -4,8 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.SystemBarStyle
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
 import ru.tomilo.lib.mobile.push.NotificationHelper
 import ru.tomilo.lib.mobile.push.NotificationOpen
 import ru.tomilo.lib.mobile.push.NotificationsPollWorker
@@ -41,6 +39,7 @@ import kotlinx.coroutines.delay
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val activityWindow = window
         val app = application as TomiloApp
         handleNotificationIntent(intent)
         setContent {
@@ -67,19 +66,14 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT, ThemeMode.COFFEE -> false
                 ThemeMode.SYSTEM -> systemDark
             }
-            // Системные панели следуют выбранной теме, а не системной ночи.
+            // Не вызываем enableEdgeToEdge: AndroidX устанавливает через него
+            // устаревшие цвета системных панелей и режим выреза экрана.
+            // WindowCompat сохраняет тот же layout и даёт Compose рисовать под панелями.
             androidx.compose.runtime.SideEffect {
-                val statusBarStyle = if (darkTheme) {
-                    SystemBarStyle.dark(Color.Transparent.toArgb())
-                } else {
-                    SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
-                }
-                val navBarStyle = if (darkTheme) {
-                    SystemBarStyle.dark(Color.Transparent.toArgb())
-                } else {
-                    SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
-                }
-                enableEdgeToEdge(statusBarStyle = statusBarStyle, navigationBarStyle = navBarStyle)
+                WindowCompat.setDecorFitsSystemWindows(activityWindow, false)
+                val controller = WindowCompat.getInsetsController(activityWindow, activityWindow.decorView)
+                controller.isAppearanceLightStatusBars = !darkTheme
+                controller.isAppearanceLightNavigationBars = !darkTheme
             }
             val user by app.container.authStore.userFlow.collectAsState(initial = null)
             val isPremium = ru.tomilo.lib.mobile.core.Premium.isActive(user?.subscriptionExpiresAt)
