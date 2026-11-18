@@ -16,6 +16,8 @@ concurrency:
 jobs:
   release:
     name: Build signed APK and Play App Bundle
+    env:
+      VKID_CLIENT_SECRET: ${{ secrets.VKID_CLIENT_SECRET }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:

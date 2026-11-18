@@ -53,9 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
@@ -94,11 +92,6 @@ private val MoreShape = RoundedCornerShape(38.dp)
 private val GlassBorder: Color @Composable get() = TomiloText.copy(alpha = 0.14f)
 
 @Composable
-private fun glassFill(): Brush = Brush.verticalGradient(
-    listOf(TomiloSurface.copy(alpha = 0.68f), TomiloSurface.copy(alpha = 0.54f)),
-)
-
-@Composable
 fun TomiloBottomBar(
     tabs: List<TomiloTabItem>,
     moreItems: List<TomiloTabItem> = emptyList(),
@@ -114,7 +107,10 @@ fun TomiloBottomBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 4.dp)
-            .widthIn(max = 520.dp),
+            .widthIn(max = 520.dp)
+            .clip(BarShape)
+            .background(TomiloSurface)
+            .border(1.dp, GlassBorder, BarShape),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -122,19 +118,6 @@ fun TomiloBottomBar(
             modifier = Modifier
                 .weight(1f)
                 .selectableGroup()
-                .shadow(
-                    elevation = 6.dp,
-                    shape = BarShape,
-                    ambientColor = Color.Black.copy(alpha = 0.45f),
-                    spotColor = Color.Black.copy(alpha = 0.35f),
-                )
-                .clip(BarShape)
-                .background(glassFill())
-                .border(
-                    width = 1.dp,
-                    color = GlassBorder,
-                    shape = BarShape,
-                )
                 .padding(horizontal = 5.dp, vertical = 3.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
@@ -304,10 +287,7 @@ private fun MoreNavItem(onClick: () -> Unit) {
         modifier = Modifier
             .heightIn(min = 64.dp)
             .width(72.dp)
-            .shadow(6.dp, MoreShape, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.35f))
             .clip(MoreShape)
-            .background(glassFill())
-            .border(1.dp, GlassBorder, MoreShape)
             .clickable(
                 role = Role.Tab,
                 onClick = {

@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.Tomilo.Starting" parent="Theme.Tomilo">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/logo_tomilo_ring</item>
+    </style>
+</resources>

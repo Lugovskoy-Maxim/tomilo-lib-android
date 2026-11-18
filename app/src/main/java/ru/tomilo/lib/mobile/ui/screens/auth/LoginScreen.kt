@@ -1,6 +1,16 @@
 package ru.tomilo.lib.mobile.ui.screens.auth
 
 import android.app.Activity
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import ru.tomilo.lib.mobile.BuildConfig
+import ru.tomilo.lib.mobile.R
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -37,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -53,7 +64,6 @@ import kotlinx.coroutines.launch
 import ru.tomilo.lib.mobile.core.toUserFacingError
 import ru.tomilo.lib.mobile.data.repo.AuthRepository
 import ru.tomilo.lib.mobile.ui.components.TomiloBrandHeader
-import ru.tomilo.lib.mobile.ui.components.TomiloLoginIllustration
 import ru.tomilo.lib.mobile.ui.components.tomiloTopBarColors
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloDanger
@@ -70,6 +80,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
+    var oauthPending by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var showPassword by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -77,7 +88,7 @@ fun LoginScreen(
     val focusManager = LocalFocusManager.current
 
     fun submit() {
-        if (loading || email.isBlank() || password.isBlank()) return
+        if (loading || oauthPending || email.isBlank() || password.isBlank()) return
         scope.launch {
             loading = true
             error = null
@@ -92,27 +103,29 @@ fun LoginScreen(
     val oauthLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        oauthPending = false
         if (result.resultCode != Activity.RESULT_OK) {
-            val msg = result.data?.getStringExtra(OAuthWebActivity.EXTRA_ERROR)
+            val msg = result.data?.getStringExtra(NativeOAuthActivity.EXTRA_ERROR)
             if (!msg.isNullOrBlank()) error = msg
             return@rememberLauncherForActivityResult
         }
         val data = result.data ?: return@rememberLauncherForActivityResult
-        val provider = data.getStringExtra(OAuthWebActivity.EXTRA_PROVIDER)
+        val provider = data.getStringExtra(NativeOAuthActivity.EXTRA_PROVIDER)
         scope.launch {
             loading = true
             error = null
             val res = when (provider) {
-                OAuthWebActivity.PROVIDER_YANDEX -> {
-                    val token = data.getStringExtra(OAuthWebActivity.EXTRA_ACCESS_TOKEN).orEmpty()
+                NativeOAuthActivity.PROVIDER_YANDEX -> {
+                    val token = data.getStringExtra(NativeOAuthActivity.EXTRA_ACCESS_TOKEN).orEmpty()
                     authRepository.loginYandex(token)
                 }
-                OAuthWebActivity.PROVIDER_VK -> {
+                NativeOAuthActivity.PROVIDER_VK -> {
                     authRepository.loginVkId(
-                        code = data.getStringExtra(OAuthWebActivity.EXTRA_CODE).orEmpty(),
-                        codeVerifier = data.getStringExtra(OAuthWebActivity.EXTRA_CODE_VERIFIER).orEmpty(),
-                        deviceId = data.getStringExtra(OAuthWebActivity.EXTRA_DEVICE_ID).orEmpty(),
-                        state = data.getStringExtra(OAuthWebActivity.EXTRA_STATE).orEmpty(),
+                        code = data.getStringExtra(NativeOAuthActivity.EXTRA_CODE).orEmpty(),
+                        codeVerifier = data.getStringExtra(NativeOAuthActivity.EXTRA_CODE_VERIFIER).orEmpty(),
+                        deviceId = data.getStringExtra(NativeOAuthActivity.EXTRA_DEVICE_ID).orEmpty(),
+                        state = data.getStringExtra(NativeOAuthActivity.EXTRA_STATE).orEmpty(),
+                        redirectUri = data.getStringExtra(NativeOAuthActivity.EXTRA_REDIRECT_URI),
                     )
                 }
                 else -> Result.failure(IllegalStateException("Неизвестный провайдер"))
@@ -146,37 +159,54 @@ fun LoginScreen(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            TomiloBrandHeader(subtitle = "Тот же аккаунт, что на tomilo-lib.ru")
-            Spacer(Modifier.height(8.dp))
-            TomiloLoginIllustration(height = 140.dp)
-            Spacer(Modifier.height(16.dp))
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TomiloBrandHeader(subtitle = null)
+                Text(
+                    "Войдите, чтобы открыть свою полку и продолжить чтение.",
+                    color = TomiloMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Spacer(Modifier.height(24.dp))
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = {
-                        oauthLauncher.launch(
-                            OAuthWebActivity.intent(context, OAuthWebActivity.PROVIDER_YANDEX),
-                        )
-                    },
-                    enabled = !loading,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 13.dp),
-                ) { Text("Яндекс", fontWeight = FontWeight.SemiBold) }
-                OutlinedButton(
-                    onClick = {
-                        oauthLauncher.launch(
-                            OAuthWebActivity.intent(context, OAuthWebActivity.PROVIDER_VK),
-                        )
-                    },
-                    enabled = !loading,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 13.dp),
-                ) { Text("VK", fontWeight = FontWeight.SemiBold) }
+            fun launchProvider(provider: String) {
+                if (loading || oauthPending) return
+                error = null
+                focusManager.clearFocus()
+                oauthPending = true
+                try {
+                    val intent = if (provider == NativeOAuthActivity.PROVIDER_VK && !BuildConfig.HAS_VKID_CONFIG) {
+                        OAuthWebActivity.intent(context, OAuthWebActivity.PROVIDER_VK)
+                    } else {
+                        NativeOAuthActivity.intent(context, provider)
+                    }
+                    oauthLauncher.launch(intent)
+                } catch (_: android.content.ActivityNotFoundException) {
+                    oauthPending = false
+                    error = "Не удалось открыть вход. Повторите попытку."
+                }
+            }
+
+            ProviderButton("Войти через VK", !loading && !oauthPending, {
+                launchProvider(NativeOAuthActivity.PROVIDER_VK)
+            }) {
+                Image(painterResource(R.drawable.ic_login_vk), null, Modifier.size(24.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            ProviderButton("Войти через Яндекс", !loading && !oauthPending, {
+                launchProvider(NativeOAuthActivity.PROVIDER_YANDEX)
+            }) {
+                Box(
+                    Modifier.size(24.dp).background(Color(0xFFFC3F1D), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Я", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(Modifier.height(20.dp))
-            Text("или email", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(8.dp))
+            Text("или по электронной почте", color = TomiloMuted, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
                 value = email,
@@ -225,12 +255,36 @@ fun LoginScreen(
             Spacer(Modifier.height(20.dp))
             Button(
                 onClick = { submit() },
-                enabled = !loading && email.isNotBlank() && password.isNotBlank(),
+                enabled = !loading && !oauthPending && email.isNotBlank() && password.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().height(54.dp),
             ) {
                 Text(if (loading) "Входим…" else "Войти", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProviderButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    logo: @Composable () -> Unit,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            logo()
+            Text(label, fontWeight = FontWeight.SemiBold)
         }
     }
 }

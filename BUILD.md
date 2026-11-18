@@ -10,13 +10,15 @@ JDK 17+, Android SDK 36.
 
 APK: `app/build/outputs/apk/rustore/debug/`
 
+Настройки прямого входа через VK ID и Яндекс: [`docs/NATIVE-OAUTH.md`](docs/NATIVE-OAUTH.md).
+
 ## Релиз GitHub
 
-Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.5.5** (`versionCode 57`).
+Тег `v*` должен совпадать с `versionName` в `app/build.gradle.kts`. Сейчас **1.5.6** (`versionCode 58`).
 
 ```bash
-git tag v1.5.5
-git push origin v1.5.5
+git tag v1.5.6
+git push origin v1.5.6
 ```
 
 Либо Actions → **Release**. Подробности: [`.github/RELEASE.md`](.github/RELEASE.md).

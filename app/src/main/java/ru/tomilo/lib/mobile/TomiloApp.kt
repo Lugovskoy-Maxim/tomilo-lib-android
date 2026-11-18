@@ -74,6 +74,10 @@ class TomiloApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.HAS_VKID_CONFIG) {
+            com.vk.id.VKID.init(this)
+            com.vk.id.VKID.logsEnabled = false
+        }
         container = AppContainer(this)
         // Не блокируем main thread: hydrate сессии и фоновые сервисы уходят в IO.
         // MainActivity ждёт sessionReady перед первым Navigation/API.

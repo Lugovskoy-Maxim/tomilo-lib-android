@@ -42,6 +42,7 @@ class AuthRepository(
         codeVerifier: String,
         deviceId: String,
         state: String,
+        redirectUri: String? = null,
     ): Result<UserDto> = runCatchingCancellable {
         persist(
             api.loginVkId(
@@ -50,6 +51,7 @@ class AuthRepository(
                     codeVerifier = codeVerifier,
                     deviceId = deviceId,
                     state = state,
+                    redirectUri = redirectUri,
                 ),
             ),
         )

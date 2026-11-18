@@ -42,6 +42,18 @@ fun configuredPlayAdUnit(name: String): String =
 fun buildConfigString(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
+// Provider application settings; never use the RuStore publishing API key here.
+val oauthProperties = Properties().apply {
+    val config = rootProject.file("secrets.properties")
+    if (config.exists()) config.inputStream().use { load(it) }
+}
+fun oauthSetting(name: String, fallback: String = ""): String =
+    (providers.gradleProperty(name).orNull ?: System.getenv(name)
+        ?: oauthProperties.getProperty(name) ?: fallback).trim()
+val vkClientId = oauthSetting("VKID_CLIENT_ID", "54445438")
+val vkClientSecret = oauthSetting("VKID_CLIENT_SECRET")
+val yandexClientId = oauthSetting("YANDEX_AUTH_CLIENT_ID", "ffd24e1c16544069bc7a1e8c66316f37")
+
 val rustoreAdUnitIds = mapOf(
     "YANDEX_REWARDED_AD_UNIT_ID" to "R-M-19689456-1",
     "YANDEX_REWARDED_AD_UNIT_ID_2" to "R-M-19689456-3",
@@ -66,8 +78,8 @@ android {
         // RuStore / production consumer release
         // Каждый production-релиз получает новый versionCode: магазины не
         // позволяют заменить уже загруженную сборку тем же кодом версии.
-        versionCode = 57
-        versionName = "1.5.5"
+        versionCode = 58
+        versionName = "1.5.6"
 
         buildConfigField("String", "API_BASE_URL", "\"https://tomilo-lib.ru/api/\"")
         buildConfigField("String", "CDN_BASE_URL", "\"https://cdn.tomilo-lib.ru\"")
@@ -75,6 +87,13 @@ android {
         buildConfigField("String", "SITE_URL", "\"https://tomilo-lib.ru\"")
         buildConfigField("String", "GITHUB_REPO", "\"Lugovskoy-Maxim/tomilo-lib-android\"")
         buildConfigField("boolean", "HAS_FCM", hasGoogleServices.toString())
+        buildConfigField("String", "VKID_CLIENT_ID", buildConfigString(vkClientId))
+        buildConfigField("boolean", "HAS_VKID_CONFIG", (vkClientId.isNotBlank() && vkClientSecret.isNotBlank()).toString())
+        manifestPlaceholders["YANDEX_CLIENT_ID"] = yandexClientId
+        manifestPlaceholders["VKIDClientID"] = vkClientId
+        manifestPlaceholders["VKIDClientSecret"] = vkClientSecret
+        manifestPlaceholders["VKIDRedirectHost"] = "vk.ru"
+        manifestPlaceholders["VKIDRedirectScheme"] = "vk$vkClientId"
         // ID проекта из RuStore Консоль → Push-уведомления → Проекты (пусто = SDK не инициализируется)
         val rustorePushProjectId = prop("RUSTORE_PUSH_PROJECT_ID") ?: ""
         buildConfigField("String", "RUSTORE_PUSH_PROJECT_ID", "\"$rustorePushProjectId\"")
@@ -244,6 +263,10 @@ ksp {
 }
 
 dependencies {
+    implementation("androidx.media3:media3-exoplayer:1.6.1")
+    implementation("androidx.media3:media3-ui:1.6.1")
+    implementation("com.yandex.android:authsdk:3.1.3")
+    implementation("com.vk.id:vkid:2.7.3")
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)

@@ -47,6 +47,7 @@ data class VkIdLoginRequest(
     @SerialName("code_verifier") val codeVerifier: String,
     @SerialName("device_id") val deviceId: String,
     val state: String,
+    @SerialName("redirect_uri") val redirectUri: String? = null,
 )
 
 @Serializable

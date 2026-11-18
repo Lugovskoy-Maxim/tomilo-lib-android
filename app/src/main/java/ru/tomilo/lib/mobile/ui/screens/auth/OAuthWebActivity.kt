@@ -7,14 +7,29 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
+import android.os.Message
 import android.util.Base64
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
+import android.webkit.WebResourceResponse
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Button
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import ru.tomilo.lib.mobile.core.OAuthConfig
+import ru.tomilo.lib.mobile.core.OAuthRedirectPolicy
 import ru.tomilo.lib.mobile.ui.theme.TomiloBg
 import ru.tomilo.lib.mobile.ui.theme.TomiloTheme
 import java.security.MessageDigest
@@ -39,6 +55,9 @@ import java.security.SecureRandom
 class OAuthWebActivity : ComponentActivity() {
 
     private val loading = mutableStateOf(true)
+    private val loadError = mutableStateOf<String?>(null)
+    private var webView: WebView? = null
+    private var authUrl = ""
 
     @OptIn(ExperimentalMaterial3Api::class)
     @SuppressLint("SetJavaScriptEnabled")
@@ -47,7 +66,7 @@ class OAuthWebActivity : ComponentActivity() {
         val provider = intent.getStringExtra(EXTRA_PROVIDER) ?: PROVIDER_YANDEX
         val title = if (provider == PROVIDER_VK) "Вход через VK" else "Вход через Яндекс"
 
-        val authUrl = if (provider == PROVIDER_VK) {
+        authUrl = savedInstanceState?.getString("auth_url") ?: if (provider == PROVIDER_VK) {
             buildVkAuthUrl()
         } else {
             buildYandexAuthUrl()
@@ -71,48 +90,127 @@ class OAuthWebActivity : ComponentActivity() {
                         )
                     },
                 ) { padding ->
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding),
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                webViewClient = object : WebViewClient() {
-                                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                        loading.value = true
-                                        url?.let { maybeHandle(it) }
+                    LaunchedEffect(loading.value, loadError.value) {
+                        if (loading.value && loadError.value == null) {
+                            delay(30_000)
+                            if (loading.value) loadError.value = "Страница входа не отвечает. Проверьте подключение и повторите попытку."
+                        }
+                    }
+                    Box(Modifier.fillMaxSize().padding(padding)) {
+                        AndroidView(
+                            modifier = Modifier
+                                .fillMaxSize(),
+                            factory = { ctx ->
+                                WebView(ctx).apply {
+                                    webView = this
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    CookieManager.getInstance().setAcceptCookie(true)
+                                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                    settings.setSupportMultipleWindows(true)
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+                                            if (!isUserGesture) return false
+                                            val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+                                            val parent = this@apply
+                                            val popup = WebView(ctx)
+                                            popup.webViewClient = object : WebViewClient() {
+                                                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                                    val uri = request?.url ?: return false
+                                                    if (uri.scheme == "https") parent.loadUrl(uri.toString())
+                                                    else showLoadError()
+                                                    popup.destroy()
+                                                    return true
+                                                }
+                                            }
+                                            transport.webView = popup
+                                            resultMsg.sendToTarget()
+                                            return true
+                                        }
                                     }
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                            loading.value = true
+                                            url?.let { maybeHandle(it) }
+                                        }
 
-                                    override fun shouldOverrideUrlLoading(
-                                        view: WebView?,
-                                        request: WebResourceRequest?,
-                                    ): Boolean {
-                                        val u = request?.url?.toString() ?: return false
-                                        return maybeHandle(u)
-                                    }
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView?,
+                                            request: WebResourceRequest?,
+                                        ): Boolean {
+                                            if (request?.isForMainFrame != true) return false
+                                            val u = request.url.toString()
+                                            if (maybeHandle(u)) return true
+                                            if (request.url.scheme !in listOf("https", "http")) {
+                                                loadError.value = "Не удалось открыть переход VK. Вернитесь назад и повторите вход через веб-форму."
+                                                loading.value = false
+                                                return true
+                                            }
+                                            return false
+                                        }
 
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        loading.value = false
-                                        url?.let { maybeHandle(it) }
+                                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                                            if (request?.isForMainFrame == true) showLoadError()
+                                        }
+
+                                        override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+                                            if (request?.isForMainFrame == true && (errorResponse?.statusCode ?: 0) >= 400) showLoadError()
+                                        }
+
+                                        override fun onPageFinished(view: WebView?, url: String?) {
+                                            loading.value = false
+                                            url?.let { maybeHandle(it) }
+                                        }
                                     }
+                                    loadUrl(authUrl)
                                 }
-                                loadUrl(authUrl)
+                            },
+                        )
+                        if (loadError.value != null) {
+                            Column(
+                                Modifier.fillMaxSize().background(TomiloBg),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Text(loadError.value.orEmpty(), modifier = Modifier.padding(24.dp))
+                                Button(onClick = {
+                                    loadError.value = null
+                                    loading.value = true
+                                    authUrl = if (provider == PROVIDER_VK) buildVkAuthUrl() else buildYandexAuthUrl()
+                                    webView?.loadUrl(authUrl)
+                                }) { Text("Повторить") }
                             }
-                        },
-                    )
+                        } else if (loading.value) {
+                            CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        }
+                    }
                 }
             }
         }
     }
 
+    private fun showLoadError() {
+        loading.value = false
+        loadError.value = "Не удалось загрузить страницу входа. Проверьте подключение и повторите попытку."
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("auth_url", authUrl)
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onDestroy() {
+        webView?.destroy()
+        webView = null
+        super.onDestroy()
+    }
+
     private fun maybeHandle(url: String): Boolean {
         return when {
-            url.startsWith(OAuthConfig.YANDEX_REDIRECT) || url.contains("/auth/yandex") -> {
+            OAuthRedirectPolicy.matches(url, OAuthConfig.YANDEX_REDIRECT) -> {
                 handleYandex(url)
             }
-            url.startsWith(OAuthConfig.VK_REDIRECT) || url.contains("/auth/vk") -> {
+            OAuthRedirectPolicy.matches(url, OAuthConfig.VK_REDIRECT) -> {
                 handleVk(url)
             }
             else -> false
@@ -164,6 +262,11 @@ class OAuthWebActivity : ComponentActivity() {
                 .getString(KEY_VK_VERIFIER, "").orEmpty()
             val expectedState = getSharedPreferences(PREFS, MODE_PRIVATE)
                 .getString(KEY_VK_STATE, "").orEmpty()
+            if (!OAuthRedirectPolicy.validVkResponse(verifier, expectedState, state, deviceId)) {
+                setResult(Activity.RESULT_CANCELED, Intent().putExtra(EXTRA_ERROR, "Не удалось подтвердить вход через VK. Повторите попытку."))
+                finish()
+                return true
+            }
             setResult(
                 Activity.RESULT_OK,
                 Intent()
@@ -171,7 +274,7 @@ class OAuthWebActivity : ComponentActivity() {
                     .putExtra(EXTRA_CODE, code)
                     .putExtra(EXTRA_CODE_VERIFIER, verifier)
                     .putExtra(EXTRA_DEVICE_ID, deviceId)
-                    .putExtra(EXTRA_STATE, state.ifBlank { expectedState }),
+                    .putExtra(EXTRA_STATE, state),
             )
             finish()
             return true

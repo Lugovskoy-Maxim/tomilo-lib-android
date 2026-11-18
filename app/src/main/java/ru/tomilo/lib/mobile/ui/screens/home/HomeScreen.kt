@@ -3,6 +3,12 @@ package ru.tomilo.lib.mobile.ui.screens.home
 import android.text.Html
 import android.os.SystemClock
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -1104,9 +1110,9 @@ private fun HomeTitleCarousel(
         pageCount = { if (items.isEmpty()) 0 else Int.MAX_VALUE },
     )
     var descriptions by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var artPreviews by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var artPreviews by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
     var opening by remember { mutableStateOf(false) }
-    var zoomArt by remember { mutableStateOf<String?>(null) }
+    var zoomArt by remember { mutableStateOf<List<String>?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(pagerState.currentPage, items) {
@@ -1127,9 +1133,9 @@ private fun HomeTitleCarousel(
         if (key !in artPreviews && item.stableId().isNotBlank()) {
             val firstChapter = catalogRepository.chapters(item.stableId(), limit = 1).getOrNull()?.firstOrNull()
             val art = firstChapter?.stableId()?.takeIf { it.isNotBlank() }?.let { chapterId ->
-                catalogRepository.chapter(chapterId).getOrNull()?.pagePaths()?.firstOrNull()
+                catalogRepository.chapter(chapterId).getOrNull()?.pagePaths()?.filter(String::isNotBlank)?.distinct()?.take(6)
             }
-            if (!art.isNullOrBlank()) artPreviews = artPreviews + (key to art)
+            if (!art.isNullOrEmpty()) artPreviews = artPreviews + (key to art)
         }
     }
 
@@ -1171,28 +1177,7 @@ private fun HomeTitleCarousel(
                 onZoomArt = { zoomArt = it },
             )
         }
-        val frame = zoomArt
-        if (frame != null) {
-            BackHandler { zoomArt = null }
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.82f))
-                    .clickable { zoomArt = null },
-                contentAlignment = Alignment.Center,
-            ) {
-                TomiloCoverImage(
-                    source = frame,
-                    contentDescription = "Кадр из главы",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.84f)
-                        .clip(RoundedCornerShape(16.dp)),
-                )
-            }
-        }
+        zoomArt?.let { ChapterArtViewer(it, onDismiss = { zoomArt = null }) }
         Column(
             Modifier
                 .align(Alignment.CenterEnd)
@@ -1219,12 +1204,12 @@ private fun HomeTitleCarousel(
 private fun HomeTitleCarouselPage(
     item: CatalogTitleDto,
     description: String,
-    artPreview: String?,
+    artPreview: List<String>?,
     opening: Boolean,
     onBack: () -> Unit,
     onRead: () -> Unit,
     onOpenTitle: () -> Unit,
-    onZoomArt: (String) -> Unit,
+    onZoomArt: (List<String>) -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         TomiloCoverImage(
@@ -1363,14 +1348,14 @@ private fun HomeTitleCarouselPage(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TomiloCoverImage(
-                        source = preview,
-                        contentDescription = "Фрагмент рисовки ${item.displayTitle()}",
+                        source = preview.getOrElse(1) { preview.first() },
+                        contentDescription = null,
                         modifier = Modifier.width(112.dp).fillMaxHeight(),
-                        contentScale = ContentScale.Crop,
+                        contentScale = ContentScale.Fit,
                     )
                     Column(Modifier.padding(horizontal = 12.dp)) {
                         Text("Рисовка и персонажи", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Text("Фрагмент из первой главы", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                        Text("Открыть страницы · ${preview.size}", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -1461,4 +1446,60 @@ private fun htmlToPlain(raw: String?): String {
         .toString()
         .replace('\u00A0', ' ')
         .trim()
+}
+
+@Composable
+private fun ChapterArtViewer(pages: List<String>, onDismiss: () -> Unit) {
+    var index by remember(pages) { mutableStateOf(if (pages.size > 1) 1 else 0) }
+    var scale by remember(index) { mutableStateOf(1f) }
+    var offset by remember(index) { mutableStateOf(Offset.Zero) }
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(Modifier.fillMaxSize().background(TomiloBg).padding(12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Страница ${index + 1} из ${pages.size}", fontWeight = FontWeight.SemiBold)
+                androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Закрыть") }
+            }
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(8.dp)),
+            ) {
+                val transform = rememberTransformableState { zoom, pan, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 6f)
+                    val maxX = constraints.maxWidth * (scale - 1f) / 2f
+                    val maxY = constraints.maxHeight * (scale - 1f) / 2f
+                    offset = Offset(
+                        (offset.x + pan.x).coerceIn(-maxX, maxX),
+                        (offset.y + pan.y).coerceIn(-maxY, maxY),
+                    )
+                }
+                TomiloCoverImage(
+                    source = pages[index],
+                    contentDescription = "Страница ${index + 1} из главы",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().transformable(transform).graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
+                    },
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.TextButton(enabled = index > 0, onClick = { index-- }) { Text("Назад") }
+                androidx.compose.material3.TextButton(onClick = {
+                    scale = if (scale < 2f) 3f else 1f
+                    offset = Offset.Zero
+                }) { Text(if (scale < 2f) "Увеличить" else "Сбросить") }
+                androidx.compose.material3.TextButton(enabled = index < pages.lastIndex, onClick = { index++ }) { Text("Далее") }
+            }
+        }
+    }
 }

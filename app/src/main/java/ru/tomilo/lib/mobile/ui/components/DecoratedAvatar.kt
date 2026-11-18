@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.data.api.EquippedDecorationsDto
 import ru.tomilo.lib.mobile.ui.theme.TomiloPrimary
@@ -129,7 +128,7 @@ fun DecoratedAvatar(
                 fontWeight = FontWeight.Bold,
             )
             if (effectiveAvatar != null) {
-                AsyncImage(
+                DecorationMedia(
                     model = effectiveAvatar,
                     contentDescription = "Аватар ${username.orEmpty()}",
                     contentScale = ContentScale.Crop,
@@ -144,7 +143,7 @@ fun DecoratedAvatar(
         }
 
         if (!effectiveFrame.isNullOrBlank()) {
-            AsyncImage(
+            DecorationMedia(
                 model = frameImageUrl,
                 contentDescription = "Рамка аватара",
                 contentScale = ContentScale.Fit,
@@ -170,7 +169,7 @@ fun DecoratedAvatar(
         }
 
         if (!effectiveBadge.isNullOrBlank()) {
-            AsyncImage(
+            DecorationMedia(
                 model = badgeImageUrl,
                 contentDescription = "Значок профиля",
                 contentScale = ContentScale.Fit,

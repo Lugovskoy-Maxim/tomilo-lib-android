@@ -74,7 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import coil.compose.AsyncImage
+import ru.tomilo.lib.mobile.ui.components.DecorationMedia
 import ru.tomilo.lib.mobile.core.MediaUrl
 import ru.tomilo.lib.mobile.core.Premium
 import ru.tomilo.lib.mobile.data.api.LeaderboardUserDto
@@ -561,7 +561,7 @@ private fun TopLeaderCard(
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
-        color = Color.Transparent,
+        color = Color(0xFF24262C),
         shape = RoundedCornerShape(14.dp),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
@@ -570,12 +570,13 @@ private fun TopLeaderCard(
     ) {
         Box {
             if (backgroundModel != null) {
-                AsyncImage(
+                DecorationMedia(
                     model = backgroundModel,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.matchParentSize(),
                 )
+                Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f)))
             }
             Row(
                 modifier = Modifier
