@@ -43,6 +43,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.People
@@ -983,114 +984,86 @@ private fun HomePremiumPromotionBanner(
     onOpenPremium: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val accent = TomiloPrimary
     val gold = TomiloPremium
     Surface(
-        onClick = onOpenPremium,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(24.dp),
         color = TomiloSurface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, gold.copy(alpha = 0.42f)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, TomiloBorder),
     ) {
-        Column(
-            Modifier
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            gold.copy(alpha = 0.16f),
-                            Color.Transparent,
-                        ),
-                    ),
-                )
-                .padding(18.dp),
-        ) {
+        Column(Modifier.padding(18.dp)) {
             Row(
-                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "Tomilo Premium",
+                        color = accent,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Больше историй.\nБез ограничений.",
+                        color = TomiloText,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
                 Box(
-                    Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(gold.copy(alpha = 0.20f)),
+                    Modifier.size(68.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.20f), TomiloSurface))),
                     contentAlignment = Alignment.Center,
                 ) {
+                    Icon(Icons.Outlined.AutoStories, null, Modifier.size(38.dp), tint = gold)
                     Icon(
                         Icons.Default.Star,
                         contentDescription = null,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(7.dp).size(14.dp),
                         tint = gold,
-                        modifier = Modifier.size(26.dp),
                     )
                 }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Tomilo Premium",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = gold,
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(gold)
-                                .padding(horizontal = 6.dp, vertical = 1.dp),
-                        ) {
-                            Text(
-                                "VIP",
-                                color = Color.Black,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                            )
-                        }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (benefit in listOf(
+                    "Чтение без рекламы",
+                    "Загрузки без лимитов",
+                    "Скидка 20% в магазине",
+                )) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(5.dp).clip(RoundedCornerShape(50)).background(accent))
+                        Text(benefit, color = TomiloText, style = MaterialTheme.typography.bodyMedium)
                     }
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "Без рекламы, безлимитный офлайн и скидка 20% в магазине",
-                        color = TomiloMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = onOpenPremium,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = gold,
+                    contentColor = Color(0xFF1E1300),
+                ),
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "от 150 ₽ / мес",
-                        color = gold,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp,
-                    )
-                    Text(
-                        "Отменить можно в любой момент",
-                        color = TomiloMuted,
-                        fontSize = 11.sp,
-                    )
-                }
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(gold)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                ) {
-                    Text(
-                        "Попробовать",
-                        color = Color(0xFF1E1300),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Black,
-                    )
-                }
+                Text("Подключить от 150 ₽ / мес", fontWeight = FontWeight.Bold)
             }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Отмена в любой момент",
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                color = TomiloMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
