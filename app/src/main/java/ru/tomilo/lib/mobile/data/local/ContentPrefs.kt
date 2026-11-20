@@ -22,6 +22,7 @@ data class ContentSettings(
     /** null = не отвечал; true = 18+; false = младше 18 */
     val isAdultUser: Boolean? = null,
     val showAdultContent: Boolean = false,
+    val showHiddenAdminTitles: Boolean = false,
 )
 
 class ContentPrefs(private val context: Context) {
@@ -29,6 +30,7 @@ class ContentPrefs(private val context: Context) {
     private val answeredKey = booleanPreferencesKey("age_gate_answered")
     private val adultUserKey = intPreferencesKey("is_adult_user") // 0 unknown, 1 yes, 2 no
     private val showAdultKey = booleanPreferencesKey("show_adult")
+    private val showHiddenAdminTitlesKey = booleanPreferencesKey("show_hidden_admin_titles")
 
     val settingsFlow: Flow<ContentSettings> = context.contentDataStore.data.map { p ->
         val adultFlag = p[adultUserKey]
@@ -41,6 +43,7 @@ class ContentPrefs(private val context: Context) {
                 else -> null
             },
             showAdultContent = p[showAdultKey] == true,
+            showHiddenAdminTitles = p[showHiddenAdminTitlesKey] == true,
         )
     }
 
@@ -57,6 +60,10 @@ class ContentPrefs(private val context: Context) {
             // по умолчанию 18+ выкл; взрослый может включить позже
             prefs[showAdultKey] = false
         }
+    }
+
+    suspend fun setShowHiddenAdminTitles(show: Boolean) {
+        context.contentDataStore.edit { prefs -> prefs[showHiddenAdminTitlesKey] = show }
     }
 
     suspend fun setShowAdult(show: Boolean) {

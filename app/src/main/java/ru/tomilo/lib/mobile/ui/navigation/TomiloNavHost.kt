@@ -630,6 +630,7 @@ fun TomiloNavHost(container: AppContainer) {
             composable(Routes.Admin) {
                 AdminScreen(
                     adminRepository = container.adminRepository,
+                    contentPrefs = container.contentPrefs,
                     onBack = { navController.popBackStack() },
                     onOpenTitle = { id, slug ->
                         navController.navigate(Routes.title(slug?.takeIf { it.isNotBlank() } ?: id))

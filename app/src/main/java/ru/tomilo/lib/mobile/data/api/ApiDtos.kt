@@ -528,8 +528,7 @@ data class AdminCommentVisibilityRequest(val isHidden: Boolean)
 @Serializable
 data class AdminTitlesPageDto(
     val titles: List<AdminTitleDto> = emptyList(),
-    val total: Int = 0,
-    val page: Int = 1,
+    val pagination: PaginationDto? = null,
 )
 
 @Serializable

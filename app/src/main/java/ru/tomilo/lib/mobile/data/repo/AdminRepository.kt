@@ -19,7 +19,7 @@ import ru.tomilo.lib.mobile.data.api.AdminReportStatusRequest
 import ru.tomilo.lib.mobile.data.api.AdminRoleRequest
 import ru.tomilo.lib.mobile.data.api.AdminSiteSettingsDto
 import ru.tomilo.lib.mobile.data.api.AdminSiteSettingsUpdate
-import ru.tomilo.lib.mobile.data.api.AdminTitleDto
+import ru.tomilo.lib.mobile.data.api.AdminTitlesPageDto
 import ru.tomilo.lib.mobile.data.api.AdminTitleUpdateRequest
 import ru.tomilo.lib.mobile.data.api.AdminUserDto
 import ru.tomilo.lib.mobile.data.api.AutoParseCreateRequest
@@ -81,12 +81,19 @@ class AdminRepository(private val api: TomiloApi) {
         if (!res.success) error(res.message ?: "Не удалось удалить")
     }
 
-    suspend fun titles(page: Int = 1, search: String? = null): Result<List<AdminTitleDto>> =
-        runCatchingCancellable {
-            val res = api.adminTitles(page = page, search = search?.ifBlank { null })
-            if (!res.success) error(res.message ?: "Ошибка тайтлов")
-            res.data?.titles.orEmpty()
-        }
+    suspend fun titles(
+        page: Int,
+        search: String,
+        showHidden: Boolean,
+    ): Result<AdminTitlesPageDto> = runCatchingCancellable {
+        val res = api.adminTitles(
+            page = page,
+            search = search.trim().ifBlank { null },
+            isPublished = if (showHidden) null else true,
+        )
+        if (!res.success) error(res.message ?: "Ошибка тайтлов")
+        res.data ?: AdminTitlesPageDto()
+    }
 
     suspend fun clearCache(): Result<String> = runCatchingCancellable {
         val res = api.adminClearCache()

@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,9 +51,12 @@ import ru.tomilo.lib.mobile.data.api.AdminSiteSettingsDto
 import ru.tomilo.lib.mobile.data.api.AdminSiteSettingsUpdate
 import ru.tomilo.lib.mobile.data.api.AdminTitleDto
 import ru.tomilo.lib.mobile.data.api.AdminTitleUpdateRequest
+import ru.tomilo.lib.mobile.data.api.AdminTitlesPageDto
 import ru.tomilo.lib.mobile.data.api.AdminUserDto
 import ru.tomilo.lib.mobile.data.api.AutoParseJobDto
 import ru.tomilo.lib.mobile.data.api.SourceCandidateDto
+import ru.tomilo.lib.mobile.data.local.ContentPrefs
+import ru.tomilo.lib.mobile.data.local.ContentSettings
 import ru.tomilo.lib.mobile.data.repo.AdminRepository
 import ru.tomilo.lib.mobile.ui.components.EmptyState
 import ru.tomilo.lib.mobile.ui.components.TomiloSwitch
@@ -82,6 +86,7 @@ private enum class AdminTab(val label: String) {
 @Composable
 fun AdminScreen(
     adminRepository: AdminRepository,
+    contentPrefs: ContentPrefs,
     onBack: () -> Unit,
     onOpenTitle: (id: String, slug: String?) -> Unit,
     onOpenUser: (id: String) -> Unit = {},
@@ -92,54 +97,61 @@ fun AdminScreen(
     var dashboard by remember { mutableStateOf<AdminDashboardDto?>(null) }
     var users by remember { mutableStateOf<List<AdminUserDto>>(emptyList()) }
     var comments by remember { mutableStateOf<List<AdminCommentDto>>(emptyList()) }
-    var titles by remember { mutableStateOf<List<AdminTitleDto>>(emptyList()) }
+    var titles by remember { mutableStateOf(AdminTitlesPageDto()) }
     var reports by remember { mutableStateOf<List<AdminReportDto>>(emptyList()) }
     var jobs by remember { mutableStateOf<List<AutoParseJobDto>>(emptyList()) }
     var settings by remember { mutableStateOf<AdminSiteSettingsDto?>(null) }
     var activity by remember { mutableStateOf<List<String>>(emptyList()) }
     var userSearch by remember { mutableStateOf("") }
     var titleSearch by remember { mutableStateOf("") }
+    var submittedTitleSearch by remember { mutableStateOf("") }
+    var titlePage by remember { mutableIntStateOf(1) }
+    val contentSettings by contentPrefs.settingsFlow.collectAsState(initial = ContentSettings())
+    val showHiddenTitles = contentSettings.showHiddenAdminTitles
     var toolMsg by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     fun flash(msg: String?) { error = msg?.let(::userFacingError) }
 
-    fun load() {
-        scope.launch {
-            loading = true
-            error = null
-            when (tab) {
-                AdminTab.Reports -> adminRepository.reports()
-                    .onSuccess { reports = it }
-                    .onFailure { error = it.toUserFacingError("Не удалось загрузить жалобы.") }
-                AdminTab.Users -> adminRepository.users(search = userSearch.ifBlank { null })
-                    .onSuccess { users = it }
-                    .onFailure { error = it.toUserFacingError("Не удалось загрузить пользователей.") }
-                AdminTab.AutoSearch -> adminRepository.autoJobs()
-                    .onSuccess { jobs = it }
-                    .onFailure { error = it.toUserFacingError("Не удалось загрузить задания автопоиска.") }
-                AdminTab.Site -> adminRepository.siteSettings()
-                    .onSuccess { settings = it }
-                    .onFailure { error = it.toUserFacingError("Не удалось загрузить настройки сайта.") }
-                AdminTab.Titles -> adminRepository.titles(search = titleSearch.ifBlank { null })
-                    .onSuccess { titles = it }
+    LaunchedEffect(tab, reload, titlePage, submittedTitleSearch, showHiddenTitles.takeIf { tab == AdminTab.Titles }) {
+        loading = true
+        error = null
+        when (tab) {
+            AdminTab.Reports -> adminRepository.reports()
+                .onSuccess { reports = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить жалобы.") }
+            AdminTab.Users -> adminRepository.users(search = userSearch.ifBlank { null })
+                .onSuccess { users = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить пользователей.") }
+            AdminTab.AutoSearch -> adminRepository.autoJobs()
+                .onSuccess { jobs = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить задания автопоиска.") }
+            AdminTab.Site -> adminRepository.siteSettings()
+                .onSuccess { settings = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить настройки сайта.") }
+            AdminTab.Titles -> {
+                titles = AdminTitlesPageDto()
+                adminRepository.titles(titlePage, submittedTitleSearch, showHiddenTitles)
+                    .onSuccess {
+                        titles = it
+                        val lastPage = (it.pagination?.pages ?: 1).coerceAtLeast(1)
+                        if (titlePage > lastPage) titlePage = lastPage
+                    }
                     .onFailure { error = it.toUserFacingError("Не удалось загрузить тайтлы.") }
-                AdminTab.Dashboard -> {
-                    adminRepository.dashboard().onSuccess { dashboard = it }
-                        .onFailure { error = it.toUserFacingError("Не удалось загрузить сводку.") }
-                    adminRepository.activity().onSuccess { activity = it }
-                }
-                AdminTab.Comments -> adminRepository.comments()
-                    .onSuccess { comments = it }
-                    .onFailure { error = it.toUserFacingError("Не удалось загрузить комментарии.") }
-                AdminTab.Tools -> Unit
             }
-            loading = false
+            AdminTab.Dashboard -> {
+                adminRepository.dashboard().onSuccess { dashboard = it }
+                    .onFailure { error = it.toUserFacingError("Не удалось загрузить сводку.") }
+                adminRepository.activity().onSuccess { activity = it }
+            }
+            AdminTab.Comments -> adminRepository.comments()
+                .onSuccess { comments = it }
+                .onFailure { error = it.toUserFacingError("Не удалось загрузить комментарии.") }
+            AdminTab.Tools -> Unit
         }
+        loading = false
     }
-
-    LaunchedEffect(tab, reload) { load() }
 
     Scaffold(
         containerColor = TomiloBg,
@@ -294,10 +306,24 @@ fun AdminScreen(
                     },
                 )
                 tab == AdminTab.Titles -> TitlesPane(
-                    titles = titles,
+                    titles = titles.titles,
+                    page = titlePage,
+                    pageCount = (titles.pagination?.pages ?: 1).coerceAtLeast(1),
+                    onPageChange = { titlePage = it },
+                    showHidden = showHiddenTitles,
+                    onShowHiddenChange = { show ->
+                        scope.launch {
+                            contentPrefs.setShowHiddenAdminTitles(show)
+                            titlePage = 1
+                        }
+                    },
                     search = titleSearch,
                     onSearchChange = { titleSearch = it },
-                    onSearch = { reload += 1 },
+                    onSearch = {
+                        submittedTitleSearch = titleSearch.trim()
+                        titlePage = 1
+                        reload += 1
+                    },
                     onOpen = onOpenTitle,
                     onSave = { id, body ->
                         scope.launch {
@@ -760,6 +786,11 @@ private fun CommentsPane(
 @Composable
 private fun TitlesPane(
     titles: List<AdminTitleDto>,
+    page: Int,
+    pageCount: Int,
+    onPageChange: (Int) -> Unit,
+    showHidden: Boolean,
+    onShowHiddenChange: (Boolean) -> Unit,
     search: String,
     onSearchChange: (String) -> Unit,
     onSearch: () -> Unit,
@@ -784,9 +815,27 @@ private fun TitlesPane(
             Spacer(Modifier.padding(4.dp))
             Button(onClick = onSearch) { Text("OK") }
         }
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            ToggleRow("Показывать скрытые тайтлы", showHidden, onShowHiddenChange)
+        }
         if (titles.isEmpty()) {
-            EmptyState(title = "Пусто", message = "Другой запрос.")
+            EmptyState(title = "Тайтлы не найдены", message = "Попробуйте изменить запрос.")
             return
+        }
+        if (pageCount > 1) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { onPageChange(page - 1) }, enabled = page > 1) {
+                    Text("Назад")
+                }
+                Text("$page / $pageCount")
+                TextButton(onClick = { onPageChange(page + 1) }, enabled = page < pageCount) {
+                    Text("Далее")
+                }
+            }
         }
         LazyColumn(contentPadding = ScreenPadding) {
             items(titles, key = { it.stableId() }) { t ->
@@ -796,7 +845,7 @@ private fun TitlesPane(
                         cover = t.coverPath(),
                         type = t.type,
                         totalChapters = t.totalChapters,
-                        subtitle = if (t.isPublished == false) "Черновик"
+                        subtitle = if (t.isPublished != true) "Скрыт"
                         else t.status?.let { ru.tomilo.lib.mobile.core.GenreLabels.status(it) },
                         onClick = { onOpen(t.stableId(), t.slug) },
                     )
@@ -809,7 +858,7 @@ private fun TitlesPane(
                             name = t.displayName()
                             type = t.type.orEmpty()
                             status = t.status.orEmpty()
-                            published = t.isPublished != false
+                            published = t.isPublished == true
                         }) { Text("Править") }
                         OutlinedButton(onClick = { onDelete(t.stableId()) }) { Text("Удалить") }
                     }

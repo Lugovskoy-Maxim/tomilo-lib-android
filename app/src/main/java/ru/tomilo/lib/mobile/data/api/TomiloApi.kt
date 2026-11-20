@@ -611,11 +611,12 @@ interface TomiloApi {
     @DELETE("admin/comments/{id}")
     suspend fun adminDeleteComment(@Path("id") id: String): ApiResponse<JsonElement>
 
-    @GET("admin/titles")
+    @GET("titles/admin")
     suspend fun adminTitles(
         @Query("page") page: Int = 1,
         @Query("limit") limit: Int = 30,
         @Query("search") search: String? = null,
+        @Query("isPublished") isPublished: Boolean? = null,
     ): ApiResponse<AdminTitlesPageDto>
 
     @GET("admin/comments/stats")
